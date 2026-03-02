@@ -17,7 +17,10 @@ requires-python = ">=3.13"
 dependencies = [
     "rich",
     "packaging",
-    "typer"
+    "typer",
+    "PyYAML",
+    "litestar",
+    "uvicorn"
 ]
 
 [tool.hatch.version]
@@ -46,6 +49,10 @@ dev = [
 [project.urls]
 Documentation = "https://github.com/renefritze/corvix"
 Source = "https://github.com/renefritze/corvix"
+
+[project.scripts]
+corvix = "corvix.cli:main"
+corvix-web = "corvix.web.app:run"
 
 [tool.ruff]
 target-version = "py313"

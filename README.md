@@ -30,7 +30,71 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 
 ## Features
 
-- TODO
+- Local GitHub notification ingestion with configurable polling (`poll` and `watch`)
+- Strict separation between ingestion (`corvix.ingestion`), automation/actions (`corvix.rules`, `corvix.actions`, `corvix.scoring`), and presentation (`corvix.presentation`, `corvix.web`)
+- Multiple dashboards with configurable sorting and grouping
+- Global and per-repository rules for filtering and auto mark-read
+- Custom scoring model for ranking notifications
+- YAML configuration with example committed and local override ignored by git
+- Litestar website dashboard with periodic auto-refresh
+- Docker Compose setup for `web`, `poller`, and `db`
+
+## Quickstart
+
+1. Create local config from the committed example:
+
+    ```bash
+    cp config/corvix.example.yaml config/corvix.yaml
+    ```
+
+2. Set your GitHub token:
+
+    ```bash
+    export GITHUB_TOKEN=ghp_your_token
+    ```
+
+3. Run one poll cycle (dry-run actions by default):
+
+    ```bash
+    uv run corvix --config config/corvix.yaml poll
+    ```
+
+4. Render terminal dashboards from local cache:
+
+    ```bash
+    uv run corvix --config config/corvix.yaml dashboard
+    ```
+
+5. Run website dashboard locally (with auto-reload enabled):
+
+    ```bash
+    uv run corvix --config config/corvix.yaml serve --reload
+    ```
+
+## Docker Compose
+
+1. Copy environment and config:
+
+    ```bash
+    cp .env.example .env
+    cp config/corvix.example.yaml config/corvix.yaml
+    ```
+
+2. Set `GITHUB_TOKEN` inside `.env`.
+
+3. Start services:
+
+    ```bash
+    docker compose up --build
+    ```
+
+4. Open `http://localhost:8000`.
+
+Notes:
+
+- `web` runs Litestar via `uvicorn --reload` and watches `/app/src` for code changes.
+- `poller` runs the notification watch loop and updates the shared `/data/notifications.json`.
+- `db` is provisioned for future persistence extensions (audit/history/user settings).
 
 ## After generating your project
 
@@ -38,4 +102,3 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - request install for the codecov.io app in [github project settings](https://github.com/renefritze/corvix/settings/installations)
 - configure codecov.io in [codecov.io settings](https://codecov.io/gh/renefritze/corvix/settings)
 - add the `CODECOV_TOKEN` secret in [github project settings](https://github.com/renefritze/corvix/settings/secrets/actions)
-
