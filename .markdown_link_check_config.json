@@ -1,0 +1,30 @@
+{
+    "__comment__": "https://github.com/tcort/markdown-link-check#config-file-format",
+    "ignorePatterns": [
+        {
+            "__comment__": "The internet is broken these days, only check internal links :/",
+            "pattern": "^https://"
+        },
+        {
+            "__comment__": "The internet is broken these days, only check internal links :/",
+            "pattern": "^http://"
+        },
+        {
+            "pattern": "#indices-and-tables"
+        },
+        {
+            "pattern": "exhale/library_root"
+        },
+        {
+            "pattern": "^mailto:"
+        },
+        {
+            "__comment__": "Ignore template variables - unencoded form",
+            "pattern": "\\[\\[.*\\]\\]"
+        },
+        {
+            "__comment__": "Ignore template variables - URL-encoded form (%5B%5B...%5D%5D)",
+            "pattern": "%5B%5B.*%5D%5D"
+        }
+    ]
+}

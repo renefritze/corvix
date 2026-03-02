@@ -1,0 +1,185 @@
+---
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+default_stages: [pre-commit]
+repos:
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: ec368acd16deee9c560c105ab6d27db4ee19a5ec  # frozen: 0.36.2
+  hooks:
+  - id: check-github-actions
+    additional_dependencies:
+    - pip_system_certs==4.0
+  - id: check-dependabot
+    additional_dependencies:
+    - pip_system_certs==4.0
+  - id: check-jsonschema
+    alias: check-vcpkg-json
+    name: Check vcpkg manifest
+    files: ^vcpkg\.json$
+    args: [--schemafile, 'https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json']
+    additional_dependencies:
+    - pip_system_certs==4.0
+  - id: check-jsonschema
+    alias: check-markdownlint-cli2-config
+    name: Validate markdownlint-cli2 config
+    files: ^\.markdownlint-cli2\.jsonc$
+    types_or: [file]
+    # Ensure to align the schema version with the version of markdownlint-cli2 used below!
+    args:
+    - --schemafile
+    - https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.21.0/schema/markdownlint-cli2-config-schema.json
+    - --force-filetype
+    - json5
+    additional_dependencies:
+    - json5==0.13.0
+    - pip_system_certs==4.0
+- repo: https://github.com/pre-commit/mirrors-clang-format
+  # This should always match with the version shipped with Visual Studio installed in Azure DevOps images
+  rev: cb4e971b802ef21263cdbf210e7d411123452a72  # frozen: v19.1.5
+  hooks:
+  - id: clang-format
+    types_or: [c, c++]
+    exclude: .github
+- repo: https://github.com/cheshirekow/cmake-format-precommit
+  rev: e2c2116d86a80e72e7146a06e68b7c228afc6319  # frozen: v0.6.13
+  hooks:
+  - id: cmake-format
+    additional_dependencies: [pyyaml>=5.1]  # see https://github.com/cheshirekow/cmake-format-precommit/pull/4#issuecomment-943444582
+    args: [-i, --config-files=.cmake_format.py]
+    # 1. these are auto-generated from a Python script and should not be formatted
+    # 2. the Windows toolchain files are not formatted to avoid conflicts with upstream
+    exclude: (.vcpkg-overlays/toolchains/.*_include.cmake|cmake/toolchains/msvc/.*)$
+  - id: cmake-lint
+    additional_dependencies: [pyyaml>=5.1]  # see https://github.com/cheshirekow/cmake-format-precommit/pull/4#issuecomment-943444582
+    args: [--config-files=.cmake_format.py]
+    exclude: (.vcpkg-overlays/toolchains/.*_include.cmake|cmake/toolchains/msvc/.*)$
+# Should stay before yamlfmt because the pin-github-actions hook modifies YAML files
+- repo: https://github.com/arup-group/oasys-pre-commit-hooks
+  rev: db3c7e17f2cca2aceb7e682db082724a40ea40e6  # frozen: 2026.5.0
+  hooks:
+  - id: codecov-config-validator
+    additional_dependencies:
+    - pip_system_certs==4.0
+  - id: generate-cmake-presets
+  - id: validate-cmake-presets
+    additional_dependencies:
+    - pip_system_certs==4.0
+  - id: pin-github-actions
+    args: [--verbose]
+    additional_dependencies:
+    - pip_system_certs==4.0
+- repo: https://github.com/google/yamlfmt
+  rev: b5ca1890231d5e1e5181fef75a1be609d1e25029  # frozen: v0.21.0
+  hooks:
+  - id: yamlfmt
+    exclude: (.clang-(format|tidy)|tests/python/test_.*)
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: 0839f92796ae388643a08a21640a029b322be5c2  # frozen: v0.15.2
+  hooks:
+  - id: ruff-check
+  - id: ruff-format
+  # manually run `check` and `format` on the preset generator script
+  - id: ruff-check
+    alias: ruff-check-presets
+    name: Check .CMakePresets.json.in
+    files: .CMakePresets.json.in
+    # the hook defines `types_or` which we cannot overrride with a single `types`
+    types_or: [file]
+  - id: ruff-format
+    name: Format .CMakePresets.json.in
+    alias: ruff-format-presets
+    files: .CMakePresets.json.in
+    types_or: [file]
+- repo: https://github.com/DavidAnson/markdownlint-cli2
+  # Ensure to update the schema version above to match this version here!
+  rev: 5387279b3b4c24822c0f86d4df4f28b37e3e8992  # frozen: v0.21.0
+  hooks:
+  - id: markdownlint-cli2
+    types: [markdown]
+    # Exclude GitHub issue templates (follow GitHub's H3 convention)
+    exclude: ^(LICENSE\.md|\.github/ISSUE_TEMPLATE/.*)$
+    args: [--config=.markdownlint-cli2.jsonc, --fix]
+- repo: https://github.com/jackdewinter/pymarkdown
+  rev: c5755e272a13da06be38d74052658af46c1ee447  # frozen: v0.9.35
+  hooks:
+  - id: pymarkdown
+    name: PyMarkdown linter
+    types: [markdown]
+    # Exclude GitHub issue templates (follow GitHub's H3 convention)
+    # Exclude Jupyter notebooks: PyMarkdown reformats YAML frontmatter indentation
+    # despite disable comments, breaking Jupytext execution. markdownlint-cli2 still validates these.
+    exclude: ^(LICENSE\.md|\.github/ISSUE_TEMPLATE/.*|docs/examples/.*)$
+    args: [fix]
+    pass_filenames: true
+# The markdown-link-check can't access internal or private repos, see
+# .markdown_link_check_config.json on how to exclude more than the
+# github.com/arup-group
+- repo: https://github.com/tcort/markdown-link-check
+  rev: ffc61540dea52bad1c41cfeedcf26c53ad9447ba  # frozen: v3.14.2
+  hooks:
+  - id: markdown-link-check
+    args: [--quiet, --config=.markdown_link_check_config.json]
+    stages: [pre-commit]
+    exclude: LICENSE.md
+- repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+  rev: 694e2c0dfb4253d51f3c6c54b8f9fec0a16764dc  # frozen: v1.7.11.24
+  hooks:
+  - id: actionlint
+    additional_dependencies: [pyflakes>=3.0.1, shellcheck-py>=0.9.0.5]
+- repo: local
+  hooks:
+  - id: no-catch-in-src
+    name: Prohibit Catch2 includes in src dir
+    language: pygrep
+    files: ^src/
+    entry: \#include\ [<"]catch2\/
+- repo: https://github.com/shellcheck-py/shellcheck-py
+  rev: 745eface02aef23e168a8afb6b5737818efbea95  # frozen: v0.11.0.1
+  hooks:
+  - id: shellcheck
+- repo: https://github.com/editorconfig-checker/editorconfig-checker.python
+  rev: 11ea70506fd878d26129b2b87746fd1a1f6b561b  # frozen: 3.6.0
+  hooks:
+  - id: editorconfig-checker
+    alias: ec
+# this should go last since it will fix line endings broken by other tools
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+  hooks:
+  - id: no-commit-to-branch
+    args: [--branch, main]
+  - id: trailing-whitespace
+    # The pre-commit check on CI detects some whitespace changes if we include .github
+    stages: [pre-commit]
+    exclude: .github
+  - id: check-added-large-files
+    stages: [pre-commit]
+  - id: check-case-conflict
+  - id: mixed-line-ending
+    args: [--fix=auto]
+    stages: [pre-commit]
+  - id: end-of-file-fixer
+    stages: [pre-commit]
+  - id: check-yaml
+  - id: check-xml
+  - id: check-json
+  - id: check-toml
+  - id: pretty-format-json
+    args: [--autofix, --no-sort-keys, --indent=4]
+    exclude: .*\.ipynb$
+  - id: check-symlinks
+  - id: debug-statements
+  - id: fix-byte-order-marker
+- repo: local
+  hooks:
+  - id: reject-user-presets
+    name: CMakeUserPresets.json must not be committed
+    entry: reject CMakeUserPresets.json
+    language: fail
+    files: CMakeUserPresets.json
+- repo: https://github.com/arup-group/oasys-jira-actions
+  rev: fa259c8434ceb7931a63bdcb24c5d1ecc1758565  # frozen: v6.0.3
+  hooks:
+  - id: add_ticket_id
+    stages: [prepare-commit-msg]

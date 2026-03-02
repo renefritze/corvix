@@ -1,0 +1,66 @@
+---
+name: Docs
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_docs:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+      with:
+        submodules: recursive
+        token: ${{ secrets.OASYS_REPO_SCOPE_GITHUB_PAT }}
+        # we rely on git describe to create our project version, that needs all commits since the most recent tag
+        # there's no easy way to only get those -> fetch all
+        fetch-depth: 0
+    - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
+      name: Setup UV + Python
+      with:
+        enable-cache: true
+        cache-dependency-glob: |
+          **/requirements*.txt
+          **/pyproject.toml
+          **/uv.lock
+        python-version: '3.12'
+    - name: Install doc building dependencies
+      run: |
+        sudo apt-get install -y doxygen ninja-build
+    - name: Configure git to allow access to internal repos
+      shell: bash -l {0}
+      # this mirrors what actions/checkout does to allow cloning internal repos
+      run: |
+        git config --global http.https://github.com/arup-group/.extraheader "AUTHORIZATION: basic $(printf "x-access-token:%s" "${{secrets.OASYS_REPO_SCOPE_GITHUB_PAT}}" | base64 -w0)"
+    - name: Install dependencies docs
+      run: |
+        uv sync --group docs
+    - name: Build docs
+      run: |
+        make -C docs html
+    - name: Upload html artifact
+      uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b  # v4.0.0
+      with:
+        path: docs/_build/html/
+  deploy_docs:
+    runs-on: ubuntu-22.04
+    needs: [build_docs]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write  # to deploy to Pages
+      id-token: write  # to verify the deployment originates from an appropriate source
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@7a9bd943aa5e5175aeb8502edcc6c1c02d398e10  # v4.0.2

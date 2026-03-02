@@ -1,0 +1,55 @@
+---
+# This workflow will upload a Python Package using Twine when a release is created
+# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
+
+name: Upload Python Package
+
+on:
+  push:
+    tags:
+    - v*
+
+jobs:
+  pypi:
+
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+    - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
+      name: Setup UV + Python
+      with:
+        enable-cache: true
+        cache-dependency-glob: |
+          **/requirements*.txt
+          **/pyproject.toml
+          **/uv.lock
+    - name: Build dist artefacts
+      run: |
+        uv sync
+        uv run python -m build --sdist --wheel --outdir dist/
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc  # v1.12.4
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_TOKEN }}
+  github:
+    name: Create Release
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e  # v1.1.4
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+        body: |
+          Changes in this Release
+          - First Change
+          - Second Change
+        draft: true
+        prerelease: false
