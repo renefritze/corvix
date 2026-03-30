@@ -56,6 +56,7 @@ def run_poll_cycle(
             actions=evaluation.actions,
             gateway=client,
             apply_actions=apply_actions,
+            dismiss_gateway=client,
         )
         errors.extend(action_result.errors)
         action_count += len(action_result.actions_taken)

@@ -655,14 +655,14 @@ Phase B: Database layer ─────┬─── Phase C: Two-way dismiss
 
 ### Recommended sequence
 
-| Step | Phase | Scope | Dependencies |
-|---|---|---|---|
-| 1 | A | Theming: CSS variable presets, theme picker in SPA, `localStorage` persistence | None |
-| 2 | B | Database: schema, alembic, `StorageBackend` protocol, `PostgresStorage`, `migrate-cache` CLI command | None |
-| 3 | C | Two-way dismiss: `dismiss_thread()` API method, `dismiss` action type, `POST /api/notifications/{id}/dismiss`, SPA dismiss button | Step 2 (for `dismissed` column) |
-| 4 | D | Multi-user auth: session middleware, register/login/logout endpoints, per-user polling, token encryption | Step 2 |
-| 5 | A+ | Theming DB persistence: `PUT /api/preferences/theme`, load from `user_preferences` table | Steps 1 + 4 |
-| 6 | E | Browser notifications: service worker, VAPID, push subscriptions, trigger logic in poller | Steps 2 + 4 |
+| Step | Phase | Status | Scope | Dependencies |
+|---|---|---|---|---|
+| 1 | A | ✅ Done | Theming: CSS variable presets, theme picker in SPA, `localStorage` persistence | None |
+| 2 | B | ✅ Done | Database: schema, alembic, `StorageBackend` protocol, `PostgresStorage`, `migrate-cache` CLI command | None |
+| 3 | C | ✅ Done | Two-way dismiss: `dismiss_thread()` API method, `dismiss` action type, `POST /api/notifications/{id}/dismiss`, SPA dismiss button | Step 2 (for `dismissed` column) |
+| 4 | D | Pending | Multi-user auth: session middleware, register/login/logout endpoints, per-user polling, token encryption | Step 2 |
+| 5 | A+ | Pending | Theming DB persistence: `PUT /api/preferences/theme`, load from `user_preferences` table | Steps 1 + 4 |
+| 6 | E | Pending | Browser notifications: service worker, VAPID, push subscriptions, trigger logic in poller | Steps 2 + 4 |
 
 Steps 1 and 2 can be done in parallel. Step 3 can be built and tested in single-user mode before step 4 lands.
 

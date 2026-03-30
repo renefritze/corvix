@@ -7,11 +7,12 @@ from os import environ
 from pathlib import Path
 
 import uvicorn
-from litestar import Litestar, Response, get
+from litestar import Litestar, Response, get, post
 from litestar.exceptions import HTTPException
 
 from corvix.config import AppConfig, DashboardSpec, load_config
 from corvix.dashboarding import build_dashboard_data
+from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
 
 THEMES: dict[str, dict[str, str]] = {
@@ -116,8 +117,20 @@ INDEX_HTML = """\
     th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .unread { color: var(--ok); font-weight: 700; }
     .empty { padding: 1rem; color: var(--muted); }
+    .dismiss-btn {
+      background: none; border: 1px solid var(--line); color: var(--muted);
+      cursor: pointer; padding: 0.15rem 0.4rem; border-radius: 0.3rem; font-size: 0.85rem;
+    }
+    .dismiss-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .undo-toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--surface);
+      border: 1px solid var(--line); padding: 0.6rem 1rem; border-radius: 0.5rem;
+      box-shadow: 0 2px 8px #00000020; display: flex; gap: 0.75rem; align-items: center;
+      font-size: 0.9rem; z-index: 100;
+    }
+    .undo-toast button { background: var(--accent); color: #fff; border: none; padding: 0.25rem 0.6rem; border-radius: 0.3rem; cursor: pointer; }
     @media (max-width: 900px) {
-      th:nth-child(6), td:nth-child(6), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9) { display: none; }
+      th:nth-child(6), td:nth-child(6), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9), th:nth-child(10), td:nth-child(10) { display: none; }
     }
   </style>
 </head>
@@ -182,7 +195,7 @@ INDEX_HTML = """\
         return `<section><h2>${group.name}</h2><div class="empty">No notifications.</div></section>`;
       }
       const rows = group.items.map((item) => `
-        <tr>
+        <tr data-thread-id="${item.thread_id}">
           <td>${item.score.toFixed(2)}</td>
           <td>${item.updated_at}</td>
           <td>${item.repository}</td>
@@ -192,6 +205,7 @@ INDEX_HTML = """\
           <td class="${item.unread ? "unread" : ""}">${item.unread ? "yes" : "no"}</td>
           <td>${item.matched_rules.join(", ")}</td>
           <td>${item.actions_taken.join(", ")}</td>
+          <td><button class="dismiss-btn" data-thread-id="${item.thread_id}" title="Dismiss">&times;</button></td>
         </tr>
       `).join("");
       return `
@@ -209,6 +223,7 @@ INDEX_HTML = """\
                 <th>Unread</th>
                 <th>Rules</th>
                 <th>Actions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -251,6 +266,44 @@ INDEX_HTML = """\
       refresh();
     });
     refreshButton.addEventListener("click", refresh);
+
+    // Dismiss with 3-second undo grace period
+    const pendingDismissals = new Map(); // threadId -> {timer, row, toast}
+
+    function showUndoToast(threadId, row) {
+      const toast = document.createElement("div");
+      toast.className = "undo-toast";
+      toast.innerHTML = `Dismissed. <button>Undo</button>`;
+      document.body.appendChild(toast);
+      toast.querySelector("button").addEventListener("click", () => {
+        clearTimeout(pendingDismissals.get(threadId)?.timer);
+        pendingDismissals.delete(threadId);
+        row.style.display = "";
+        toast.remove();
+      });
+      return toast;
+    }
+
+    async function commitDismiss(threadId, toast) {
+      pendingDismissals.delete(threadId);
+      toast.remove();
+      try {
+        await fetch(`/api/notifications/${encodeURIComponent(threadId)}/dismiss`, { method: "POST" });
+      } catch (_) { /* best effort */ }
+    }
+
+    document.addEventListener("click", (event) => {
+      const btn = event.target.closest(".dismiss-btn");
+      if (!btn) return;
+      const threadId = btn.dataset.threadId;
+      const row = btn.closest("tr");
+      if (!row || !threadId) return;
+      if (pendingDismissals.has(threadId)) return;
+      row.style.display = "none";
+      const toast = showUndoToast(threadId, row);
+      const timer = setTimeout(() => commitDismiss(threadId, toast), 3000);
+      pendingDismissals.set(threadId, { timer, row, toast });
+    });
 
     refresh();
     setInterval(refresh, 15000);
@@ -302,6 +355,30 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     return payload
 
 
+@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=False)
+def dismiss_notification(thread_id: str) -> Response[None]:
+    """Dismiss a notification thread (removes it from the GitHub inbox).
+
+    Calls DELETE /notifications/threads/{id} on GitHub, then marks the record
+    as dismissed in local storage. Returns 204 No Content on success.
+    """
+    config = _load_runtime_config()
+    token = environ.get(config.github.token_env)
+    if not token:
+        msg = f"GitHub token env var '{config.github.token_env}' is not set."
+        raise HTTPException(status_code=500, detail=msg)
+    client = GitHubNotificationsClient(token=token, api_base_url=config.github.api_base_url)
+    try:
+        client.dismiss_thread(thread_id)
+    except Exception as error:
+        msg = f"Failed to dismiss thread {thread_id}: {error}"
+        raise HTTPException(status_code=502, detail=msg) from error
+
+    cache = NotificationCache(path=config.resolve_cache_file())
+    cache.dismiss_record(user_id="", thread_id=thread_id)
+    return Response(content=None, status_code=204)
+
+
 def _load_runtime_config() -> AppConfig:
     config_path = Path(environ.get("CORVIX_CONFIG", "corvix.yaml"))
     if not config_path.exists():
@@ -333,7 +410,7 @@ def _dashboard_names(dashboards: list[DashboardSpec]) -> list[str]:
     return [dashboard.name for dashboard in available]
 
 
-app = Litestar(route_handlers=[index, health, api_themes, dashboards, snapshot])
+app = Litestar(route_handlers=[index, health, api_themes, dashboards, snapshot, dismiss_notification])
 
 
 def run() -> None:

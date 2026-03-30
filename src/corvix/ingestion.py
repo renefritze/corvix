@@ -53,6 +53,11 @@ class GitHubNotificationsClient:
         url = self._build_url(f"/notifications/threads/{thread_id}", {})
         self._request_no_content(url, method="PATCH")
 
+    def dismiss_thread(self, thread_id: str) -> None:
+        """Dismiss a notification thread (removes it from inbox permanently)."""
+        url = self._build_url(f"/notifications/threads/{thread_id}", {})
+        self._request_no_content(url, method="DELETE")
+
     def _build_url(self, path: str, query: dict[str, str]) -> str:
         base = self.api_base_url.rstrip("/")
         encoded_query = parse.urlencode(query)
