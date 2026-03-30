@@ -51,6 +51,7 @@ class NotificationRecordRow(Base):
     unread: Mapped[bool] = mapped_column(Boolean, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     thread_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    web_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     excluded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     matched_rules: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)

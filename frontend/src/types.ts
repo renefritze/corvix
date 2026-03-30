@@ -1,0 +1,44 @@
+export interface DashboardItem {
+  thread_id: string;
+  repository: string;
+  reason: string;
+  subject_type: string;
+  subject_title: string;
+  unread: boolean;
+  updated_at: string;
+  score: number;
+  web_url: string | null;
+  matched_rules: string[];
+  actions_taken: string[];
+}
+
+export interface DashboardGroup {
+  name: string;
+  items: DashboardItem[];
+}
+
+export interface DashboardSummary {
+  unread_items: number;
+  read_items: number;
+  group_count: number;
+  repository_count: number;
+  reason_count: number;
+}
+
+export interface SnapshotPayload {
+  name: string;
+  generated_at: string | null;
+  groups: DashboardGroup[];
+  total_items: number;
+  summary: DashboardSummary;
+  dashboard_names: string[];
+}
+
+export type SortColumn = "subject_title" | "repository" | "subject_type" | "reason" | "score" | "updated_at";
+export type SortDirection = "asc" | "desc";
+
+export interface FilterState {
+  unread: "all" | "unread" | "read";
+  reason: string;
+  repository: string;
+}

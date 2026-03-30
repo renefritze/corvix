@@ -23,6 +23,7 @@ class DashboardItem:
     unread: bool
     updated_at: str
     score: float
+    web_url: str | None = None
     matched_rules: list[str] = field(default_factory=list)
     actions_taken: list[str] = field(default_factory=list)
 
@@ -39,6 +40,7 @@ class DashboardItem:
             unread=notification.unread,
             updated_at=notification.updated_at.isoformat(),
             score=record.score,
+            web_url=notification.web_url,
             matched_rules=record.matched_rules,
             actions_taken=record.actions_taken,
         )
@@ -60,6 +62,18 @@ class DashboardData:
     generated_at: str | None
     groups: list[DashboardGroup]
     total_items: int
+    summary: DashboardSummary
+
+
+@dataclass(slots=True)
+class DashboardSummary:
+    """Snapshot metadata used by the dashboard shell."""
+
+    unread_items: int
+    read_items: int
+    group_count: int
+    repository_count: int
+    reason_count: int
 
 
 def build_dashboard_data(
@@ -93,6 +107,7 @@ def build_dashboard_data(
         generated_at=generated_at.isoformat() if generated_at is not None else None,
         groups=groups,
         total_items=sum(len(group.items) for group in groups),
+        summary=_build_summary(sorted_records=sorted_records, groups=groups),
     )
 
 
@@ -102,6 +117,8 @@ def _included_by_dashboard(
     now: datetime,
 ) -> bool:
     if record.excluded:
+        return False
+    if record.dismissed:
         return False
     if not dashboard.include_read and not record.notification.unread:
         return False
@@ -146,3 +163,19 @@ def _group_records(
             key = "all"
         grouped[key].append(record)
     return dict(grouped)
+
+
+def _build_summary(
+    sorted_records: list[NotificationRecord],
+    groups: list[DashboardGroup],
+) -> DashboardSummary:
+    unread_items = sum(1 for record in sorted_records if record.notification.unread)
+    repositories = {record.notification.repository for record in sorted_records}
+    reasons = {record.notification.reason for record in sorted_records}
+    return DashboardSummary(
+        unread_items=unread_items,
+        read_items=len(sorted_records) - unread_items,
+        group_count=len(groups),
+        repository_count=len(repositories),
+        reason_count=len(reasons),
+    )

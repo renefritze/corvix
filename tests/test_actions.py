@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from corvix.actions import DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
-from corvix.web.app import INDEX_HTML
+from importlib.resources import files as resource_files
 
 
 def _make_notification(thread_id: str = "1", unread: bool = True) -> Notification:
@@ -197,7 +197,7 @@ def test_deduplicates_duplicate_actions() -> None:
 
 
 def test_spa_contains_dismiss_button() -> None:
-    assert "dismiss-btn" in INDEX_HTML
-    assert "commitDismiss" in INDEX_HTML
-    assert "Undo" in INDEX_HTML
-    assert "/api/notifications/" in INDEX_HTML
+    built_js = resource_files("corvix.web").joinpath("static/assets/app.js").read_text(encoding="utf-8")
+    assert "dismiss-btn" in built_js
+    assert "Undo" in built_js
+    assert "/api/notifications/" in built_js
