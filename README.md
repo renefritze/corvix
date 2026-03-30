@@ -88,13 +88,13 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - `secrets/postgres_password.txt`: strong DB password.
 - `secrets/database_url.txt`: full SQLAlchemy/PostgreSQL URL (must match DB credentials).
 
-3. Start services:
+1. Start services:
 
     ```bash
     docker compose up --build
     ```
 
-4. Open `http://localhost:8000`.
+2. Open `http://localhost:8000`.
 
 Notes:
 

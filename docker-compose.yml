@@ -22,8 +22,6 @@ services:
     build:
       context: .
     command:
-    - uv
-    - run
     - uvicorn
     - corvix.web.app:app
     - --host
@@ -54,8 +52,6 @@ services:
     build:
       context: .
     command:
-    - uv
-    - run
     - corvix
     - --config
     - /app/config/corvix.yaml

@@ -29,11 +29,13 @@ docker compose up --build
 ```
 
 This starts three services sharing a `corvix_state` volume:
+
 - `web` — Litestar dashboard on `http://localhost:8000`
 - `poller` — `corvix watch` updating the JSON cache
 - `db` — PostgreSQL 16
 
 **Prerequisites** before `docker compose up`:
+
 1. `config/corvix.yaml` must exist (copy from `config/corvix.example.yaml`)
 2. `secrets/github_token.txt` must contain a GitHub personal access token
 3. `secrets/postgres_password.txt` and `secrets/database_url.txt` must exist

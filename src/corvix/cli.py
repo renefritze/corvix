@@ -206,10 +206,7 @@ def _resolve_token(token_env: str) -> str:
         raise click.ClickException(str(error)) from error
     if token:
         return token
-    msg = (
-        f"Environment variable '{token_env}' (or '{token_env}_FILE') is required "
-        "for polling GitHub notifications."
-    )
+    msg = f"Environment variable '{token_env}' (or '{token_env}_FILE') is required for polling GitHub notifications."
     raise click.ClickException(msg)
 
 

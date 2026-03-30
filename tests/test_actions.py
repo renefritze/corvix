@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from importlib.resources import files as resource_files
 
 from corvix.actions import DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
-from importlib.resources import files as resource_files
 
 
 def _make_notification(thread_id: str = "1", unread: bool = True) -> Notification:
