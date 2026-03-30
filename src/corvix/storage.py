@@ -128,9 +128,9 @@ class PostgresStorage:
                         """
                         INSERT INTO notification_records
                             (user_id, thread_id, repository, reason, subject_title,
-                             subject_type, unread, updated_at, thread_url, score,
+                             subject_type, unread, updated_at, thread_url, web_url, score,
                              excluded, matched_rules, actions_taken, dismissed, snapshot_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (user_id, thread_id) DO UPDATE SET
                             repository    = EXCLUDED.repository,
                             reason        = EXCLUDED.reason,
@@ -139,6 +139,7 @@ class PostgresStorage:
                             unread        = EXCLUDED.unread,
                             updated_at    = EXCLUDED.updated_at,
                             thread_url    = EXCLUDED.thread_url,
+                            web_url       = EXCLUDED.web_url,
                             score         = EXCLUDED.score,
                             excluded      = EXCLUDED.excluded,
                             matched_rules = EXCLUDED.matched_rules,
@@ -155,6 +156,7 @@ class PostgresStorage:
                             n.unread,
                             n.updated_at,
                             n.thread_url,
+                            n.web_url,
                             record.score,
                             record.excluded,
                             record.matched_rules,
@@ -172,7 +174,7 @@ class PostgresStorage:
                 cur.execute(
                     """
                     SELECT thread_id, repository, reason, subject_title, subject_type,
-                           unread, updated_at, thread_url, score, excluded,
+                           unread, updated_at, thread_url, web_url, score, excluded,
                            matched_rules, actions_taken, dismissed, snapshot_at
                     FROM notification_records
                     WHERE user_id = %s
@@ -197,6 +199,7 @@ class PostgresStorage:
                 unread,
                 updated_at,
                 thread_url,
+                web_url,
                 score,
                 excluded,
                 matched_rules,
@@ -215,6 +218,7 @@ class PostgresStorage:
                 unread=unread,
                 updated_at=updated_at,
                 thread_url=thread_url,
+                web_url=web_url,
             )
             records.append(
                 NotificationRecord(

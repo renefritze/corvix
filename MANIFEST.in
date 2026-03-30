@@ -2,6 +2,7 @@ include AUTHORS.rst
 include CONTRIBUTING.rst
 include LICENSE
 include README.md
+recursive-include src/corvix/web/static *
 
 recursive-include tests *
 recursive-exclude * __pycache__

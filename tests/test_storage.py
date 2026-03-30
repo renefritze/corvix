@@ -21,6 +21,7 @@ def _make_record(thread_id: str, dismissed: bool = False) -> NotificationRecord:
         subject_type="PullRequest",
         unread=True,
         updated_at=now - timedelta(hours=1),
+        web_url=f"https://github.com/org/repo/pull/{thread_id}",
     )
     return NotificationRecord(notification=notification, score=10.0, excluded=False, dismissed=dismissed)
 
@@ -60,7 +61,9 @@ def test_save_and_load_records_via_protocol(tmp_path: Path) -> None:
     generated_at, loaded = cache.load_records(user_id="ignored")
     assert generated_at is not None
     assert len(loaded) == 2  # noqa: PLR2004
-    assert {r.notification.thread_id for r in loaded} == {"1", "2"}
+    by_id = {record.notification.thread_id: record for record in loaded}
+    assert set(by_id) == {"1", "2"}
+    assert by_id["1"].notification.web_url == "https://github.com/org/repo/pull/1"
 
 
 def test_dismiss_record_sets_flag(tmp_path: Path) -> None:

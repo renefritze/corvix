@@ -14,13 +14,31 @@ uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run mypy src/corvix/                              # type check
 
-uv run corvix --config config/corvix.yaml poll       # one-time fetch & cache
-uv run corvix --config config/corvix.yaml watch      # continuous polling loop
-uv run corvix --config config/corvix.yaml dashboard  # render from cache
-uv run corvix --config config/corvix.yaml serve --reload  # web server
-
 docker compose up                                    # full stack (web + poller + db)
+docker compose up web                                # web only
+docker compose logs -f web                           # tail service logs
+docker compose down                                  # stop and remove containers
 ```
+
+## Local testing
+
+**Always use the Docker Compose setup for local end-to-end testing.** Do not run `corvix-web` or `corvix watch` directly on the host. Use:
+
+```bash
+docker compose up --build
+```
+
+This starts three services sharing a `corvix_state` volume:
+- `web` — Litestar dashboard on `http://localhost:8000`
+- `poller` — `corvix watch` updating the JSON cache
+- `db` — PostgreSQL 16
+
+**Prerequisites** before `docker compose up`:
+1. `config/corvix.yaml` must exist (copy from `config/corvix.example.yaml`)
+2. `secrets/github_token.txt` must contain a GitHub personal access token
+3. `secrets/postgres_password.txt` and `secrets/database_url.txt` must exist
+
+The `web` service mounts `./src` and `./config` as volumes, so Python source changes take effect on reload without a full rebuild. Frontend asset changes require rebuilding the image (`--build`).
 
 ## Architecture
 

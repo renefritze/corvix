@@ -4,6 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from urllib.parse import urlparse
+
+_MIN_API_REPO_SEGMENTS = 4
+_MIN_RESOURCE_SEGMENTS = 2
+_RELEASE_TAG_SEGMENTS = 3
+_API_RESOURCE_TO_WEB_PATH = {
+    "pulls": "pull",
+    "issues": "issues",
+    "commits": "commit",
+    "compare": "compare",
+    "discussions": "discussions",
+}
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -32,6 +44,7 @@ class Notification:
     unread: bool
     updated_at: datetime
     thread_url: str | None = None
+    web_url: str | None = None
 
     @classmethod
     def from_api_payload(cls, payload: dict[str, object]) -> Notification:
@@ -81,6 +94,7 @@ class Notification:
 
         thread_url = payload.get("url")
         thread_url_str = thread_url if isinstance(thread_url, str) else None
+        web_url = _derive_web_url(payload)
 
         return cls(
             thread_id=thread_id,
@@ -91,6 +105,7 @@ class Notification:
             unread=unread,
             updated_at=parse_timestamp(updated),
             thread_url=thread_url_str,
+            web_url=web_url,
         )
 
 
@@ -116,6 +131,7 @@ class NotificationRecord:
             "unread": self.notification.unread,
             "updated_at": format_timestamp(self.notification.updated_at),
             "thread_url": self.notification.thread_url,
+            "web_url": self.notification.web_url,
             "score": self.score,
             "excluded": self.excluded,
             "matched_rules": self.matched_rules,
@@ -140,6 +156,7 @@ class NotificationRecord:
             unread=bool(payload.get("unread", False)),
             updated_at=parse_timestamp(updated_at),
             thread_url=payload.get("thread_url") if isinstance(payload.get("thread_url"), str) else None,
+            web_url=payload.get("web_url") if isinstance(payload.get("web_url"), str) else None,
         )
         return cls(
             notification=notification,
@@ -149,3 +166,43 @@ class NotificationRecord:
             actions_taken=[value for value in payload.get("actions_taken", []) if isinstance(value, str)],
             dismissed=bool(payload.get("dismissed", False)),
         )
+
+
+def _derive_web_url(payload: dict[str, object]) -> str | None:
+    subject = payload.get("subject")
+    repository = payload.get("repository")
+    if not isinstance(subject, dict) or not isinstance(repository, dict):
+        return None
+
+    repo_name = repository.get("full_name")
+    if not isinstance(repo_name, str) or not repo_name:
+        return None
+
+    repo_web_url = repository.get("html_url")
+    repo_base = repo_web_url if isinstance(repo_web_url, str) and repo_web_url else f"https://github.com/{repo_name}"
+
+    subject_url = subject.get("url")
+    if not isinstance(subject_url, str) or not subject_url:
+        return repo_base
+
+    return _map_subject_api_url_to_web(subject_url=subject_url, repo_name=repo_name, repo_base=repo_base) or repo_base
+
+
+def _map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str) -> str | None:
+    parsed = urlparse(subject_url)
+    path_segments = [segment for segment in parsed.path.split("/") if segment]
+    if len(path_segments) < _MIN_API_REPO_SEGMENTS or path_segments[0] != "repos":
+        return None
+
+    api_repo_name = "/".join(path_segments[1:3])
+    if api_repo_name != repo_name:
+        return None
+
+    resource = path_segments[3:]
+    resource_name = resource[0]
+    mapped_web_path = _API_RESOURCE_TO_WEB_PATH.get(resource_name)
+    if mapped_web_path is not None and len(resource) >= _MIN_RESOURCE_SEGMENTS:
+        return f"{repo_base}/{mapped_web_path}/{resource[1]}"
+    if resource_name == "releases" and len(resource) >= _RELEASE_TAG_SEGMENTS and resource[1] == "tags":
+        return f"{repo_base}/releases/tag/{resource[2]}"
+    return None

@@ -92,6 +92,10 @@ repos:
   hooks:
   - id: actionlint
     additional_dependencies: [pyflakes>=3.0.1, shellcheck-py>=0.9.0.5]
+- repo: https://github.com/betterleaks/betterleaks
+  rev: df7dbcb43c51b3cfe258607c2d7941a87cc98672  # frozen: v1.1.1
+  hooks:
+  - id: betterleaks
 - repo: local
   hooks:
   - id: no-catch-in-src

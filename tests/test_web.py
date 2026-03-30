@@ -2,62 +2,109 @@
 
 from __future__ import annotations
 
-from http import HTTPStatus
+from datetime import UTC, datetime
+from pathlib import Path
+from textwrap import dedent
 
 import pytest
-from litestar.testing import TestClient
 
-from corvix.web.app import INDEX_HTML, THEMES, app
-
-
-@pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+from corvix.domain import Notification, NotificationRecord
+from corvix.storage import NotificationCache
+from corvix.web.app import INDEX_HTML, THEMES, api_themes, health, index, snapshot
 
 
-def test_health(client: TestClient) -> None:
-    response = client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
-    assert response.json() == {"status": "ok"}
+def test_health() -> None:
+    assert health.fn() == {"status": "ok"}
 
 
-def test_themes_endpoint(client: TestClient) -> None:
-    response = client.get("/api/themes")
-    assert response.status_code == HTTPStatus.OK
-    payload = response.json()
+def test_themes_endpoint() -> None:
+    payload = api_themes.fn()
     assert "themes" in payload
     themes = payload["themes"]
-    assert set(themes.keys()) == {"default", "dark", "solarized"}
+    assert set(themes.keys()) == {"midnight", "graphite"}
 
 
-def test_themes_have_required_vars(client: TestClient) -> None:
-    response = client.get("/api/themes")
-    themes = response.json()["themes"]
-    required_vars = {"bg", "ink", "surface", "accent", "line", "ok", "muted"}
+def test_themes_have_required_vars() -> None:
+    themes = api_themes.fn()["themes"]
+    required_vars = {"bg", "surface", "surface_elevated", "ink", "muted", "accent", "line", "ok", "danger"}
     for name, preset in themes.items():
         assert set(preset.keys()) == required_vars, f"Theme '{name}' missing vars"
 
 
-def test_themes_match_python_constant(client: TestClient) -> None:
-    response = client.get("/api/themes")
-    assert response.json()["themes"] == THEMES
+def test_themes_match_python_constant() -> None:
+    assert api_themes.fn()["themes"] == THEMES
 
 
-def test_themes_default_matches_css_root() -> None:
-    """Default theme values must match the CSS :root variables in INDEX_HTML."""
-    default = THEMES["default"]
-    assert default["bg"] in INDEX_HTML
-    assert default["accent"] in INDEX_HTML
+def test_index_html_is_html() -> None:
+    response = index.fn()
+    assert response.media_type == "text/html"
 
 
-def test_index_contains_theme_selector() -> None:
-    assert 'id="theme"' in INDEX_HTML
-    assert "applyTheme" in INDEX_HTML
-    assert "localStorage" in INDEX_HTML
+def test_index_html_contains_app_mount() -> None:
+    """Vite SPA shell must have a root mount point for Preact."""
+    assert 'id="app"' in INDEX_HTML
 
 
-def test_index_html(client: TestClient) -> None:
-    response = client.get("/")
-    assert response.status_code == HTTPStatus.OK
-    assert "text/html" in response.headers["content-type"]
-    assert "Corvix" in response.text
+def test_index_html_references_static_assets() -> None:
+    assert "/assets/app.js" in INDEX_HTML
+    assert "/assets/" in INDEX_HTML
+    assert 'color-scheme" content="dark"' in INDEX_HTML
+
+
+def test_index_html_is_served() -> None:
+    response = index.fn()
+    assert response.content == INDEX_HTML
+    assert "Corvix" in response.content
+
+
+def test_snapshot_includes_summary_and_web_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config_path = tmp_path / "corvix.yaml"
+    now = datetime.now(tz=UTC)
+
+    NotificationCache(path=cache_path).save(
+        [
+            NotificationRecord(
+                notification=Notification(
+                    thread_id="1",
+                    repository="org/repo",
+                    reason="mention",
+                    subject_title="Review this",
+                    subject_type="PullRequest",
+                    unread=True,
+                    updated_at=now,
+                    web_url="https://github.com/org/repo/pull/1",
+                ),
+                score=17.5,
+                excluded=False,
+            )
+        ],
+        generated_at=now,
+    )
+    config_path.write_text(
+        dedent(
+            f"""
+            github:
+              token_env: GITHUB_TOKEN
+            state:
+              cache_file: {cache_path}
+            dashboards:
+              - name: triage
+                group_by: repository
+                sort_by: score
+                include_read: true
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_path))
+
+    payload = snapshot.fn()
+
+    assert payload["summary"]["unread_items"] == 1
+    assert payload["summary"]["repository_count"] == 1
+    assert payload["groups"][0]["items"][0]["web_url"] == "https://github.com/org/repo/pull/1"

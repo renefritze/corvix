@@ -7,7 +7,7 @@ ENV UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
     SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CORVIX=0.0.0
 
-COPY pyproject.toml uv.lock README.md /app/
+COPY pyproject.toml uv.lock README.md LICENSE /app/
 COPY src /app/src
 COPY config/corvix.example.yaml /app/config/corvix.example.yaml
 
