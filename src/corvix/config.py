@@ -99,6 +99,21 @@ class StateConfig:
 
 
 @dataclass(slots=True)
+class AuthConfig:
+    """Authentication mode configuration."""
+
+    mode: str = "single_user"  # single_user | multi_user
+    session_secret: str = ""
+
+
+@dataclass(slots=True)
+class DatabaseConfig:
+    """PostgreSQL connection configuration."""
+
+    url_env: str = "DATABASE_URL"
+
+
+@dataclass(slots=True)
 class AppConfig:
     """Top-level application config."""
 
@@ -108,6 +123,8 @@ class AppConfig:
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
     rules: RuleSet = field(default_factory=RuleSet)
     dashboards: list[DashboardSpec] = field(default_factory=list)
+    auth: AuthConfig = field(default_factory=AuthConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
     def resolve_cache_file(self) -> Path:
         """Resolve the configured cache path."""
@@ -193,6 +210,8 @@ def load_config(path: Path) -> AppConfig:
     scoring = _parse_scoring(data.get("scoring", {}))
     rules = _parse_rules(data.get("rules", {}))
     dashboards = _parse_dashboards(data.get("dashboards", []))
+    auth = _parse_auth(data.get("auth", {}))
+    database = _parse_database(data.get("database", {}))
     return AppConfig(
         github=github,
         polling=polling,
@@ -200,6 +219,8 @@ def load_config(path: Path) -> AppConfig:
         scoring=scoring,
         rules=rules,
         dashboards=dashboards,
+        auth=auth,
+        database=database,
     )
 
 
@@ -330,3 +351,16 @@ def _parse_polling(value: object) -> PollingConfig:
 def _parse_state(value: object) -> StateConfig:
     state = _ensure_map(value, "state")
     return StateConfig(cache_file=Path(str(state.get("cache_file", "~/.cache/corvix/notifications.json"))))
+
+
+def _parse_auth(value: object) -> AuthConfig:
+    auth = _ensure_map(value, "auth")
+    return AuthConfig(
+        mode=str(auth.get("mode", "single_user")),
+        session_secret=str(auth.get("session_secret", "")),
+    )
+
+
+def _parse_database(value: object) -> DatabaseConfig:
+    database = _ensure_map(value, "database")
+    return DatabaseConfig(url_env=str(database.get("url_env", "DATABASE_URL")))

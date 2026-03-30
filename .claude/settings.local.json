@@ -1,0 +1,11 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(find /home/rene/repo/python/corvix/docs -type f -name *.md -o -name *.rst)",
+            "Bash(uv run:*)",
+            "Bash(git add:*)",
+            "Bash(git commit:*)",
+            "Bash(uv add:*)"
+        ]
+    }
+}

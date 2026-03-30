@@ -20,7 +20,10 @@ dependencies = [
     "typer",
     "PyYAML",
     "litestar",
-    "uvicorn"
+    "uvicorn",
+    "asyncpg>=0.31.0",
+    "psycopg[binary]>=3.3.3",
+    "alembic>=1.18.4",
 ]
 
 [tool.hatch.version]

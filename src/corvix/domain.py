@@ -103,6 +103,7 @@ class NotificationRecord:
     excluded: bool
     matched_rules: list[str] = field(default_factory=list)
     actions_taken: list[str] = field(default_factory=list)
+    dismissed: bool = False
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a JSON-serializable dictionary."""
@@ -119,6 +120,7 @@ class NotificationRecord:
             "excluded": self.excluded,
             "matched_rules": self.matched_rules,
             "actions_taken": self.actions_taken,
+            "dismissed": self.dismissed,
         }
 
     @classmethod
@@ -145,4 +147,5 @@ class NotificationRecord:
             excluded=bool(payload.get("excluded", False)),
             matched_rules=[value for value in payload.get("matched_rules", []) if isinstance(value, str)],
             actions_taken=[value for value in payload.get("actions_taken", []) if isinstance(value, str)],
+            dismissed=bool(payload.get("dismissed", False)),
         )
