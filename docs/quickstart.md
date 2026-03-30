@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - [uv](https://github.com/astral-sh/uv) for package management
 - A GitHub Personal Access Token (PAT) with `notifications` scope
 
@@ -34,7 +34,7 @@
     uv run corvix --config config/corvix.yaml poll
     ```
 
-5. Open the web dashboard:
+5. Optionally open the web dashboard directly:
 
     ```bash
     uv run corvix --config config/corvix.yaml serve --reload
@@ -42,7 +42,7 @@
 
     Then visit `http://localhost:8000`.
 
-## Docker Compose setup
+## Docker Compose setup (recommended for local end-to-end)
 
 1. Copy config and secret templates:
 

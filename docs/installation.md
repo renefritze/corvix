@@ -8,22 +8,12 @@
 
 # Installation
 
-## Stable release
+## Requirements
 
-To install corvix, run this command in your terminal:
+- Python 3.13+
+- [uv](https://github.com/astral-sh/uv)
 
-```{code-block} console
-
-pip install corvix
-
-```
-
-This is the preferred method to install corvix, as it will always install the most recent stable release.
-
-If you don't have [pip] installed, this [python installation guide] can guide
-you through the process.
-
-## From sources
+## From source (recommended for development)
 
 The sources for corvix can be downloaded from the [github repo]
 
@@ -47,11 +37,17 @@ Once you have a copy of the source, you can install it with:
 
 ```{code-block} console
 
-pip install .
+uv sync
+
+```
+
+Run commands inside the project environment with:
+
+```{code-block} console
+
+uv run corvix --help
 
 ```
 
 [github repo]: https://github.com/renefritze/corvix
-[pip]: https://pip.pypa.io
-[python installation guide]: http://docs.python-guide.org/en/latest/starting/installation/
 [tarball]: https://github.com/renefritze/corvix/tarball/main

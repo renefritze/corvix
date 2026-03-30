@@ -713,3 +713,6 @@ CMakeUserPresets.json
 
 .oasys-pre-commit-hooks/cache
 _version.py
+
+.pre-commit-cache/
+.playwright-cli/

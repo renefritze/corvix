@@ -1,6 +1,6 @@
 # Corvix — Design Specification
 
-> Living document. Sections 1–9 reflect the current `mvp` implementation. Sections 10–14 specify the planned re-architecture.
+> Living document. Sections 1–9 describe the current implementation. Later sections contain roadmap and historical design notes.
 
 ---
 
@@ -8,7 +8,7 @@
 
 Corvix fetches a user's GitHub notifications, scores and filters them with configurable rules, caches the results locally, and presents them through a terminal CLI or a web dashboard.
 
-**Current state**: single-user, single-machine, JSON file cache.
+**Current state**: single-user workflows with JSON cache by default, optional PostgreSQL import/storage support, and web dismiss operations.
 
 **Target state**: multi-user server with PostgreSQL persistence, two-way notification management, theming, and browser push notifications.
 
@@ -30,6 +30,7 @@ Normalized view of one GitHub notification thread. Constructed via `Notification
 | `unread` | `bool` | `unread` |
 | `updated_at` | `datetime` (UTC) | `updated_at` (ISO 8601) |
 | `thread_url` | `str \| None` | `url` |
+| `web_url` | `str \| None` | derived human-facing GitHub URL (fallback repo URL) |
 
 ### 2.2 `NotificationRecord` (processed)
 
@@ -41,9 +42,8 @@ Wraps a `Notification` with the output of scoring and rule evaluation. This is w
 | `score` | `float` | Computed priority score |
 | `excluded` | `bool` | True if any matched rule has `exclude_from_dashboards: true` |
 | `matched_rules` | `list[str]` | Names of rules that matched |
-| `actions_taken` | `list[str]` | Actions executed (e.g. `mark_read`, `dry-run:mark_read`) |
-
-**Planned addition** (section 11): `dismissed: bool` field.
+| `actions_taken` | `list[str]` | Actions executed (e.g. `mark_read`, `dismiss`, dry-run variants) |
+| `dismissed` | `bool` | Local dismissed flag used to hide/remove records |
 
 ### 2.3 Cache file schema
 
@@ -150,11 +150,12 @@ All active criteria must match (AND logic). `title_contains_any` is OR within it
 
 #### `RuleAction` types
 
-Currently only one action type is implemented:
+Currently implemented action types:
 
 | `type` | Behaviour |
 |---|---|
 | `mark_read` | Calls `PATCH /notifications/threads/{id}`. Skips if already read. No-op in dry-run mode (records `dry-run:mark_read` instead). |
+| `dismiss` | Calls `DELETE /notifications/threads/{id}`. No-op in dry-run mode (records `dry-run:dismiss` instead). |
 
 ### 3.6 `dashboards`
 
@@ -171,6 +172,21 @@ dashboards:
 ```
 
 Excluded records are never shown in any dashboard regardless of `match`.
+
+### 3.7 `auth`
+
+```yaml
+auth:
+  mode: single_user              # single_user | multi_user
+  session_secret: ""
+```
+
+### 3.8 `database`
+
+```yaml
+database:
+  url_env: DATABASE_URL
+```
 
 ---
 
@@ -208,19 +224,22 @@ score = unread_bonus (if unread)
 
 ### 4.3 Action execution
 
-`execute_actions()` deduplicates actions by type before executing. The only current action is `mark_read`, which:
+`execute_actions()` deduplicates actions by type before executing. Supported actions:
 
-- Is skipped if `notification.unread` is already `False`.
-- In dry-run mode: records `dry-run:mark_read` but does not call the API.
-- In apply mode: calls `client.mark_thread_read(thread_id)` and mutates `notification.unread = False`.
+- `mark_read`
+- `dismiss`
 
-The `MarkReadGateway` protocol decouples `execute_actions` from `GitHubNotificationsClient` for testing.
+`mark_read` is skipped when already read. `dismiss` can mark a record as dismissed when a record context is provided. In dry-run mode, actions are recorded as `dry-run:*` entries.
+
+The `MarkReadGateway` and `DismissGateway` protocols decouple action execution from concrete clients for testing.
 
 ---
 
 ## 5. Storage
 
-`NotificationCache` reads and writes a single JSON file. The full snapshot (all polled records, including excluded ones) is replaced atomically on each save. There is no append or merge logic.
+`NotificationCache` reads and writes a single JSON file. The full snapshot (all polled records, including excluded ones) is replaced atomically on each save.
+
+`PostgresStorage` also exists and supports upsert-based persistence by `(user_id, thread_id)`. The `migrate-cache` CLI command imports JSON cache snapshots into PostgreSQL.
 
 ---
 
@@ -235,6 +254,7 @@ Entry point: `corvix` (`corvix.cli:main`). All subcommands accept `--config PATH
 | `watch` | Runs `poll` in a loop, sleeping `interval_seconds` between runs. `--iterations N` to cap. |
 | `dashboard [--name NAME]` | Renders dashboards from cache using Rich tables. Does not poll. |
 | `serve` | Starts Litestar web server. `--host`, `--port`, `--reload`. Sets env vars then delegates to `uvicorn`. |
+| `migrate-cache --user-id <uuid>` | Imports cache records into PostgreSQL using `DATABASE_URL` (or `database.url_env`). |
 
 ---
 
@@ -244,10 +264,12 @@ Framework: Litestar. Served via uvicorn. Config loaded on every request from the
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/` | Single-page HTML dashboard app (embedded in source). |
+| `GET` | `/` | Single-page HTML dashboard app served from `src/corvix/web/static/index.html`. |
 | `GET` | `/api/health` | Returns `{"status": "ok"}`. |
+| `GET` | `/api/themes` | Returns available UI theme presets. |
 | `GET` | `/api/dashboards` | Returns `{"dashboard_names": [...]}`. |
 | `GET` | `/api/snapshot?dashboard=<name>` | Loads cache, runs `build_dashboard_data`, returns `DashboardData` as JSON plus `dashboard_names`. |
+| `POST` | `/api/notifications/{thread_id}/dismiss` | Calls GitHub dismiss API and marks the local record dismissed. |
 
 The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/api/snapshot`, and renders grouped tables. Columns 6, 8, 9 (Title, Rules, Actions) are hidden below 900 px.
 
@@ -289,7 +311,7 @@ The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/a
 
 | Service | Image | Role |
 |---|---|---|
-| `db` | `postgres:16-alpine` | PostgreSQL — provisioned but not used by current code. |
+| `db` | `postgres:16-alpine` | PostgreSQL service for migration and database-backed workflows. |
 | `poller` | local build | Runs `corvix watch --dry-run` continuously; writes to shared `corvix_state` volume. |
 | `web` | local build | Runs `uvicorn corvix.web.app:app --reload`; reads from shared `corvix_state` volume. |
 
@@ -299,9 +321,9 @@ Shared volume `corvix_state` is mounted at `/data`. The poller writes `notificat
 
 | Variable | Used by | Description |
 |---|---|---|
-| `GITHUB_TOKEN` | poller | GitHub PAT (or whichever env var is named in `token_env`). |
+| `GITHUB_TOKEN` / `GITHUB_TOKEN_FILE` | poller, web | GitHub PAT source (`*_FILE` is used in Docker Compose). |
 | `CORVIX_CONFIG` | both | Path to YAML config file inside the container. |
-| `DATABASE_URL` | both | Set but unused by current code (future persistence). |
+| `DATABASE_URL` / `DATABASE_URL_FILE` | both | PostgreSQL URL source (`*_FILE` is used in Docker Compose). |
 | `CORVIX_WEB_HOST` | web | Bind host for uvicorn (default `0.0.0.0`). |
 | `CORVIX_WEB_PORT` | web | Bind port for uvicorn (default `8000`). |
 | `CORVIX_WEB_RELOAD` | web | Enable uvicorn reload (`true`/`false`). |
@@ -310,11 +332,9 @@ Shared volume `corvix_state` is mounted at `/data`. The poller writes `notificat
 
 ## 9. Current gaps
 
-- **PostgreSQL** is provisioned in Docker Compose but never used. All persistence is JSON on disk.
-- **`tools.py`** is empty — reserved for future use.
-- **Action types**: Only `mark_read` is implemented. `execute_actions` logs an error for unknown types but continues.
-- **Concurrency**: The poller and web service share a file with no locking. Relies on filesystem atomicity of `write_text` at typical polling intervals.
-- **No link resolution**: `thread_url` stores the GitHub API URL, not the human-readable web URL.
+- Poller and web still use the shared JSON cache by default; PostgreSQL is not yet the default live storage path.
+- The poller/web shared file has no explicit locking; behavior relies on filesystem semantics of full-file writes.
+- Multi-user auth and browser push notifications are not yet part of the active runtime path.
 
 ---
 
