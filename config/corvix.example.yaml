@@ -1,0 +1,56 @@
+---
+github:
+  token_env: GITHUB_TOKEN
+  api_base_url: https://api.github.com
+
+polling:
+  interval_seconds: 300
+  per_page: 50
+  max_pages: 5
+  all: false
+  participating: false
+
+state:
+  cache_file: /data/notifications.json
+
+scoring:
+  unread_bonus: 15
+  age_decay_per_hour: 0.25
+  reason_weights:
+    mention: 50
+    review_requested: 40
+    assign: 30
+    author: 10
+  repository_weights: {}
+  subject_type_weights:
+    PullRequest: 8
+    Issue: 5
+  title_keyword_weights:
+    urgent: 25
+    security: 30
+
+rules:
+  global:
+  - name: mute-bot-noise
+    match:
+      title_regex: ".*\\[bot\\].*"
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  per_repository: {}
+
+dashboards:
+- name: triage
+  group_by: repository
+  sort_by: score
+  descending: true
+  include_read: false
+  max_items: 120
+  match:
+    reason_in: ["mention", "review_requested", "assign"]
+- name: overview
+  group_by: reason
+  sort_by: updated_at
+  descending: true
+  include_read: true
+  max_items: 300

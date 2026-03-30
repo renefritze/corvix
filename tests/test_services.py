@@ -1,0 +1,140 @@
+"""Service orchestration tests."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from rich.console import Console
+
+from corvix.config import (
+    AppConfig,
+    DashboardSpec,
+    MatchCriteria,
+    PollingConfig,
+    Rule,
+    RuleAction,
+    RuleSet,
+    ScoringConfig,
+    StateConfig,
+)
+from corvix.domain import Notification
+from corvix.services import render_cached_dashboards, run_poll_cycle
+from corvix.storage import NotificationCache
+
+EXPECTED_FETCHED = 2
+EXPECTED_EXCLUDED = 1
+
+
+class FakeClient:
+    def __init__(self, notifications: list[Notification]) -> None:
+        self._notifications = notifications
+        self.marked_thread_ids: list[str] = []
+
+    def fetch_notifications(self, _polling: PollingConfig) -> list[Notification]:
+        return deepcopy(self._notifications)
+
+    def mark_thread_read(self, thread_id: str) -> None:
+        self.marked_thread_ids.append(thread_id)
+
+
+def _build_config(cache_path: Path) -> AppConfig:
+    return AppConfig(
+        polling=PollingConfig(max_pages=1, per_page=10),
+        state=StateConfig(cache_file=cache_path),
+        scoring=ScoringConfig(reason_weights={"mention": 20}, unread_bonus=10, age_decay_per_hour=0),
+        rules=RuleSet(
+            global_rules=[
+                Rule(
+                    name="mute-bots",
+                    match=MatchCriteria(title_contains_any=["bot"]),
+                    actions=[RuleAction(action_type="mark_read")],
+                    exclude_from_dashboards=True,
+                ),
+            ],
+        ),
+        dashboards=[
+            DashboardSpec(name="triage", group_by="repository", sort_by="score", include_read=True),
+        ],
+    )
+
+
+def _build_notifications(now: datetime) -> list[Notification]:
+    return [
+        Notification(
+            thread_id="1",
+            repository="org/repo",
+            reason="mention",
+            subject_title="Please review",
+            subject_type="PullRequest",
+            unread=True,
+            updated_at=now - timedelta(hours=1),
+            thread_url="https://api.github.com/notifications/threads/1",
+        ),
+        Notification(
+            thread_id="2",
+            repository="org/repo",
+            reason="subscribed",
+            subject_title="dependabot bot update",
+            subject_type="PullRequest",
+            unread=True,
+            updated_at=now - timedelta(hours=2),
+            thread_url="https://api.github.com/notifications/threads/2",
+        ),
+    ]
+
+
+def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClient(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+
+    summary = run_poll_cycle(
+        config=config,
+        client=client,
+        cache=cache,
+        apply_actions=True,
+        now=now,
+    )
+
+    assert summary.fetched == EXPECTED_FETCHED
+    assert summary.excluded == EXPECTED_EXCLUDED
+    assert summary.actions_taken == 1
+    assert client.marked_thread_ids == ["2"]
+
+    generated_at, records = cache.load()
+    assert generated_at is not None
+    assert len(records) == EXPECTED_FETCHED
+    assert len([record for record in records if record.excluded]) == EXPECTED_EXCLUDED
+    assert records[1].actions_taken == ["mark_read"]
+
+
+def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClient(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+
+    run_poll_cycle(
+        config=config,
+        client=client,
+        cache=cache,
+        apply_actions=False,
+        now=now,
+    )
+
+    console = Console(record=True)
+    results = render_cached_dashboards(
+        config=config,
+        cache=cache,
+        console=console,
+        dashboard_name="triage",
+    )
+
+    assert len(results) == 1
+    assert results[0].dashboard_name == "triage"
+    assert results[0].rows == 1

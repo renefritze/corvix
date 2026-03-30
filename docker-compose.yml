@@ -1,0 +1,89 @@
+---
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: corvix
+      POSTGRES_USER: corvix
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+    - postgres_password
+    volumes:
+    - corvix_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corvix -d corvix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+    command:
+    - uv
+    - run
+    - uvicorn
+    - corvix.web.app:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - "8000"
+    - --reload
+    - --reload-dir
+    - /app/src
+    environment:
+      CORVIX_CONFIG: /app/config/corvix.yaml
+      DATABASE_URL_FILE: /run/secrets/database_url
+      GITHUB_TOKEN_FILE: /run/secrets/github_token
+    secrets:
+    - database_url
+    - github_token
+    ports:
+    - "8000:8000"
+    volumes:
+    - ./src:/app/src
+    - ./config:/app/config
+    - corvix_state:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  poller:
+    build:
+      context: .
+    command:
+    - uv
+    - run
+    - corvix
+    - --config
+    - /app/config/corvix.yaml
+    - watch
+    - --dry-run
+    environment:
+      GITHUB_TOKEN_FILE: /run/secrets/github_token
+      CORVIX_CONFIG: /app/config/corvix.yaml
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+    - github_token
+    - database_url
+    volumes:
+    - ./src:/app/src
+    - ./config:/app/config
+    - corvix_state:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  corvix_db:
+  corvix_state:
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  github_token:
+    file: ./secrets/github_token.txt
+  database_url:
+    file: ./secrets/database_url.txt

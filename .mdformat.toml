@@ -1,0 +1,2 @@
+number = true # ordered lists get consecutive numbers
+end_of_line = "lf"

@@ -1,0 +1,21 @@
+# Enable Pyflakes and pycodestyle rules.
+# see https://docs.astral.sh/ruff/rules/
+# F = Pyflakes
+# E,W = pycodestyle
+# N = pep8-naming
+# UP = pyupgrade
+# B = bugbear
+# PTH = flake8-use-pathlib
+# PL = pylint
+# ANN = https://pypi.org/project/flake8-annotations/
+lint.select = ["E", "F", "W", "N", "RUF", "I001", "UP", "B", "PTH", "PL", "ANN"]
+# E501: line too long
+lint.ignore = ["E501"]
+fix = true
+line-length = 120
+target-version = "py313"
+extend-include = [".CMakePresets.json.in", "docs/conf.py.in"]
+
+[lint.per-file-ignores]
+# ignore magic numbers in test sources (matches clang-tidy setup for tests/*)
+"tests/python/*" = ["PLR2004"]
