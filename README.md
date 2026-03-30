@@ -32,7 +32,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 
 - Local GitHub notification ingestion with configurable polling (`poll` and `watch`)
 - Strict separation between ingestion (`corvix.ingestion`), automation/actions (`corvix.rules`, `corvix.actions`, `corvix.scoring`), and presentation (`corvix.presentation`, `corvix.web`)
-- Multiple dashboards with configurable sorting and grouping
+- Multiple dashboards with configurable sorting and grouping (see [Dashboards](#dashboards))
 - Global and per-repository rules for filtering and auto mark-read
 - Custom scoring model for ranking notifications
 - YAML configuration with example committed and local override ignored by git
@@ -101,6 +101,28 @@ Notes:
 - `web` runs Litestar via `uvicorn --reload` and watches `/app/src` for code changes.
 - `poller` runs the notification watch loop and updates the shared `/data/notifications.json`.
 - `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
+
+## Dashboards
+
+Corvix ships with two built-in dashboards, selectable via the dropdown in the web UI.
+
+**Overview** (default) — situational awareness
+
+- Groups notifications by **reason** (mention, review requested, etc.)
+- Sorts by **updated_at**, newest first
+- Includes read items
+- Shows up to 200 notifications, no reason filter
+- Best for: seeing what's been happening across all your repos
+
+**Triage** — action-oriented
+
+- Groups notifications by **repository**
+- Sorts by **score** (descending), so the highest-priority items surface first
+- Unread only
+- Shows up to 100 notifications, filtered to mention/review_requested/assign reasons
+- Best for: deciding what to deal with right now
+
+The first dashboard listed in your config is loaded by default. You can add, remove, or reorder dashboards under the `dashboards:` key in `config/corvix.yaml`.
 
 ## After generating your project
 

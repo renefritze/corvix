@@ -180,6 +180,12 @@ rules:
         exclude_from_dashboards: true
 
 dashboards:
+  - name: overview
+    group_by: reason
+    sort_by: updated_at
+    descending: true
+    include_read: true
+    max_items: 200
   - name: triage
     group_by: repository
     sort_by: score
@@ -188,12 +194,6 @@ dashboards:
     max_items: 100
     match:
       reason_in: ["mention", "review_requested", "assign"]
-  - name: overview
-    group_by: reason
-    sort_by: updated_at
-    descending: true
-    include_read: true
-    max_items: 200
 """
 
 
