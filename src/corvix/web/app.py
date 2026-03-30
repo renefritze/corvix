@@ -14,6 +14,36 @@ from corvix.config import AppConfig, DashboardSpec, load_config
 from corvix.dashboarding import build_dashboard_data
 from corvix.storage import NotificationCache
 
+THEMES: dict[str, dict[str, str]] = {
+    "default": {
+        "bg": "#f2efe8",
+        "ink": "#181818",
+        "surface": "#fffdf8",
+        "accent": "#a13d2d",
+        "line": "#d7cdbf",
+        "ok": "#1e7a4f",
+        "muted": "#5f5a50",
+    },
+    "dark": {
+        "bg": "#1a1a2e",
+        "ink": "#e0e0e0",
+        "surface": "#16213e",
+        "accent": "#e94560",
+        "line": "#333355",
+        "ok": "#4ecca3",
+        "muted": "#8888aa",
+    },
+    "solarized": {
+        "bg": "#fdf6e3",
+        "ink": "#657b83",
+        "surface": "#eee8d5",
+        "accent": "#cb4b16",
+        "line": "#93a1a1",
+        "ok": "#859900",
+        "muted": "#93a1a1",
+    },
+}
+
 INDEX_HTML = """\
 <!doctype html>
 <html lang="en">
@@ -96,6 +126,8 @@ INDEX_HTML = """\
     <h1>Corvix Notifications</h1>
     <div class="meta" id="meta">Loading...</div>
     <div class="controls">
+      <label for="theme">Theme</label>
+      <select id="theme"></select>
       <label for="dashboard">Dashboard</label>
       <select id="dashboard"></select>
       <button id="refresh">Refresh</button>
@@ -103,11 +135,37 @@ INDEX_HTML = """\
   </header>
   <main id="content"></main>
   <script>
+    const THEMES = {
+      default:   { bg: "#f2efe8", ink: "#181818", surface: "#fffdf8", accent: "#a13d2d", line: "#d7cdbf", ok: "#1e7a4f", muted: "#5f5a50" },
+      dark:      { bg: "#1a1a2e", ink: "#e0e0e0", surface: "#16213e", accent: "#e94560", line: "#333355", ok: "#4ecca3", muted: "#8888aa" },
+      solarized: { bg: "#fdf6e3", ink: "#657b83", surface: "#eee8d5", accent: "#cb4b16", line: "#93a1a1", ok: "#859900", muted: "#93a1a1" },
+    };
+
+    function applyTheme(name) {
+      const vars = THEMES[name] || THEMES.default;
+      Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(`--${k}`, v));
+      localStorage.setItem("corvix-theme", name);
+    }
+
     const content = document.getElementById("content");
     const meta = document.getElementById("meta");
+    const themeSelect = document.getElementById("theme");
     const dashboardSelect = document.getElementById("dashboard");
     const refreshButton = document.getElementById("refresh");
     let currentDashboard = null;
+
+    // Populate theme selector and restore saved preference
+    Object.keys(THEMES).forEach((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+      themeSelect.append(option);
+    });
+    const savedTheme = localStorage.getItem("corvix-theme") || "default";
+    themeSelect.value = savedTheme;
+    applyTheme(savedTheme);
+
+    themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
 
     async function fetchSnapshot(selectedDashboard) {
       const query = selectedDashboard ? `?dashboard=${encodeURIComponent(selectedDashboard)}` : "";
@@ -214,6 +272,12 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@get("/api/themes", sync_to_thread=False)
+def api_themes() -> dict[str, object]:
+    """Return available theme presets."""
+    return {"themes": THEMES}
+
+
 @get("/api/dashboards", sync_to_thread=False)
 def dashboards() -> dict[str, object]:
     """List configured dashboard names."""
@@ -269,7 +333,7 @@ def _dashboard_names(dashboards: list[DashboardSpec]) -> list[str]:
     return [dashboard.name for dashboard in available]
 
 
-app = Litestar(route_handlers=[index, health, dashboards, snapshot])
+app = Litestar(route_handlers=[index, health, api_themes, dashboards, snapshot])
 
 
 def run() -> None:
