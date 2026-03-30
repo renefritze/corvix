@@ -5,7 +5,12 @@
             "Bash(uv run:*)",
             "Bash(git add:*)",
             "Bash(git commit:*)",
-            "Bash(uv add:*)"
+            "Bash(uv add:*)",
+            "Bash(npx playwright-cli:*)",
+            "Bash(curl -s http://localhost:8000/api/snapshot?dashboard=overview)",
+            "Bash(python3 -m json.tool)",
+            "Bash(npm install:*)",
+            "Bash(npm run:*)"
         ]
     }
 }
