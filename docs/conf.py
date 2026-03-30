@@ -66,6 +66,7 @@ myst_heading_anchors = 2
 import substitutions  # noqa
 
 myst_substitutions = substitutions.myst_substitutions
+suppress_warnings = ["myst.xref_missing"]
 nb_execute_notebooks = "cache"
 nb_execution_timeout = 240  # there is an interpolation test
 # print tracebacks to stdout
@@ -107,7 +108,7 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", ".uv-cache", "Thumbs.db", ".DS_Store"]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"

@@ -52,7 +52,7 @@ JSON file at the path configured in `state.cache_file`:
 ```json
 {
   "generated_at": "<ISO 8601 UTC timestamp>",
-  "notifications": [ <NotificationRecord.to_dict()>, ... ]
+  "notifications": ["<NotificationRecord.to_dict()>"]
 }
 ```
 

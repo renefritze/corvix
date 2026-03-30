@@ -70,5 +70,5 @@
 ## Next steps
 
 - Tune rules and scoring in `config/corvix.yaml`
-- See [Dashboards](../README.md#dashboards) for the built-in dashboard descriptions
+- See [Dashboards](https://github.com/renefritze/corvix#dashboards) for the built-in dashboard descriptions
 - Run `uv run corvix --help` to explore all CLI commands

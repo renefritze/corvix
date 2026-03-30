@@ -1,5 +1,13 @@
 # Usage
 
+```{toctree}
+---
+hidden: true
+maxdepth: 1
+---
+examples/basic
+```
+
 ## Configuration
 
 Create a local config file first:

@@ -48,7 +48,6 @@ def execute_actions(  # noqa: PLR0912, PLR0913
         apply_actions: If False, actions are recorded as dry-run only.
         record: The associated NotificationRecord (for dismiss state tracking).
         dismiss_gateway: Must implement DismissGateway; required for dismiss actions.
-            Typically the same client as gateway if it supports dismiss_thread.
     """
     result = ActionExecutionResult()
     seen_actions: set[str] = set()
