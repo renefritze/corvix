@@ -41,6 +41,8 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 
 ## Quickstart
 
+> Full details: [docs/quickstart.md](docs/quickstart.md)
+
 1. Create local config from the committed example:
 
     ```bash
