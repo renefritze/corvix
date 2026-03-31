@@ -106,6 +106,12 @@ dashboards:
     include_read: true
     match:
       reason_in: ["mention"]
+  - name: empty
+    group_by: repository
+    sort_by: score
+    include_read: true
+    match:
+      reason_in: ["nonexistent-reason"]
 """.strip(),
         encoding="utf-8",
     )
