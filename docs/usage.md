@@ -51,7 +51,7 @@ uv run corvix --config config/corvix.yaml serve --reload
 Import JSON cache records into PostgreSQL:
 
 ```bash
-uv run corvix --config config/corvix.yaml migrate-cache --user-id <uuid>
+uv run corvix --config config/corvix.yaml migrate-cache --user-id YOUR_UUID
 ```
 
 ## Docker Compose (local end-to-end)

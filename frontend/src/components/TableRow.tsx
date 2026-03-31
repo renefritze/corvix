@@ -1,75 +1,93 @@
 import type { DashboardItem } from "../types";
 
 function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+	const diff = Date.now() - new Date(iso).getTime();
+	const minutes = Math.floor(diff / 60_000);
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	const days = Math.floor(hours / 24);
+	return `${days}d ago`;
 }
 
 interface TableRowProps {
-  item: DashboardItem;
-  onDismiss: (threadId: string) => void;
-  isPendingDismissal: boolean;
+	item: DashboardItem;
+	onDismiss: (threadId: string) => void;
+	isPendingDismissal: boolean;
 }
 
-export function TableRow({ item, onDismiss, isPendingDismissal }: TableRowProps) {
-  function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === "Enter" && item.web_url) {
-      window.open(item.web_url, "_blank");
-    }
-    if ((e.key === "d" || e.key === "D") && !(e.target as HTMLElement).matches("button")) {
-      onDismiss(item.thread_id);
-    }
-  }
+export function TableRow({
+	item,
+	onDismiss,
+	isPendingDismissal,
+}: TableRowProps) {
+	function handleKeyDown(e: KeyboardEvent) {
+		if (e.key === "Enter" && item.web_url) {
+			window.open(item.web_url, "_blank");
+		}
+		if (
+			(e.key === "d" || e.key === "D") &&
+			!(e.target as HTMLElement).matches("button")
+		) {
+			onDismiss(item.thread_id);
+		}
+	}
 
-  return (
-    <tr
-      class={[
-        "notification-row",
-        item.unread ? "unread" : "read",
-        isPendingDismissal ? "dismissing" : "",
-      ].filter(Boolean).join(" ")}
-      tabIndex={0}
-      onKeyDown={handleKeyDown as unknown as (e: Event) => void}
-      aria-label={item.subject_title}
-    >
-      <td class="col-status" aria-hidden="true">
-        <span class={`unread-dot ${item.unread ? "dot-unread" : "dot-read"}`} />
-      </td>
-      <td class="col-title" data-label="Title">
-        {item.web_url ? (
-          <a href={item.web_url} target="_blank" rel="noopener noreferrer" class="title-link">
-            {item.subject_title}
-          </a>
-        ) : (
-          <span class="title-link">{item.subject_title}</span>
-        )}
-      </td>
-      <td class="col-repository" data-label="Repository">
-        <span class="repo-label">{item.repository}</span>
-      </td>
-      <td class="col-type hide-mobile" data-label="Type">{item.subject_type}</td>
-      <td class="col-reason hide-mobile" data-label="Reason">{item.reason}</td>
-      <td class="col-score" data-label="Score">
-        <span class="score-value">{item.score.toFixed(1)}</span>
-      </td>
-      <td class="col-updated" data-label="Updated">
-        <span title={item.updated_at}>{relativeTime(item.updated_at)}</span>
-      </td>
-      <td class="col-actions">
-        <button
-          type="button"
-          class="dismiss-btn"
-          aria-label={`Dismiss ${item.subject_title}`}
-          onClick={() => onDismiss(item.thread_id)}
-        >
-          ✕
-        </button>
-      </td>
-    </tr>
-  );
+	return (
+		<tr
+			class={[
+				"notification-row",
+				item.unread ? "unread" : "read",
+				isPendingDismissal ? "dismissing" : "",
+			]
+				.filter(Boolean)
+				.join(" ")}
+			tabIndex={0}
+			onKeyDown={handleKeyDown as unknown as (e: Event) => void}
+			aria-label={item.subject_title}
+		>
+			<td class="col-status" aria-hidden="true">
+				<span class={`unread-dot ${item.unread ? "dot-unread" : "dot-read"}`} />
+			</td>
+			<td class="col-title" data-label="Title">
+				{item.web_url ? (
+					<a
+						href={item.web_url}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="title-link"
+					>
+						{item.subject_title}
+					</a>
+				) : (
+					<span class="title-link">{item.subject_title}</span>
+				)}
+			</td>
+			<td class="col-repository" data-label="Repository">
+				<span class="repo-label">{item.repository}</span>
+			</td>
+			<td class="col-type hide-mobile" data-label="Type">
+				{item.subject_type}
+			</td>
+			<td class="col-reason hide-mobile" data-label="Reason">
+				{item.reason}
+			</td>
+			<td class="col-score" data-label="Score">
+				<span class="score-value">{item.score.toFixed(1)}</span>
+			</td>
+			<td class="col-updated" data-label="Updated">
+				<span title={item.updated_at}>{relativeTime(item.updated_at)}</span>
+			</td>
+			<td class="col-actions">
+				<button
+					type="button"
+					class="dismiss-btn"
+					aria-label={`Dismiss ${item.subject_title}`}
+					onClick={() => onDismiss(item.thread_id)}
+				>
+					✕
+				</button>
+			</td>
+		</tr>
+	);
 }

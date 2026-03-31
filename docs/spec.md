@@ -52,7 +52,26 @@ JSON file at the path configured in `state.cache_file`:
 ```json
 {
   "generated_at": "<ISO 8601 UTC timestamp>",
-  "notifications": ["<NotificationRecord.to_dict()>"]
+  "notifications": [
+    {
+      "notification": {
+        "thread_id": "1",
+        "repository": "owner/repo",
+        "reason": "mention",
+        "subject_title": "Fix bug",
+        "subject_type": "PullRequest",
+        "unread": true,
+        "updated_at": "2024-01-01T00:00:00Z",
+        "thread_url": "https://api.github.com/notifications/threads/1",
+        "web_url": "https://github.com/owner/repo/pull/1"
+      },
+      "score": 1.0,
+      "excluded": false,
+      "matched_rules": ["high-priority"],
+      "actions_taken": ["mark_read"],
+      "dismissed": false
+    }
+  ]
 }
 ```
 
