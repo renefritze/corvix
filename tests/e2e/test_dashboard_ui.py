@@ -143,3 +143,28 @@ def test_server_error_shows_error_state(page: object, corvix_server: str) -> Non
     page.goto(corvix_server)
     expect(page.locator(".empty-state.error-state .empty-title")).to_have_text("Failed to load")
     expect(page.locator(".empty-state.error-state .empty-body")).to_contain_text("Snapshot fetch failed: 500")
+
+
+@pytest.mark.e2e
+def test_groups_displayed_with_headers(app_page: object) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    headers = app_page.locator("tr.group-header-row .group-header-cell")
+    expect(headers).to_have_count(2)
+    expect(headers.nth(0)).to_contain_text("org/repo-a")
+    expect(headers.nth(0)).to_contain_text("(2)")
+    expect(headers.nth(1)).to_contain_text("org/repo-b")
+    expect(headers.nth(1)).to_contain_text("(1)")
+
+
+@pytest.mark.e2e
+def test_mobile_viewport_renders_without_horizontal_scroll(page: object, corvix_server: str) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    page.set_viewport_size({"width": 375, "height": 667})
+    page.goto(corvix_server)
+    expect(page.locator("tr.notification-row")).to_have_count(3)
+    has_horizontal_overflow = page.evaluate(
+        "() => document.documentElement.scrollWidth > document.documentElement.clientWidth",
+    )
+    assert has_horizontal_overflow is False
