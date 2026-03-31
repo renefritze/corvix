@@ -45,7 +45,7 @@ docs = [
 ]
 dev = [
     "build",
-    "mypy",
+    "ty",
     "ruff",
     "pytest",
     "pytest-cov",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 
@@ -229,16 +230,16 @@ def write_default_config(path: Path) -> None:
     path.write_text(DEFAULT_CONFIG, encoding="utf-8")
 
 
-def _ensure_map(value: object, section: str) -> dict[str, object]:
+def _ensure_map(value: object, section: str) -> dict[str, Any]:
     if isinstance(value, dict):
-        return value
+        return cast(dict[str, Any], value)
     msg = f"Config section '{section}' must be a map/object."
     raise ValueError(msg)
 
 
-def _ensure_list(value: object, section: str) -> list[object]:
+def _ensure_list(value: object, section: str) -> list[Any]:
     if isinstance(value, list):
-        return value
+        return cast(list[Any], value)
     msg = f"Config section '{section}' must be a list."
     raise ValueError(msg)
 

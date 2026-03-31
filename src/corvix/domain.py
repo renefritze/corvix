@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any, cast
 from urllib.parse import urlparse
 
 _MIN_API_REPO_SEGMENTS = 4
@@ -57,6 +58,8 @@ class Notification:
         if not isinstance(repository, dict):
             msg = "Invalid notification payload: missing repository map."
             raise ValueError(msg)
+        subject = cast(dict[str, object], subject)
+        repository = cast(dict[str, object], repository)
 
         thread_id = str(payload.get("id", ""))
         if not thread_id:
@@ -147,24 +150,29 @@ class NotificationRecord:
             msg = "Invalid stored record: missing updated_at."
             raise ValueError(msg)
 
+        p: dict[str, Any] = cast(dict[str, Any], payload)
+        thread_url_raw = p.get("thread_url")
+        web_url_raw = p.get("web_url")
+        matched_rules_raw = p.get("matched_rules", [])
+        actions_taken_raw = p.get("actions_taken", [])
         notification = Notification(
-            thread_id=str(payload.get("thread_id", "")),
-            repository=str(payload.get("repository", "")),
-            reason=str(payload.get("reason", "")),
-            subject_title=str(payload.get("subject_title", "")),
-            subject_type=str(payload.get("subject_type", "")),
-            unread=bool(payload.get("unread", False)),
+            thread_id=str(p.get("thread_id", "")),
+            repository=str(p.get("repository", "")),
+            reason=str(p.get("reason", "")),
+            subject_title=str(p.get("subject_title", "")),
+            subject_type=str(p.get("subject_type", "")),
+            unread=bool(p.get("unread", False)),
             updated_at=parse_timestamp(updated_at),
-            thread_url=payload.get("thread_url") if isinstance(payload.get("thread_url"), str) else None,
-            web_url=payload.get("web_url") if isinstance(payload.get("web_url"), str) else None,
+            thread_url=thread_url_raw if isinstance(thread_url_raw, str) else None,
+            web_url=web_url_raw if isinstance(web_url_raw, str) else None,
         )
         return cls(
             notification=notification,
-            score=float(payload.get("score", 0.0)),
-            excluded=bool(payload.get("excluded", False)),
-            matched_rules=[value for value in payload.get("matched_rules", []) if isinstance(value, str)],
-            actions_taken=[value for value in payload.get("actions_taken", []) if isinstance(value, str)],
-            dismissed=bool(payload.get("dismissed", False)),
+            score=float(p.get("score", 0.0)),
+            excluded=bool(p.get("excluded", False)),
+            matched_rules=[value for value in matched_rules_raw if isinstance(value, str)],
+            actions_taken=[value for value in actions_taken_raw if isinstance(value, str)],
+            dismissed=bool(p.get("dismissed", False)),
         )
 
 
@@ -173,6 +181,8 @@ def _derive_web_url(payload: dict[str, object]) -> str | None:
     repository = payload.get("repository")
     if not isinstance(subject, dict) or not isinstance(repository, dict):
         return None
+    subject = cast(dict[str, object], subject)
+    repository = cast(dict[str, object], repository)
 
     repo_name = repository.get("full_name")
     if not isinstance(repo_name, str) or not repo_name:

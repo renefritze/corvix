@@ -6,9 +6,9 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
-import psycopg  # type: ignore[import]
+import psycopg
 
 from corvix.domain import Notification, NotificationRecord, format_timestamp, parse_timestamp
 
@@ -110,7 +110,7 @@ class PostgresStorage:
 
     connection_string: str
 
-    def _connect(self) -> object:
+    def _connect(self) -> psycopg.Connection[tuple[Any, ...]]:
         return psycopg.connect(self.connection_string)
 
     def save_records(

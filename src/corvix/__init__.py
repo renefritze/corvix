@@ -4,7 +4,7 @@ __author__ = """ Rene Fritze"""
 __email__ = " coding@fritze.me"
 
 try:
-    from . import _version
+    from . import _version  # ty: ignore[unresolved-import]
 
     __version__ = _version.__version__
 except ImportError as e:

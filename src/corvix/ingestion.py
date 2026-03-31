@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from urllib import parse, request
 
 from corvix.config import PollingConfig
@@ -45,7 +45,7 @@ class GitHubNotificationsClient:
         output: list[dict[str, Any]] = []
         for item in payload:
             if isinstance(item, dict):
-                output.append(item)
+                output.append(cast(dict[str, Any], item))
         return output
 
     def mark_thread_read(self, thread_id: str) -> None:
