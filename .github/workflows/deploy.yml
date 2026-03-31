@@ -16,6 +16,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+    - uses: actions/setup-node@8c91899e586424e1437f83e324830e0d4f79ebfb  # v4.0.4
+      with:
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
     - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
       name: Setup UV + Python
       with:
@@ -27,7 +32,19 @@ jobs:
     - name: Build dist artefacts
       run: |
         uv sync
+        make frontend-build
         uv run python -m build --sdist --wheel --outdir dist/
+    - name: Wheel smoke test
+      run: |
+        python -m venv /tmp/corvix-wheel-smoke
+        /tmp/corvix-wheel-smoke/bin/pip install dist/*.whl
+        /tmp/corvix-wheel-smoke/bin/python - <<'PY'
+        from importlib.resources import files
+        assets = files("corvix.web").joinpath("static/assets")
+        assert assets.joinpath("app.js").is_file()
+        assert assets.joinpath("index.css").is_file()
+        print("Wheel assets OK")
+        PY
     - name: Publish distribution 📦 to PyPI
       uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc  # v1.12.4
       with:

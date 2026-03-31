@@ -23,6 +23,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+    - uses: actions/setup-node@8c91899e586424e1437f83e324830e0d4f79ebfb  # v4.0.4
+      with:
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
     - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
       name: Setup UV + Python
       with:
@@ -36,6 +41,22 @@ jobs:
     - name: Install dependencies
       run: |
         uv sync
+
+    - name: Build frontend assets
+      run: |
+        make frontend-build
+
+    - name: Ensure generated bundles are untracked
+      run: |
+        if git ls-files --error-unmatch src/corvix/web/static/assets/app.js; then
+          echo "src/corvix/web/static/assets/app.js must not be tracked"
+          exit 1
+        fi
+        if git ls-files --error-unmatch src/corvix/web/static/assets/index.css; then
+          echo "src/corvix/web/static/assets/index.css must not be tracked"
+          exit 1
+        fi
+        git diff --exit-code
 
     - name: Lint with ruff
       run: |

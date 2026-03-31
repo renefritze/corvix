@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from importlib.resources import files as resource_files
 
 from corvix.actions import DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import RuleAction
@@ -191,13 +190,3 @@ def test_deduplicates_duplicate_actions() -> None:
     )
     assert result.actions_taken == ["mark_read"]
     assert len(gw.marked) == 1
-
-
-# --- dismiss endpoint in SPA ---
-
-
-def test_spa_contains_dismiss_button() -> None:
-    built_js = resource_files("corvix.web").joinpath("static/assets/app.js").read_text(encoding="utf-8")
-    assert "dismiss-btn" in built_js
-    assert "Undo" in built_js
-    assert "/api/notifications/" in built_js

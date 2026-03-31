@@ -28,9 +28,6 @@ services:
     - 0.0.0.0
     - --port
     - "8000"
-    - --reload
-    - --reload-dir
-    - /app/src
     environment:
       CORVIX_CONFIG: /app/config/corvix.yaml
       DATABASE_URL_FILE: /run/secrets/database_url
@@ -41,7 +38,6 @@ services:
     ports:
     - "8000:8000"
     volumes:
-    - ./src:/app/src
     - ./config:/app/config
     - corvix_state:/data
     depends_on:
@@ -65,7 +61,6 @@ services:
     - github_token
     - database_url
     volumes:
-    - ./src:/app/src
     - ./config:/app/config
     - corvix_state:/data
     depends_on:

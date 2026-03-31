@@ -6,7 +6,7 @@
 - [uv](https://github.com/astral-sh/uv) for package management
 - A GitHub Personal Access Token (PAT) with `notifications` scope
 
-## Local setup
+## Local setup (tooling only)
 
 1. Clone the repository and install dependencies:
 
@@ -16,33 +16,19 @@
     uv sync
     ```
 
+   Build frontend assets:
+
+    ```bash
+    make frontend-build
+    ```
+
 2. Create your local config from the committed example:
 
     ```bash
     cp config/corvix.example.yaml config/corvix.yaml
     ```
 
-3. Set your GitHub token:
-
-    ```bash
-    export GITHUB_TOKEN=ghp_your_token
-    ```
-
-4. Run one poll cycle to fetch notifications:
-
-    ```bash
-    uv run corvix --config config/corvix.yaml poll
-    ```
-
-5. Optionally open the web dashboard directly:
-
-    ```bash
-    uv run corvix --config config/corvix.yaml serve --reload
-    ```
-
-    Then visit `http://localhost:8000`.
-
-## Docker Compose setup (recommended for local end-to-end)
+## Docker Compose setup (required for local runtime/testing)
 
 1. Copy config and secret templates:
 

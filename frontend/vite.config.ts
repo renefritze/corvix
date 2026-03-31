@@ -4,13 +4,14 @@ import preact from "@preact/preset-vite";
 export default defineConfig({
   plugins: [preact()],
   build: {
-    outDir: "../src/corvix/web/static",
+    outDir: "../src/corvix/web/static/assets",
     emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        entryFileNames: "assets/app.js",
-        assetFileNames: "assets/[name][extname]",
-      },
+    cssCodeSplit: false,
+    lib: {
+      entry: "src/main.tsx",
+      formats: ["es"],
+      fileName: () => "app.js",
+      cssFileName: "index",
     },
   },
   server: {

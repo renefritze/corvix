@@ -13,6 +13,7 @@ uv run pytest tests/test_services.py::test_foo       # run a single test
 uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run mypy src/corvix/                              # type check
+make frontend-build                                  # build frontend assets
 
 docker compose up                                    # full stack (web + poller + db)
 docker compose up web                                # web only
@@ -40,7 +41,7 @@ This starts three services sharing a `corvix_state` volume:
 2. `secrets/github_token.txt` must contain a GitHub personal access token
 3. `secrets/postgres_password.txt` and `secrets/database_url.txt` must exist
 
-The `web` service mounts `./src` and `./config` as volumes, so Python source changes take effect on reload without a full rebuild. Frontend asset changes require rebuilding the image (`--build`).
+Frontend assets are generated during image build and are not committed to git. Rebuild images (`docker compose up --build`) after frontend changes.
 
 ## Architecture
 

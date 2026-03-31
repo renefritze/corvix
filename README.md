@@ -28,6 +28,20 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
     uv run ruff check .
     ```
 
+5. Build frontend assets (required before running tests locally):
+
+    ```bash
+    make frontend-build
+    ```
+
+## Frontend Build Contract
+
+- Frontend source-of-truth lives in `frontend/` (`frontend/src/**`).
+- Canonical build command: `make frontend-build` (runs `npm ci && npm run build` in `frontend/`).
+- Build output is generated into `src/corvix/web/static/assets/`.
+- Generated bundles are not committed to git.
+- `src/corvix/web/static/index.html` is source-maintained and references `/assets/app.js` and `/assets/index.css`.
+
 ## Features
 
 - Local GitHub notification ingestion with configurable polling (`poll` and `watch`)
@@ -39,7 +53,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Litestar website dashboard with periodic auto-refresh
 - Docker Compose setup for `web`, `poller`, and `db`
 
-## Quickstart
+## Quickstart (Docker-only)
 
 > Full details: [docs/quickstart.md](docs/quickstart.md)
 
@@ -47,30 +61,6 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 
     ```bash
     cp config/corvix.example.yaml config/corvix.yaml
-    ```
-
-2. Set your GitHub token:
-
-    ```bash
-    export GITHUB_TOKEN=ghp_your_token
-    ```
-
-3. Run one poll cycle (dry-run actions by default):
-
-    ```bash
-    uv run corvix --config config/corvix.yaml poll
-    ```
-
-4. Render terminal dashboards from local cache:
-
-    ```bash
-    uv run corvix --config config/corvix.yaml dashboard
-    ```
-
-5. Run website dashboard locally (with auto-reload enabled):
-
-    ```bash
-    uv run corvix --config config/corvix.yaml serve --reload
     ```
 
 ## Docker Compose
@@ -100,7 +90,9 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 
 Notes:
 
-- `web` runs Litestar via `uvicorn --reload` and watches `/app/src` for code changes.
+- Local runtime/testing is Docker Compose only.
+- Frontend assets are built as part of the Docker image build (`docker compose up --build`).
+- Frontend source changes require rebuilding images (`docker compose up --build`) to refresh generated bundles.
 - `poller` runs the notification watch loop and updates the shared `/data/notifications.json`.
 - `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
 

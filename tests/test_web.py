@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from importlib.resources import files as resource_files
 from pathlib import Path
 from textwrap import dedent
 
@@ -47,8 +48,15 @@ def test_index_html_contains_app_mount() -> None:
 
 def test_index_html_references_static_assets() -> None:
     assert "/assets/app.js" in INDEX_HTML
+    assert "/assets/index.css" in INDEX_HTML
     assert "/assets/" in INDEX_HTML
     assert 'color-scheme" content="dark"' in INDEX_HTML
+
+
+def test_built_assets_exist() -> None:
+    assets = resource_files("corvix.web").joinpath("static/assets")
+    assert assets.joinpath("app.js").is_file()
+    assert assets.joinpath("index.css").is_file()
 
 
 def test_index_html_is_served() -> None:
