@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,7 +50,26 @@ class NotificationCache:
             "notifications": [record.to_dict() for record in records],
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        content = json.dumps(payload, indent=2)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.path.parent,
+                prefix=f".{self.path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_file.write(content)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+                temp_path = Path(temp_file.name)
+            temp_path.replace(self.path)
+            _fsync_directory(self.path.parent)
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink()
 
     def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
         """Load snapshot from disk if available."""
@@ -252,3 +273,17 @@ class PostgresStorage:
                 )
                 rows = cur.fetchall()
         return [row[0] for row in rows]
+
+
+def _fsync_directory(path: Path) -> None:
+    """Best-effort fsync of a directory after atomic replacement."""
+    try:
+        dir_fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        return
+    finally:
+        os.close(dir_fd)

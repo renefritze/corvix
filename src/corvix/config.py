@@ -8,6 +8,9 @@ from typing import Any, cast
 
 import yaml
 
+_POLLING_PER_PAGE_MIN = 1
+_POLLING_PER_PAGE_MAX = 50
+
 
 @dataclass(slots=True)
 class MatchCriteria:
@@ -340,9 +343,13 @@ def _parse_github(value: object) -> GitHubConfig:
 
 def _parse_polling(value: object) -> PollingConfig:
     polling = _ensure_map(value, "polling")
+    per_page = int(polling.get("per_page", _POLLING_PER_PAGE_MAX))
+    if not _POLLING_PER_PAGE_MIN <= per_page <= _POLLING_PER_PAGE_MAX:
+        msg = f"Config value 'polling.per_page' must be between {_POLLING_PER_PAGE_MIN} and {_POLLING_PER_PAGE_MAX}."
+        raise ValueError(msg)
     return PollingConfig(
         interval_seconds=int(polling.get("interval_seconds", 300)),
-        per_page=int(polling.get("per_page", 50)),
+        per_page=per_page,
         max_pages=int(polling.get("max_pages", 5)),
         all=bool(polling.get("all", False)),
         participating=bool(polling.get("participating", False)),

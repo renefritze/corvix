@@ -54,17 +54,15 @@ JSON file at the path configured in `state.cache_file`:
   "generated_at": "<ISO 8601 UTC timestamp>",
   "notifications": [
     {
-      "notification": {
-        "thread_id": "1",
-        "repository": "owner/repo",
-        "reason": "mention",
-        "subject_title": "Fix bug",
-        "subject_type": "PullRequest",
-        "unread": true,
-        "updated_at": "2024-01-01T00:00:00Z",
-        "thread_url": "https://api.github.com/notifications/threads/1",
-        "web_url": "https://github.com/owner/repo/pull/1"
-      },
+      "thread_id": "1",
+      "repository": "owner/repo",
+      "reason": "mention",
+      "subject_title": "Fix bug",
+      "subject_type": "PullRequest",
+      "unread": true,
+      "updated_at": "2024-01-01T00:00:00Z",
+      "thread_url": "https://api.github.com/notifications/threads/1",
+      "web_url": "https://github.com/owner/repo/pull/1",
       "score": 1.0,
       "excluded": false,
       "matched_rules": ["high-priority"],
@@ -74,6 +72,8 @@ JSON file at the path configured in `state.cache_file`:
   ]
 }
 ```
+
+Canonical persisted schema is the flattened record returned by `NotificationRecord.to_dict()`.
 
 ---
 
@@ -290,7 +290,7 @@ Framework: Litestar. Served via uvicorn. Config loaded on every request from the
 | `GET` | `/api/snapshot?dashboard=<name>` | Loads cache, runs `build_dashboard_data`, returns `DashboardData` as JSON plus `dashboard_names`. |
 | `POST` | `/api/notifications/{thread_id}/dismiss` | Calls GitHub dismiss API and marks the local record dismissed. |
 
-The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/api/snapshot`, and renders grouped tables. Columns 6, 8, 9 (Title, Rules, Actions) are hidden below 900 px.
+The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/api/snapshot`, and renders grouped tables in a responsive layout.
 
 ### `/api/snapshot` response shape
 
@@ -332,9 +332,11 @@ The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/a
 |---|---|---|
 | `db` | `postgres:16-alpine` | PostgreSQL service for migration and database-backed workflows. |
 | `poller` | local build | Runs `corvix watch --dry-run` continuously; writes to shared `corvix_state` volume. |
-| `web` | local build | Runs `uvicorn corvix.web.app:app --reload`; reads from shared `corvix_state` volume. |
+| `web` | local build | Runs `uvicorn corvix.web.app:app --host 0.0.0.0 --port 8000`; reads from shared `corvix_state` volume. |
 
-Shared volume `corvix_state` is mounted at `/data`. The poller writes `notifications.json` there; the web service reads it. Both services mount `./src` and `./config` for live reload during development.
+Shared volume `corvix_state` is mounted at `/data`. The poller writes `notifications.json` there; the web service reads it. Both services mount `./config:/app/config`.
+
+Optional development override: if live-reload/source mounts are needed, add a compose override file instead of treating them as the default runtime setup.
 
 ### Environment variables
 
