@@ -19,7 +19,7 @@ ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
-COPY pyproject.toml uv.lock README.md LICENSE /app/
+COPY pyproject.toml uv.lock README.md LICENSE hatch_build.py /app/
 COPY src /app/src
 COPY config/corvix.example.yaml /app/config/corvix.example.yaml
 COPY --from=frontend-builder /src/corvix/web/static/assets /app/src/corvix/web/static/assets

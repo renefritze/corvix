@@ -1,12 +1,11 @@
 """Top-level package for corvix."""
 
+from importlib.metadata import PackageNotFoundError, version
+
 __author__ = """ Rene Fritze"""
 __email__ = " coding@fritze.me"
 
 try:
-    from . import _version  # ty: ignore[unresolved-import]
-
-    __version__ = _version.__version__
-except ImportError as e:
-    print(f"version file could not be imported: {e}")
+    __version__ = version("corvix")
+except PackageNotFoundError:
     __version__ = "unknown"

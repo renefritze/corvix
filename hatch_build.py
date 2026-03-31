@@ -15,6 +15,9 @@ class CustomBuildHook(BuildHookInterface):
 
     def initialize(self, version: str, build_data: dict[str, object]) -> None:
         root = Path(self.root)
+        assets_dir = root / "src" / "corvix" / "web" / "static" / "assets"
+        if (assets_dir / "app.js").exists() and (assets_dir / "index.css").exists():
+            return
         frontend_dir = root / "frontend"
         if not frontend_dir.exists():
             msg = f"Frontend directory not found: {frontend_dir}"

@@ -12,7 +12,7 @@ uv run pytest                                        # run all tests
 uv run pytest tests/test_services.py::test_foo       # run a single test
 uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
-uv run mypy src/corvix/                              # type check
+uv run ty check src/corvix/                          # type check
 make frontend-build                                  # build frontend assets
 
 docker compose up                                    # full stack (web + poller + db)
