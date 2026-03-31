@@ -25,6 +25,26 @@ def test_notifications_table_renders(app_page: object) -> None:
 
 
 @pytest.mark.e2e
+def test_page_loads_css_and_js(page: object, corvix_server: str) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    console_errors: list[str] = []
+    page_errors: list[str] = []
+    page.on(
+        "console",
+        lambda msg: console_errors.append(msg.text) if msg.type == "error" else None,
+    )
+    page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+
+    page.goto(corvix_server)
+    expect(page.locator("link[rel='stylesheet'][href*='/assets/']")).to_have_count(1)
+    body_background = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
+    assert body_background.startswith("rgb(")
+    assert page_errors == []
+    assert console_errors == []
+
+
+@pytest.mark.e2e
 def test_dashboard_selector_lists_and_switches(app_page: object) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
@@ -92,6 +112,16 @@ def test_filter_clears_when_input_emptied(app_page: object) -> None:
     expect(rows).to_have_count(1)
     reason_filter.select_option("")
     expect(rows).to_have_count(3)
+
+
+@pytest.mark.e2e
+def test_dismiss_removes_row(app_page: object) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    rows = app_page.locator("tr.notification-row")
+    expect(rows).to_have_count(3)
+    app_page.get_by_label("Dismiss Dependency update").click()
+    expect(rows).to_have_count(2)
 
 
 @pytest.mark.e2e
@@ -164,3 +194,40 @@ def test_mobile_viewport_renders_without_horizontal_scroll(page: object, corvix_
         "() => document.documentElement.scrollWidth > document.documentElement.clientWidth",
     )
     assert has_horizontal_overflow is False
+
+
+@pytest.mark.e2e
+def test_keyboard_navigation_with_j_and_k(app_page: object) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    first_row = app_page.locator("tr.notification-row").first
+    second_row = app_page.locator("tr.notification-row").nth(1)
+    first_row.focus()
+    app_page.keyboard.press("j")
+    expect(second_row).to_be_focused()
+    app_page.keyboard.press("k")
+    expect(first_row).to_be_focused()
+
+
+@pytest.mark.e2e
+def test_keyboard_dismiss_with_d(app_page: object) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    rows = app_page.locator("tr.notification-row")
+    expect(rows).to_have_count(3)
+    second_row = rows.nth(1)
+    second_row.focus()
+    app_page.keyboard.press("d")
+    expect(rows).to_have_count(2)
+
+
+@pytest.mark.e2e
+def test_dismiss_persists_on_reload(app_page: object) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    app_page.get_by_label("Dismiss Dependency update").click()
+    expect(app_page.locator("tr.notification-row")).to_have_count(2)
+    expect(app_page.locator(".undo-toast")).to_have_count(0, timeout=7_000)
+    app_page.reload()
+    expect(app_page.locator("tr.notification-row")).to_have_count(2)
+    expect(app_page.locator("tr.notification-row", has_text="Dependency update")).to_have_count(0)

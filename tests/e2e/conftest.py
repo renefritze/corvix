@@ -6,8 +6,11 @@ import json
 import os
 import socket
 import subprocess
+import threading
 import time
 from collections.abc import Generator
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -17,6 +20,32 @@ import pytest
 HEALTH_TIMEOUT_SECONDS = 15.0
 HEALTH_POLL_INTERVAL_SECONDS = 0.2
 HTTP_OK = 200
+
+
+class _MockGitHubHandler(BaseHTTPRequestHandler):
+    def do_DELETE(self) -> None:
+        if self.path.startswith("/notifications/threads/"):
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.end_headers()
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        return
+
+
+@pytest.fixture(scope="session")
+def mock_github_api() -> Generator[str]:
+    port = _find_free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), _MockGitHubHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def _find_free_port() -> int:
@@ -41,7 +70,7 @@ def _wait_for_health(base_url: str, timeout_seconds: float = HEALTH_TIMEOUT_SECO
 
 
 @pytest.fixture(scope="session")
-def corvix_server(tmp_path_factory: pytest.TempPathFactory) -> Generator[str]:
+def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str) -> Generator[str]:
     pytest.importorskip("playwright")
 
     base_dir = tmp_path_factory.mktemp("corvix-e2e")
@@ -109,6 +138,7 @@ def corvix_server(tmp_path_factory: pytest.TempPathFactory) -> Generator[str]:
         f"""
 github:
   token_env: GITHUB_TOKEN
+  api_base_url: {mock_github_api}
 state:
   cache_file: {cache_file}
 dashboards:
@@ -137,6 +167,7 @@ dashboards:
     env = os.environ.copy()
     env["CORVIX_CONFIG"] = str(config_file)
     env["PYTHONPATH"] = str(Path.cwd() / "src")
+    env["GITHUB_TOKEN"] = "dummy-e2e-token"
     process = subprocess.Popen(
         [
             "uv",

@@ -23,7 +23,7 @@
 - [x] Phase 2.3 web snapshot integration tests with populated data
 - [x] Phase 2.4 CLI end-to-end integration tests expansion
 - [x] Phase 3.1 Playwright setup
-- [ ] Phase 3.2 Playwright e2e scenarios (in progress: 13 tests implemented in `tests/e2e/test_dashboard_ui.py`)
+- [ ] Phase 3.2 Playwright e2e scenarios (in progress: 18 tests implemented in `tests/e2e/test_dashboard_ui.py`; theme scenarios pending UI support)
 
 ### Coverage by Module
 
@@ -281,16 +281,21 @@ Implemented so far in [`tests/e2e/test_dashboard_ui.py`](/home/rene/repo/python/
 - `test_page_loads_and_renders_title`
 - `test_notifications_table_renders`
 - `test_dashboard_selector_lists_and_switches`
+- `test_page_loads_css_and_js`
 - `test_empty_dashboard_shows_empty_state`
 - `test_filter_bar_filters_by_reason`
 - `test_notification_row_shows_key_fields`
 - `test_sort_order_matches_config`
 - `test_filter_clears_when_input_emptied`
+- `test_dismiss_removes_row`
 - `test_dismiss_shows_undo_toast_and_undo_restores_row`
+- `test_dismiss_persists_on_reload`
 - `test_loading_skeleton_shown_then_replaced`
 - `test_server_error_shows_error_state`
 - `test_groups_displayed_with_headers`
 - `test_mobile_viewport_renders_without_horizontal_scroll`
+- `test_keyboard_navigation_with_j_and_k`
+- `test_keyboard_dismiss_with_d`
 
 Remaining scope in this phase is listed below.
 
@@ -323,7 +328,7 @@ Remaining scope in this phase is listed below.
 
 | # | Test | Steps |
 |---|---|---|
-| 11 | `test_filter_bar_filters_by_text` | Type a search query into the filter bar; assert only matching rows visible |
+| 11 | `test_filter_bar_filters_by_reason` | Select a reason in the filter; assert only matching rows visible |
 | 12 | `test_filter_clears_when_input_emptied` | Type then clear filter; assert all rows visible again |
 
 #### Dismiss Notification
@@ -332,27 +337,27 @@ Remaining scope in this phase is listed below.
 |---|---|---|
 | 13 | `test_dismiss_removes_row` | Click dismiss button on a row; assert row disappears from table |
 | 14 | `test_dismiss_shows_undo_toast` | Dismiss a notification; assert undo toast/snackbar appears |
-| 15 | `test_dismiss_persists_on_reload` | Dismiss, reload page; assert dismissed notification still gone |
+| 15 | `test_dismiss_persists_on_reload` | Let dismiss finalize, reload page; assert dismissed notification still gone |
 
 #### Theme Switching
 
 | # | Test | Steps |
 |---|---|---|
-| 16 | `test_theme_switch_changes_colors` | Open theme selector; switch to "graphite"; assert CSS variables updated (e.g., `--bg` changes) |
-| 17 | `test_theme_persists_across_reload` | Switch theme, reload; assert theme still applied |
+| 16 | `test_theme_switch_changes_colors` | Deferred: theme selector is not exposed in current frontend UI |
+| 17 | `test_theme_persists_across_reload` | Deferred: theme selector is not exposed in current frontend UI |
 
 #### Keyboard Shortcuts
 
 | # | Test | Steps |
 |---|---|---|
-| 18 | `test_keyboard_navigation` | Press arrow keys; assert row selection moves |
-| 19 | `test_keyboard_dismiss` | Select a row, press dismiss key; assert row removed |
+| 18 | `test_keyboard_navigation_with_j_and_k` | Focus a row, press `j` then `k`; assert focus moves down/up |
+| 19 | `test_keyboard_dismiss_with_d` | Focus a row, press `d`; assert row removed |
 
 #### Responsiveness
 
 | # | Test | Steps |
 |---|---|---|
-| 20 | `test_mobile_viewport` | Set viewport to 375x667; assert page renders without horizontal scroll; assert table adapts |
+| 20 | `test_mobile_viewport_renders_without_horizontal_scroll` | Set viewport to 375x667; assert page renders without horizontal scroll; assert table adapts |
 
 #### API Error Handling
 
@@ -396,15 +401,12 @@ uv run pytest -m "e2e" --headed  # or headless in CI
 | Layer | Current (2026-03-31) | Target |
 |---|---|---|
 | Unit + Integration (line coverage) | 97% overall (`uv run pytest`) | 95%+ |
-| E2E | 13 scenarios implemented; currently skipped in default env without Playwright | Scenario coverage across core user workflows |
+| E2E | 18 scenarios implemented and passing via `uv run pytest -m e2e` | Scenario coverage across core user workflows |
 | **Overall quality gate** | **Unit+integration strong; e2e partial** | **Keep >=95% line coverage and complete Phase 3.2 scenario set** |
 
 ---
 
 ## Implementation Order
 
-1. **Phase 3.2.1** - Expand current e2e suite with highest-value UI behaviors: row key fields, sort order, dismiss flow
-2. **Phase 3.2.2** - Add resilience checks: loading transition and API-error UI state
-3. **Phase 3.2.3** - Add UX persistence checks: theme change + reload persistence
-4. **Phase 3.2.4** - Add responsiveness and keyboard interaction coverage
-5. **Phase 4** - Wire marker-based CI jobs so e2e runs on a scheduled cadence
+1. **Phase 3.2.3** - Add UX persistence checks for theme once a frontend theme selector is implemented
+2. **Phase 4** - Wire marker-based CI jobs so e2e runs on a scheduled cadence
