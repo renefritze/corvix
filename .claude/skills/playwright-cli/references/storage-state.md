@@ -128,13 +128,13 @@ playwright-cli run-code "async page => {
 playwright-cli localstorage-list
 ```
 
-### Get Single Value
+### Get Single Value (localStorage)
 
 ```bash
 playwright-cli localstorage-get token
 ```
 
-### Set Value
+### Set Value (localStorage)
 
 ```bash
 playwright-cli localstorage-set theme dark
@@ -146,7 +146,7 @@ playwright-cli localstorage-set theme dark
 playwright-cli localstorage-set user_settings '{"theme":"dark","language":"en"}'
 ```
 
-### Delete Single Item
+### Delete Single Item (localStorage)
 
 ```bash
 playwright-cli localstorage-delete token
@@ -180,19 +180,19 @@ playwright-cli run-code "async page => {
 playwright-cli sessionstorage-list
 ```
 
-### Get Single Value
+### Get Single Value (sessionStorage)
 
 ```bash
 playwright-cli sessionstorage-get form_data
 ```
 
-### Set Value
+### Set Value (sessionStorage)
 
 ```bash
 playwright-cli sessionstorage-set step 3
 ```
 
-### Delete Single Item
+### Delete Single Item (sessionStorage)
 
 ```bash
 playwright-cli sessionstorage-delete step

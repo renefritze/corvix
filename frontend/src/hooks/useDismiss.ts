@@ -60,7 +60,9 @@ export function useDismiss(
 	}, []);
 
 	const undoAll = useCallback(() => {
-		pendingRef.current.forEach((item) => clearTimeout(item.timerId));
+		for (const item of pendingRef.current.values()) {
+			clearTimeout(item.timerId);
+		}
 		setPending(new Map());
 	}, []);
 

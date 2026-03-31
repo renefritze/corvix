@@ -23,7 +23,7 @@ export function TableHeader({
 	return (
 		<thead>
 			<tr>
-				<th class="col-status" aria-label="Unread status"></th>
+				<th class="col-status" aria-label="Unread status" />
 				{COLUMNS.map(({ key, label, className }) => (
 					<th
 						key={key}
@@ -34,7 +34,6 @@ export function TableHeader({
 						]
 							.filter(Boolean)
 							.join(" ")}
-						onClick={() => onSort(key)}
 						aria-sort={
 							sortColumn === key
 								? sortDirection === "asc"
@@ -43,15 +42,17 @@ export function TableHeader({
 								: "none"
 						}
 					>
-						{label}
-						{sortColumn === key && (
-							<span class="sort-arrow" aria-hidden="true">
-								{sortDirection === "asc" ? " ▲" : " ▼"}
-							</span>
-						)}
+						<button type="button" onClick={() => onSort(key)}>
+							{label}
+							{sortColumn === key && (
+								<span class="sort-arrow" aria-hidden="true">
+									{sortDirection === "asc" ? " ▲" : " ▼"}
+								</span>
+							)}
+						</button>
 					</th>
 				))}
-				<th class="col-actions" aria-label="Actions"></th>
+				<th class="col-actions" aria-label="Actions" />
 			</tr>
 		</thead>
 	);
