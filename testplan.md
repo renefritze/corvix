@@ -23,7 +23,7 @@
 - [x] Phase 2.3 web snapshot integration tests with populated data
 - [x] Phase 2.4 CLI end-to-end integration tests expansion
 - [x] Phase 3.1 Playwright setup
-- [ ] Phase 3.2 Playwright e2e scenarios (in progress: 9 tests implemented in `tests/e2e/test_dashboard_ui.py`)
+- [ ] Phase 3.2 Playwright e2e scenarios (in progress: 11 tests implemented in `tests/e2e/test_dashboard_ui.py`)
 
 ### Coverage by Module
 
@@ -287,6 +287,8 @@ Implemented so far in [`tests/e2e/test_dashboard_ui.py`](/home/rene/repo/python/
 - `test_sort_order_matches_config_and_toggles`
 - `test_filter_clears_when_input_emptied`
 - `test_dismiss_shows_undo_toast_and_undo_restores_row`
+- `test_loading_skeleton_shown_then_replaced`
+- `test_server_error_shows_error_state`
 
 Remaining scope in this phase is listed below.
 
@@ -392,7 +394,7 @@ uv run pytest -m "e2e" --headed  # or headless in CI
 | Layer | Current (2026-03-31) | Target |
 |---|---|---|
 | Unit + Integration (line coverage) | 97% overall (`uv run pytest`) | 95%+ |
-| E2E | 9 scenarios implemented; currently skipped in default env without Playwright | Scenario coverage across core user workflows |
+| E2E | 11 scenarios implemented; currently skipped in default env without Playwright | Scenario coverage across core user workflows |
 | **Overall quality gate** | **Unit+integration strong; e2e partial** | **Keep >=95% line coverage and complete Phase 3.2 scenario set** |
 
 ---

@@ -110,3 +110,36 @@ def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: object) -> Non
     app_page.get_by_role("button", name="Undo").click()
     expect(app_page.locator(".undo-toast")).to_have_count(0)
     expect(rows).to_have_count(3)
+
+
+@pytest.mark.e2e
+def test_loading_skeleton_shown_then_replaced(page: object, corvix_server: str) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    def delayed_snapshot(route: object) -> None:
+        route.fetch(timeout=5_000)
+        page.wait_for_timeout(500)
+        route.continue_()
+
+    page.route("**/api/snapshot", delayed_snapshot)
+    page.goto(corvix_server)
+    expect(page.locator("table.notification-table[aria-label='Loading notifications']")).to_be_visible()
+    expect(page.locator("tr.skeleton-row")).to_have_count(9)
+    expect(page.locator("tr.notification-row")).to_have_count(3)
+
+
+@pytest.mark.e2e
+def test_server_error_shows_error_state(page: object, corvix_server: str) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    page.route(
+        "**/api/snapshot",
+        lambda route: route.fulfill(
+            status=500,
+            content_type="application/json",
+            body='{"detail":"forced test failure"}',
+        ),
+    )
+    page.goto(corvix_server)
+    expect(page.locator(".empty-state.error-state .empty-title")).to_have_text("Failed to load")
+    expect(page.locator(".empty-state.error-state .empty-body")).to_contain_text("Snapshot fetch failed: 500")
