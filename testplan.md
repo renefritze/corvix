@@ -284,7 +284,7 @@ Implemented so far in [`tests/e2e/test_dashboard_ui.py`](/home/rene/repo/python/
 - `test_empty_dashboard_shows_empty_state`
 - `test_filter_bar_filters_by_reason`
 - `test_notification_row_shows_key_fields`
-- `test_sort_order_matches_config_and_toggles`
+- `test_sort_order_matches_config`
 - `test_filter_clears_when_input_emptied`
 - `test_dismiss_shows_undo_toast_and_undo_restores_row`
 - `test_loading_skeleton_shown_then_replaced`

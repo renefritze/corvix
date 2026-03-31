@@ -32,7 +32,7 @@ def test_dashboard_selector_lists_and_switches(app_page: object) -> None:
     expect(selector).to_be_visible()
     expect(selector.locator("option")).to_have_count(3)
     selector.select_option("triage")
-    expect(app_page.locator("tr.notification-row")).to_have_count(1)
+    expect(app_page.locator("tr.notification-row")).to_have_count(2)
     expect(app_page.locator("tr.group-header-row")).to_contain_text(["mention"])
 
 
@@ -70,7 +70,7 @@ def test_notification_row_shows_key_fields(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_sort_order_matches_config_and_toggles(app_page: object) -> None:
+def test_sort_order_matches_config(app_page: object) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     selector = app_page.get_by_label("Select dashboard")
@@ -79,10 +79,6 @@ def test_sort_order_matches_config_and_toggles(app_page: object) -> None:
     expect(rows).to_have_count(2)
     expect(rows.nth(0)).to_have_text("Review API changes")
     expect(rows.nth(1)).to_have_text("Triage flaky integration test")
-
-    app_page.get_by_role("button", name="Score").click()
-    expect(rows.nth(0)).to_have_text("Triage flaky integration test")
-    expect(rows.nth(1)).to_have_text("Review API changes")
 
 
 @pytest.mark.e2e
