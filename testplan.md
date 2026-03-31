@@ -5,7 +5,7 @@
 - **197 tests passing** (`uv run pytest`, 2026-03-31)
 - **Overall coverage: 94%** (from pytest-cov summary)
 - **Phase 1 status:** complete
-- **Phase 2 status:** not started
+- **Phase 2 status:** in progress
 - **Phase 3 status:** not started
 - **e2e directory exists** but is still empty
 
@@ -18,7 +18,7 @@
 - [x] Phase 1.5 `dashboarding.py` branch tests
 - [x] Phase 1.6 `storage.py` `NotificationCache` error-path tests
 - [x] Phase 1.7 `web/app.py` dismiss/config runtime tests
-- [ ] Phase 2.1 `PostgresStorage` integration tests
+- [x] Phase 2.1 `PostgresStorage` integration tests
 - [ ] Phase 2.2 poll-to-render pipeline tests
 - [ ] Phase 2.3 web snapshot integration tests with populated data
 - [ ] Phase 2.4 CLI end-to-end integration tests expansion
@@ -225,7 +225,7 @@ Goal: test the full web application as a user would interact with it in a browse
 
 **Dependencies to add:**
 
-```
+```text
 pytest-playwright
 ```
 
@@ -359,7 +359,7 @@ markers = [
 
 ### 4.2 Recommended CI Matrix
 
-```
+```bash
 # Fast (every push):
 uv run pytest -m "not integration and not e2e"
 
