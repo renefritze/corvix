@@ -5,7 +5,7 @@
 - **197 tests passing** (`uv run pytest`, 2026-03-31)
 - **Overall coverage: 94%** (from pytest-cov summary)
 - **Phase 1 status:** complete
-- **Phase 2 status:** in progress
+- **Phase 2 status:** complete
 - **Phase 3 status:** not started
 - **e2e directory exists** but is still empty
 
@@ -19,9 +19,9 @@
 - [x] Phase 1.6 `storage.py` `NotificationCache` error-path tests
 - [x] Phase 1.7 `web/app.py` dismiss/config runtime tests
 - [x] Phase 2.1 `PostgresStorage` integration tests
-- [ ] Phase 2.2 poll-to-render pipeline tests
-- [ ] Phase 2.3 web snapshot integration tests with populated data
-- [ ] Phase 2.4 CLI end-to-end integration tests expansion
+- [x] Phase 2.2 poll-to-render pipeline tests
+- [x] Phase 2.3 web snapshot integration tests with populated data
+- [x] Phase 2.4 CLI end-to-end integration tests expansion
 - [ ] Phase 3.1 Playwright setup
 - [ ] Phase 3.2 Playwright e2e scenarios
 

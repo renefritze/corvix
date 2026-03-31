@@ -11,6 +11,10 @@ from litestar.testing import TestClient
 
 from corvix.web.app import INDEX_HTML, THEMES, app
 
+GENERATED_AT = "2024-01-01T00:00:00Z"
+EXPECTED_POPULATED_TOTAL_ITEMS = 3
+EXPECTED_POPULATED_GROUPS = 2
+
 
 @pytest.fixture()
 def client() -> TestClient:
@@ -36,6 +40,73 @@ dashboards:
   - name: triage
     group_by: repository
     sort_by: score
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
+    return TestClient(app)
+
+
+def _record_payload(
+    *,
+    thread_id: str,
+    repository: str,
+    reason: str,
+    score: float,
+    unread: bool = True,
+) -> dict[str, object]:
+    return {
+        "thread_id": thread_id,
+        "repository": repository,
+        "reason": reason,
+        "subject_title": f"Title {thread_id}",
+        "subject_type": "PullRequest",
+        "unread": unread,
+        "updated_at": GENERATED_AT,
+        "thread_url": f"https://api.github.com/notifications/threads/{thread_id}",
+        "web_url": f"https://github.com/{repository}/pull/{thread_id}",
+        "score": score,
+        "excluded": False,
+        "matched_rules": [],
+        "actions_taken": [],
+        "dismissed": False,
+    }
+
+
+@pytest.fixture()
+def populated_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    cache_file = tmp_path / "notifications.json"
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "notifications": [
+                    _record_payload(thread_id="101", repository="org/repo-a", reason="mention", score=90.0),
+                    _record_payload(thread_id="102", repository="org/repo-b", reason="subscribed", score=30.0),
+                    _record_payload(thread_id="103", repository="org/repo-a", reason="mention", score=60.0),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        f"""
+github:
+  token_env: GITHUB_TOKEN
+state:
+  cache_file: {cache_file}
+dashboards:
+  - name: overview
+    group_by: repository
+    sort_by: score
+    include_read: true
+  - name: triage
+    group_by: reason
+    sort_by: score
+    include_read: true
+    match:
+      reason_in: ["mention"]
 """,
         encoding="utf-8",
     )
@@ -141,6 +212,44 @@ def test_snapshot_no_config_returns_500(client: TestClient, monkeypatch: pytest.
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
     response = client.get("/api/snapshot")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def test_snapshot_with_notifications(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/snapshot?dashboard=overview")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["name"] == "overview"
+    assert payload["total_items"] == EXPECTED_POPULATED_TOTAL_ITEMS
+    assert len(payload["groups"]) == EXPECTED_POPULATED_GROUPS
+    assert sum(len(group["items"]) for group in payload["groups"]) == EXPECTED_POPULATED_TOTAL_ITEMS
+
+
+def test_snapshot_multiple_dashboards(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/dashboards")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["dashboard_names"] == ["overview", "triage"]
+
+
+def test_snapshot_respects_dashboard_filters(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/snapshot?dashboard=triage")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["name"] == "triage"
+    reasons = [item["reason"] for group in payload["groups"] for item in group["items"]]
+    assert reasons
+    assert set(reasons) == {"mention"}
+
+
+def test_snapshot_sorting_order(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/snapshot?dashboard=overview")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    scores = [item["score"] for group in payload["groups"] for item in group["items"]]
+    assert scores == sorted(scores, reverse=True)
 
 
 # --- /api/notifications/{thread_id}/dismiss ---

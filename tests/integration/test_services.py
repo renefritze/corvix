@@ -26,6 +26,8 @@ from corvix.storage import NotificationCache
 
 EXPECTED_FETCHED = 2
 EXPECTED_EXCLUDED = 1
+EXPECTED_COMPLEX_FETCHED = 3
+EXPECTED_WATCH_ITERATIONS = 2
 
 
 class FakeClient:
@@ -141,6 +143,128 @@ def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
     assert results[0].rows == 1
 
 
+def test_poll_with_global_and_repository_rules(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = AppConfig(
+        polling=PollingConfig(max_pages=1, per_page=10, interval_seconds=0),
+        state=StateConfig(cache_file=cache_path),
+        scoring=ScoringConfig(
+            unread_bonus=5,
+            age_decay_per_hour=0,
+            reason_weights={"mention": 40},
+            repository_weights={"org/critical": 20},
+            title_keyword_weights={"urgent": 10},
+        ),
+        rules=RuleSet(
+            global_rules=[
+                Rule(
+                    name="mute-bots",
+                    match=MatchCriteria(title_contains_any=["bot"]),
+                    actions=[RuleAction(action_type="mark_read")],
+                    exclude_from_dashboards=True,
+                )
+            ],
+            per_repository={
+                "org/critical": [
+                    Rule(
+                        name="critical-chore",
+                        match=MatchCriteria(title_contains_any=["chore"]),
+                        actions=[RuleAction(action_type="mark_read")],
+                    )
+                ]
+            },
+        ),
+        dashboards=[
+            DashboardSpec(name="overview", group_by="repository", sort_by="score", include_read=True),
+            DashboardSpec(name="triage", group_by="reason", sort_by="score", include_read=True),
+        ],
+    )
+    client = FakeClient(
+        [
+            Notification(
+                thread_id="1",
+                repository="org/critical",
+                reason="mention",
+                subject_title="Urgent fix needed",
+                subject_type="PullRequest",
+                unread=True,
+                updated_at=now - timedelta(hours=1),
+                thread_url="https://api.github.com/notifications/threads/1",
+            ),
+            Notification(
+                thread_id="2",
+                repository="org/critical",
+                reason="subscribed",
+                subject_title="chore bot update",
+                subject_type="PullRequest",
+                unread=True,
+                updated_at=now - timedelta(hours=1),
+                thread_url="https://api.github.com/notifications/threads/2",
+            ),
+            Notification(
+                thread_id="3",
+                repository="org/other",
+                reason="subscribed",
+                subject_title="normal update",
+                subject_type="PullRequest",
+                unread=True,
+                updated_at=now - timedelta(hours=1),
+                thread_url="https://api.github.com/notifications/threads/3",
+            ),
+        ]
+    )
+    cache = NotificationCache(path=cache_path)
+
+    summary = run_poll_cycle(
+        config=config,
+        client=client,
+        cache=cache,
+        apply_actions=True,
+        now=now,
+    )
+    _, records = cache.load()
+    by_id = {record.notification.thread_id: record for record in records}
+
+    assert summary.fetched == EXPECTED_COMPLEX_FETCHED
+    assert summary.excluded == 1
+    assert summary.actions_taken == 1
+    assert client.marked_thread_ids == ["2"]
+    assert by_id["1"].score > by_id["3"].score
+    assert by_id["2"].matched_rules == ["mute-bots", "critical-chore"]
+    assert by_id["2"].excluded is True
+
+
+def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClient(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+
+    run_poll_cycle(
+        config=config,
+        client=client,
+        cache=cache,
+        apply_actions=False,
+        now=now,
+    )
+    cache.dismiss_record(user_id="", thread_id="1")
+
+    console = Console(record=True)
+    results = render_cached_dashboards(
+        config=config,
+        cache=cache,
+        console=console,
+        dashboard_name="triage",
+    )
+    rendered_text = console.export_text()
+
+    assert len(results) == 1
+    assert results[0].rows == 0
+    assert "Please review" not in rendered_text
+
+
 def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
     now = datetime.now(tz=UTC)
     cache_path = tmp_path / "notifications.json"
@@ -156,7 +280,7 @@ def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
         iterations=2,
     )
 
-    assert len(summaries) == 2
+    assert len(summaries) == EXPECTED_WATCH_ITERATIONS
     assert all(s.fetched == EXPECTED_FETCHED for s in summaries)
 
 
