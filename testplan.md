@@ -7,6 +7,7 @@
 - **Phase 1 status:** complete
 - **Phase 2 status:** complete
 - **Phase 3 status:** mostly complete (18 Playwright scenarios passing; 2 theme scenarios deferred)
+- **Phase 4 status:** complete (marker-based CI jobs + scheduled e2e cadence wired)
 - **Playwright e2e scaffolding + baseline scenarios exist** (`tests/e2e/`), but are skipped unless Playwright is installed
 
 ### Progress Status (2026-03-31)
@@ -24,6 +25,7 @@
 - [x] Phase 2.4 CLI end-to-end integration tests expansion
 - [x] Phase 3.1 Playwright setup
 - [ ] Phase 3.2 Playwright e2e scenarios (18 tests implemented and passing in `tests/e2e/test_dashboard_ui.py`; 2 theme scenarios pending UI support)
+- [x] Phase 4 CI configuration (fast + integration marker jobs on push/PR/merge queue; e2e on merge queue + nightly schedule)
 
 ### Coverage by Module
 
