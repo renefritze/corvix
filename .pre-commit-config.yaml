@@ -96,13 +96,20 @@ repos:
   rev: df7dbcb43c51b3cfe258607c2d7941a87cc98672  # frozen: v1.1.1
   hooks:
   - id: betterleaks
-- repo: local
+- repo: https://github.com/biomejs/pre-commit
+  rev: 04a2d319df467d8f2cb22d4e4708c33232339894  # frozen: v2.3.10
   hooks:
-  - id: no-catch-in-src
-    name: Prohibit Catch2 includes in src dir
-    language: pygrep
-    files: ^src/
-    entry: \#include\ [<"]catch2\/
+  # Ignore bundled frontend assets: they are generated/minified and not suitable
+  # for Biome source linting rules (assignment expressions, comma operator, etc.).
+  - id: biome-check
+    additional_dependencies: ['@biomejs/biome@1.8.3']
+    types: [javascript]
+    exclude: ^src/corvix/web/static/assets/
+  - id: biome-format
+    additional_dependencies: ['@biomejs/biome@1.8.3']
+    types: [javascript]
+    exclude: ^src/corvix/web/static/assets/
+
 - repo: https://github.com/shellcheck-py/shellcheck-py
   rev: 745eface02aef23e168a8afb6b5737818efbea95  # frozen: v0.11.0.1
   hooks:
