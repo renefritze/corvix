@@ -2,12 +2,12 @@
 
 ## Current State
 
-- **197 tests passing** (`uv run pytest`, 2026-03-31)
-- **Overall coverage: 94%** (from pytest-cov summary)
+- **215 tests passing, 1 skipped** (`uv run pytest`, 2026-03-31)
+- **Overall coverage: 97%** (from pytest-cov summary)
 - **Phase 1 status:** complete
 - **Phase 2 status:** complete
 - **Phase 3 status:** in progress
-- **e2e directory exists** but is still empty
+- **Playwright e2e scaffolding + baseline scenarios exist** (`tests/e2e/`), but are skipped unless Playwright is installed
 
 ### Progress Status (2026-03-31)
 
@@ -23,26 +23,26 @@
 - [x] Phase 2.3 web snapshot integration tests with populated data
 - [x] Phase 2.4 CLI end-to-end integration tests expansion
 - [x] Phase 3.1 Playwright setup
-- [ ] Phase 3.2 Playwright e2e scenarios
+- [ ] Phase 3.2 Playwright e2e scenarios (in progress: 5 tests implemented in `tests/e2e/test_dashboard_ui.py`)
 
 ### Coverage by Module
 
-| Module | Stmts | Miss | Branch | Cover | Notes |
-|---|---|---|---|---|---|
-| `actions.py` | 51 | 0 | 20 | 99% | Near-complete |
-| `cli.py` | 130 | 76 | 24 | **37%** | Most commands untested |
-| `config.py` | 159 | 8 | 14 | 93% | Validation error paths missing |
-| `dashboarding.py` | 91 | 2 | 28 | 97% | Two minor branches |
-| `db.py` | 58 | 1 | 0 | 98% | Only `get_database_url` line |
-| `domain.py` | 126 | 9 | 36 | 90% | `_derive_web_url` edge cases |
-| `env.py` | 18 | 0 | 6 | 100% | Complete |
-| `ingestion.py` | 54 | 35 | 10 | **30%** | Entirely untested (HTTP calls) |
-| `presentation.py` | 40 | 0 | 8 | 98% | Near-complete |
-| `rules.py` | 35 | 0 | 6 | 100% | Complete |
-| `scoring.py` | 19 | 0 | 6 | 100% | Complete |
-| `services.py` | 60 | 0 | 12 | 99% | Near-complete |
-| `storage.py` | 87 | 35 | 20 | **58%** | `PostgresStorage` entirely untested |
-| `web/app.py` | 88 | 18 | 10 | 81% | `dismiss_notification` flow, `run()` |
+| Module | Stmts | Miss | Cover | Remaining Gaps |
+|---|---|---|---|---|
+| `actions.py` | 51 | 0 | 100% | None |
+| `cli.py` | 130 | 8 | 94% | Lines `81`, `117`, `185-188`, `205-206` |
+| `config.py` | 165 | 0 | 100% | None |
+| `dashboarding.py` | 91 | 1 | 99% | Line `142` |
+| `db.py` | 58 | 1 | 98% | Line `95` |
+| `domain.py` | 126 | 2 | 98% | Lines `183`, `189` |
+| `env.py` | 18 | 0 | 100% | None |
+| `ingestion.py` | 54 | 7 | 87% | Lines `75-79`, `82-85` |
+| `presentation.py` | 40 | 0 | 100% | None |
+| `rules.py` | 35 | 0 | 100% | None |
+| `scoring.py` | 19 | 0 | 100% | None |
+| `services.py` | 60 | 0 | 100% | None |
+| `storage.py` | 110 | 5 | 95% | Lines `72`, `282-283`, `286-287` |
+| `web/app.py` | 88 | 6 | 93% | Lines `129-130`, `167-170` |
 
 ---
 
@@ -223,6 +223,8 @@ Goal: test the full web application as a user would interact with it in a browse
 
 ### 3.1 Setup
 
+Status: complete (fixtures and baseline e2e tests are present under `tests/e2e/`).
+
 **Dependencies to add:**
 
 ```text
@@ -273,6 +275,16 @@ def app_page(page, corvix_server):
 ### 3.2 Test Cases
 
 All tests marked with `@pytest.mark.e2e`.
+
+Implemented so far in [`tests/e2e/test_dashboard_ui.py`](/home/rene/repo/python/corvix/tests/e2e/test_dashboard_ui.py):
+
+- `test_page_loads_and_renders_title`
+- `test_notifications_table_renders`
+- `test_dashboard_selector_lists_and_switches`
+- `test_empty_dashboard_shows_empty_state`
+- `test_filter_bar_filters_by_reason`
+
+Remaining scope in this phase is listed below.
 
 #### Page Load & SPA Shell
 
@@ -373,25 +385,18 @@ uv run pytest -m "e2e" --headed  # or headless in CI
 
 ### 4.3 Coverage Targets
 
-| Layer | Current | Target |
+| Layer | Current (2026-03-31) | Target |
 |---|---|---|
-| Unit | 82% | 95%+ |
-| Integration | (included above) | 90%+ |
-| E2E | 0% | Not measured by line coverage; measured by scenario coverage |
-| **Overall** | **80%** | **92%+** |
+| Unit + Integration (line coverage) | 97% overall (`uv run pytest`) | 95%+ |
+| E2E | 5 scenarios implemented; currently skipped in default env without Playwright | Scenario coverage across core user workflows |
+| **Overall quality gate** | **Unit+integration strong; e2e partial** | **Keep >=95% line coverage and complete Phase 3.2 scenario set** |
 
 ---
 
 ## Implementation Order
 
-1. **Phase 1.1** - `test_ingestion.py` (biggest coverage gap, pure mocking)
-2. **Phase 1.4** - `test_domain.py` additions (URL derivation edge cases)
-3. **Phase 1.3** - `test_config.py` additions (validation errors)
-4. **Phase 1.6** - `test_storage_cache.py` additions (error paths)
-5. **Phase 1.5** - `test_dashboarding.py` additions (two branches)
-6. **Phase 1.2** - `test_cli.py` new unit tests (largest effort, most new code)
-7. **Phase 1.7** - `test_web_api.py` dismiss flow
-8. **Phase 2.1** - PostgreSQL integration tests (requires testcontainers setup)
-9. **Phase 2.2-2.4** - Remaining integration tests
-10. **Phase 3.1** - Playwright setup (conftest, fixtures, dependencies)
-11. **Phase 3.2** - E2E test cases (iterative, start with page load + table rendering)
+1. **Phase 3.2.1** - Expand current e2e suite with highest-value UI behaviors: row key fields, sort order, dismiss flow
+2. **Phase 3.2.2** - Add resilience checks: loading transition and API-error UI state
+3. **Phase 3.2.3** - Add UX persistence checks: theme change + reload persistence
+4. **Phase 3.2.4** - Add responsiveness and keyboard interaction coverage
+5. **Phase 4** - Wire marker-based CI jobs so e2e runs on a scheduled cadence
