@@ -6,7 +6,7 @@
 - **Overall coverage: 97%** (from pytest-cov summary)
 - **Phase 1 status:** complete
 - **Phase 2 status:** complete
-- **Phase 3 status:** in progress
+- **Phase 3 status:** mostly complete (18 Playwright scenarios passing; 2 theme scenarios deferred)
 - **Playwright e2e scaffolding + baseline scenarios exist** (`tests/e2e/`), but are skipped unless Playwright is installed
 
 ### Progress Status (2026-03-31)
@@ -23,7 +23,7 @@
 - [x] Phase 2.3 web snapshot integration tests with populated data
 - [x] Phase 2.4 CLI end-to-end integration tests expansion
 - [x] Phase 3.1 Playwright setup
-- [ ] Phase 3.2 Playwright e2e scenarios (in progress: 18 tests implemented in `tests/e2e/test_dashboard_ui.py`; theme scenarios pending UI support)
+- [ ] Phase 3.2 Playwright e2e scenarios (18 tests implemented and passing in `tests/e2e/test_dashboard_ui.py`; 2 theme scenarios pending UI support)
 
 ### Coverage by Module
 
@@ -329,7 +329,7 @@ Remaining scope in this phase is listed below.
 | # | Test | Steps |
 |---|---|---|
 | 11 | `test_filter_bar_filters_by_reason` | Select a reason in the filter; assert only matching rows visible |
-| 12 | `test_filter_clears_when_input_emptied` | Type then clear filter; assert all rows visible again |
+| 12 | `test_filter_clears_when_input_emptied` | Select then clear filter; assert all rows visible again |
 
 #### Dismiss Notification
 
