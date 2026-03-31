@@ -28,6 +28,9 @@ dependencies = [
     "alembic>=1.18.4",
 ]
 
+[project.optional-dependencies]
+e2e = ["pytest-playwright>=0.7.1"]
+
 [tool.hatch.version]
 source = "vcs"
 
