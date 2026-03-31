@@ -1,4 +1,6 @@
-"""Tests for `corvix` package."""
+"""CLI command integration tests."""
+
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -17,7 +19,6 @@ def test_import() -> None:
 
 
 def test_command_line_interface() -> None:
-    """Test the CLI root and init-config command."""
     runner = CliRunner()
     result = runner.invoke(cli.main)
     assert result.exit_code == 0

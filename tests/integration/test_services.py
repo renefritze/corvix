@@ -1,4 +1,4 @@
-"""Service orchestration tests."""
+"""Service orchestration integration tests."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from rich.console import Console
 
 from corvix.config import (
@@ -20,7 +21,7 @@ from corvix.config import (
     StateConfig,
 )
 from corvix.domain import Notification
-from corvix.services import render_cached_dashboards, run_poll_cycle
+from corvix.services import _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache
 
 EXPECTED_FETCHED = 2
@@ -41,7 +42,7 @@ class FakeClient:
 
 def _build_config(cache_path: Path) -> AppConfig:
     return AppConfig(
-        polling=PollingConfig(max_pages=1, per_page=10),
+        polling=PollingConfig(max_pages=1, per_page=10, interval_seconds=0),
         state=StateConfig(cache_file=cache_path),
         scoring=ScoringConfig(reason_weights={"mention": 20}, unread_bonus=10, age_decay_per_hour=0),
         rules=RuleSet(
@@ -138,3 +139,53 @@ def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
     assert len(results) == 1
     assert results[0].dashboard_name == "triage"
     assert results[0].rows == 1
+
+
+def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClient(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+
+    summaries = run_watch_loop(
+        config=config,
+        client=client,
+        cache=cache,
+        apply_actions=False,
+        iterations=2,
+    )
+
+    assert len(summaries) == 2
+    assert all(s.fetched == EXPECTED_FETCHED for s in summaries)
+
+
+# --- _select_dashboards ---
+
+
+def test_select_dashboards_returns_all_when_none(tmp_path: Path) -> None:
+    config = _build_config(tmp_path / "cache.json")
+    selected = _select_dashboards(config, None)
+    assert len(selected) == 1
+    assert selected[0].name == "triage"
+
+
+def test_select_dashboards_returns_named(tmp_path: Path) -> None:
+    config = _build_config(tmp_path / "cache.json")
+    selected = _select_dashboards(config, "triage")
+    assert len(selected) == 1
+    assert selected[0].name == "triage"
+
+
+def test_select_dashboards_raises_for_missing(tmp_path: Path) -> None:
+    config = _build_config(tmp_path / "cache.json")
+    with pytest.raises(ValueError, match="not found"):
+        _select_dashboards(config, "nonexistent")
+
+
+def test_select_dashboards_default_when_no_config_dashboards(tmp_path: Path) -> None:
+    config = _build_config(tmp_path / "cache.json")
+    config.dashboards.clear()
+    selected = _select_dashboards(config, None)
+    assert len(selected) == 1
+    assert selected[0].name == "default"
