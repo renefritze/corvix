@@ -211,6 +211,13 @@ github:
   token_env: GITHUB_TOKEN
   api_base_url: https://api.github.com
 
+enrichment:
+  enabled: false
+  max_requests_per_cycle: 25
+  github_latest_comment:
+    enabled: false
+    timeout_seconds: 10
+
 polling:
   interval_seconds: 300
   per_page: 50

@@ -14,10 +14,10 @@ state:
   cache_file: /data/notifications.json
 
 enrichment:
-  enabled: false
+  enabled: true
   max_requests_per_cycle: 25
   github_latest_comment:
-    enabled: false
+    enabled: true
     timeout_seconds: 10
 
 scoring:
@@ -48,6 +48,37 @@ rules:
     match:
       repository_glob: ["arup-group/oasys*"]
       title_regex: "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  - name: mute-codecov-comments
+    match:
+      reason_in: ["comment"]
+      context:
+      - path: github.latest_comment.author.login
+        op: equals
+        value: codecov[bot]
+        case_insensitive: true
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  - name: mute-test-report-link-comments
+    match:
+      reason_in: ["comment"]
+      context:
+      - path: github.latest_comment.is_test_report_link_only
+        op: equals
+        value: true
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  - name: mute-ci-only-comments
+    match:
+      reason_in: ["comment"]
+      context:
+      - path: github.latest_comment.is_ci_only
+        op: equals
+        value: true
     actions:
     - type: mark_read
     exclude_from_dashboards: true
