@@ -17,6 +17,8 @@ from urllib.request import urlopen
 
 import pytest
 
+from tests.e2e.playwright_types import PageLike
+
 HEALTH_TIMEOUT_SECONDS = 15.0
 HEALTH_POLL_INTERVAL_SECONDS = 0.2
 HTTP_OK = 200
@@ -39,7 +41,7 @@ class _MockGitHubHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.NOT_FOUND)
         self.end_headers()
 
-    def log_message(self, _format: str, *_args: object) -> None:
+    def log_message(self, format: str, *args: object) -> None:
         return
 
 
@@ -203,7 +205,7 @@ dashboards:
 
 
 @pytest.fixture()
-def app_page(page: object, corvix_server: str) -> object:
+def app_page(page: PageLike, corvix_server: str) -> PageLike:
     page.goto(corvix_server)
     page.wait_for_selector("#app")
     return page
