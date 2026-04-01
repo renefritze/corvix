@@ -10,7 +10,7 @@
 
 ### Phase 1 — What was implemented
 
-#### Backend
+#### Phase 1 backend
 
 - `src/corvix/notifications/` package:
   - `models.py` — `NotificationEvent`, `DeliveryResult`, `DispatchResult`
@@ -23,7 +23,7 @@
 - `src/corvix/web/app.py` — `/api/snapshot` response includes `notifications_config` (enabled flag + browser_tab settings)
 - `config/corvix.example.yaml` — `notifications:` section with all fields documented
 
-#### Frontend
+#### Phase 1 frontend
 
 - `frontend/src/types.ts` — `BrowserTabNotificationsConfig`, `NotificationsConfig` types; `SnapshotPayload.notifications_config`
 - `frontend/src/hooks/useBrowserNotifications.ts` — permission management, localStorage-backed seen-set, burst cap, cooldown, click-to-open
@@ -31,7 +31,7 @@
 - `frontend/src/app.tsx` — hook wired in, props forwarded to Toolbar
 - `frontend/src/styles/app.css` — `.notif-btn`, `.notif-active`, `.notif-denied` styles
 
-#### Tests
+#### Phase 1 tests
 
 - `tests/unit/test_notifications.py` — 22 tests: detector (11), dispatcher (6), dedupe (5) — all pass
 
