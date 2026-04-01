@@ -47,18 +47,26 @@ export function useKeyboard({
 }: KeyboardOptions) {
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
+			const typingTarget = isTypingTarget(e.target);
+
 			if (e.key === "Escape") {
 				(document.activeElement as HTMLElement | null)?.blur();
 				return;
 			}
 
-			if (!e.altKey && !e.ctrlKey && !e.metaKey && e.key === "?") {
+			if (
+				!typingTarget &&
+				!e.altKey &&
+				!e.ctrlKey &&
+				!e.metaKey &&
+				e.key === "?"
+			) {
 				e.preventDefault();
 				onToggleShortcuts();
 				return;
 			}
 
-			if (isTypingTarget(e.target)) return;
+			if (typingTarget) return;
 
 			if (!e.altKey || e.ctrlKey || e.metaKey) return;
 
