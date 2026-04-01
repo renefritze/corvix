@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 from urllib import parse, request
 from urllib.parse import urlparse
 
@@ -16,6 +16,18 @@ logger = logging.getLogger(__name__)
 
 _ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite"})
 _CHECK_SUITE_PATH_SEGMENTS = 5
+
+type JsonScalar = str | int | float | bool | None
+type JsonObject = dict[str, object]
+type JsonArray = list[object]
+type JsonValue = JsonObject | JsonArray | JsonScalar
+
+
+def _as_json_object(value: object) -> JsonObject | None:
+    """Return value as a JSON object when it is a dict."""
+    if not isinstance(value, dict):
+        return None
+    return cast(JsonObject, value)
 
 
 class WebUrlEnricher(Protocol):
@@ -61,7 +73,7 @@ class GitHubNotificationsClient:
             page += 1
         return notifications
 
-    def _fetch_page(self, polling: PollingConfig, page: int) -> list[dict[str, Any]]:
+    def _fetch_page(self, polling: PollingConfig, page: int) -> list[JsonObject]:
         query = {
             "all": str(polling.all).lower(),
             "participating": str(polling.participating).lower(),
@@ -73,10 +85,11 @@ class GitHubNotificationsClient:
         if not isinstance(payload, list):
             msg = "GitHub API returned unexpected notifications payload."
             raise ValueError(msg)
-        output: list[dict[str, Any]] = []
+        output: list[JsonObject] = []
         for item in payload:
-            if isinstance(item, dict):
-                output.append(cast(dict[str, Any], item))
+            item_object = _as_json_object(item)
+            if item_object is not None:
+                output.append(item_object)
         return output
 
     def mark_thread_read(self, thread_id: str) -> None:
@@ -113,14 +126,14 @@ class GitHubNotificationsClient:
             return None
         check_runs = payload.get("check_runs")
         if isinstance(check_runs, list) and check_runs:
-            first = check_runs[0]
-            if isinstance(first, dict):
+            first = _as_json_object(check_runs[0])
+            if first is not None:
                 html_url = first.get("html_url")
                 if isinstance(html_url, str):
                     return html_url
         return None
 
-    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> object:
+    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         """Fetch JSON from a fully-qualified API URL with host validation."""
         self._validate_api_host(url)
         return self._request_json(url, method="GET", timeout_seconds=timeout_seconds)
@@ -138,12 +151,12 @@ class GitHubNotificationsClient:
             "User-Agent": "corvix",
         }
 
-    def _request_json(self, url: str, method: str, timeout_seconds: float = 30.0) -> object:
+    def _request_json(self, url: str, method: str, timeout_seconds: float = 30.0) -> JsonValue:
         req = request.Request(url=url, method=method, headers=self._headers())
 
         with request.urlopen(req, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8")
-        return json.loads(raw)
+        return cast(JsonValue, json.loads(raw))
 
     def _request_no_content(self, url: str, method: str) -> None:
         req = request.Request(url=url, method=method, headers=self._headers(), data=b"")
