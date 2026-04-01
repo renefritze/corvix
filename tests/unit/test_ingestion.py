@@ -123,3 +123,18 @@ def test_headers_contain_bearer_token() -> None:
     client = _client()
     headers = client._headers()
     assert headers["Authorization"] == "Bearer test-token"
+
+
+def test_fetch_json_url_calls_request_json_with_timeout() -> None:
+    client = _client()
+    target_url = "https://api.example.com/repos/org/repo/issues/1"
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value={"ok": True}) as mock_req:
+        payload = client.fetch_json_url(target_url, timeout_seconds=5.5)
+    assert payload == {"ok": True}
+    mock_req.assert_called_once_with(target_url, method="GET", timeout_seconds=5.5)
+
+
+def test_fetch_json_url_rejects_non_api_host() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="base host"):
+        client.fetch_json_url("https://evil.example.net/repos/org/repo/issues/1")

@@ -58,6 +58,11 @@ class GitHubNotificationsClient:
         url = self._build_url(f"/notifications/threads/{thread_id}", {})
         self._request_no_content(url, method="DELETE")
 
+    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> object:
+        """Fetch JSON from a fully-qualified API URL with host validation."""
+        self._validate_api_host(url)
+        return self._request_json(url, method="GET", timeout_seconds=timeout_seconds)
+
     def _build_url(self, path: str, query: dict[str, str]) -> str:
         base = self.api_base_url.rstrip("/")
         encoded_query = parse.urlencode(query)
@@ -71,10 +76,10 @@ class GitHubNotificationsClient:
             "User-Agent": "corvix",
         }
 
-    def _request_json(self, url: str, method: str) -> object:
+    def _request_json(self, url: str, method: str, timeout_seconds: float = 30.0) -> object:
         req = request.Request(url=url, method=method, headers=self._headers())
 
-        with request.urlopen(req, timeout=30) as response:
+        with request.urlopen(req, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8")
         return json.loads(raw)
 
@@ -83,3 +88,10 @@ class GitHubNotificationsClient:
 
         with request.urlopen(req, timeout=30):
             return
+
+    def _validate_api_host(self, url: str) -> None:
+        expected = parse.urlparse(self.api_base_url).hostname
+        actual = parse.urlparse(url).hostname
+        if not expected or not actual or actual.casefold() != expected.casefold():
+            msg = "URL host must match configured GitHub API base host."
+            raise ValueError(msg)
