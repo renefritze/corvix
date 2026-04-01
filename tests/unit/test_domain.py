@@ -180,7 +180,13 @@ def _make_record(thread_id: str = "1", dismissed: bool = False) -> NotificationR
         updated_at=datetime(2024, 1, 1, tzinfo=UTC),
         web_url="https://github.com/org/repo/pull/1",
     )
-    return NotificationRecord(notification=n, score=5.0, excluded=False, dismissed=dismissed)
+    return NotificationRecord(
+        notification=n,
+        score=5.0,
+        excluded=False,
+        dismissed=dismissed,
+        context={"github": {"latest_comment": {"is_ci_only": True}}},
+    )
 
 
 def test_to_dict_from_dict_round_trip() -> None:
@@ -191,6 +197,7 @@ def test_to_dict_from_dict_round_trip() -> None:
     assert restored.score == record.score
     assert restored.excluded == record.excluded
     assert restored.dismissed == record.dismissed
+    assert restored.context == record.context
 
 
 def test_dismissed_true_round_trips() -> None:
@@ -211,6 +218,12 @@ def test_from_dict_without_web_url_is_none() -> None:
     as_dict = _make_record().to_dict()
     del as_dict["web_url"]
     assert NotificationRecord.from_dict(as_dict).notification.web_url is None
+
+
+def test_from_dict_without_context_defaults_empty_dict() -> None:
+    as_dict = _make_record().to_dict()
+    del as_dict["context"]
+    assert NotificationRecord.from_dict(as_dict).context == {}
 
 
 def test_derive_web_url_issue() -> None:

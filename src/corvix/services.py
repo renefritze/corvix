@@ -11,6 +11,8 @@ from rich.console import Console
 from corvix.actions import ActionExecutionContext, execute_actions
 from corvix.config import AppConfig, DashboardSpec
 from corvix.domain import NotificationRecord
+from corvix.enrichment.engine import EnrichmentEngine
+from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
@@ -71,18 +73,25 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         _, previous_records = input.cache.load()
 
     notifications = input.client.fetch_notifications(input.config.polling)
+    enrichment_engine = EnrichmentEngine(
+        config=input.config.enrichment,
+        providers=_build_enrichment_providers(input.config),
+    )
+    enrichment_result = enrichment_engine.run(notifications=notifications, client=input.client)
 
     records: list[NotificationRecord] = []
     excluded = 0
     action_count = 0
     errors: list[str] = []
     for notification in notifications:
+        record_context = enrichment_result.contexts_by_thread_id.get(notification.thread_id, {})
         score = score_notification(notification=notification, config=input.config.scoring, now=current_time)
         evaluation = evaluate_rules(
             notification=notification,
             score=score,
             rules=input.config.rules,
             now=current_time,
+            context=record_context,
         )
         action_result = execute_actions(
             notification=notification,
@@ -104,9 +113,11 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
                 excluded=evaluation.excluded,
                 matched_rules=evaluation.matched_rules,
                 actions_taken=action_result.actions_taken,
+                context=record_context,
             ),
         )
 
+    errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
     input.cache.save(records=records, generated_at=current_time)
 
     # Detect new events and dispatch to targets.
@@ -186,3 +197,14 @@ def _select_dashboards(config: AppConfig, dashboard_name: str | None) -> list[Da
         msg = f"Dashboard '{dashboard_name}' not found."
         raise ValueError(msg)
     return selected
+
+
+def _build_enrichment_providers(config: AppConfig) -> list[GitHubLatestCommentProvider]:
+    providers: list[GitHubLatestCommentProvider] = []
+    if config.enrichment.github_latest_comment.enabled:
+        providers.append(
+            GitHubLatestCommentProvider(
+                timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
+            )
+        )
+    return providers

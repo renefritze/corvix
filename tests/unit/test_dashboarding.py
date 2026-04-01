@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from corvix.config import DashboardSpec, MatchCriteria
+from corvix.config import ContextPredicate, DashboardSpec, MatchCriteria
 from corvix.dashboarding import DashboardItem, build_dashboard_data
 from corvix.domain import Notification, NotificationRecord
 
@@ -310,3 +310,25 @@ def test_dashboard_item_from_record() -> None:
     assert item.thread_id == "42"
     assert item.score == 99.5
     assert item.repository == "org/a"
+
+
+def test_dashboard_match_criteria_can_filter_by_context() -> None:
+    matching = _make_record(thread_id="1")
+    matching.context = {"github": {"latest_comment": {"is_ci_only": True}}}
+    non_matching = _make_record(thread_id="2")
+    non_matching.context = {"github": {"latest_comment": {"is_ci_only": False}}}
+
+    data = build_dashboard_data(
+        records=[matching, non_matching],
+        dashboard=DashboardSpec(
+            name="d",
+            include_read=True,
+            match=MatchCriteria(
+                context=[ContextPredicate(path="github.latest_comment.is_ci_only", op="equals", value=True)]
+            ),
+        ),
+        generated_at=NOW,
+    )
+
+    assert data.total_items == 1
+    assert data.groups[0].items[0].thread_id == "1"
