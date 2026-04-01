@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       with:
         submodules: recursive
         token: ${{ secrets.OASYS_REPO_SCOPE_GITHUB_PAT }}
         # we rely on git describe to create our project version, that needs all commits since the most recent tag
         # there's no easy way to only get those -> fetch all
         fetch-depth: 0
-    - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
+    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
       name: Setup UV + Python
       with:
         enable-cache: true
@@ -63,4 +63,4 @@ jobs:
     steps:
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@7a9bd943aa5e5175aeb8502edcc6c1c02d398e10  # v4.0.2
+      uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128  # v5.0.0
