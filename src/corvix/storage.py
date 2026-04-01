@@ -29,6 +29,8 @@ class StorageBackend(Protocol):
 
     def dismiss_record(self, user_id: str, thread_id: str) -> None: ...
 
+    def mark_record_read(self, user_id: str, thread_id: str) -> None: ...
+
     def get_dismissed_thread_ids(self, user_id: str) -> list[str]: ...
 
 
@@ -110,6 +112,17 @@ class NotificationCache:
         for record in records:
             if record.notification.thread_id == thread_id:
                 record.dismissed = True
+                updated = True
+        if updated:
+            self.save(records, generated_at)
+
+    def mark_record_read(self, user_id: str, thread_id: str) -> None:
+        """Mark a record as read by thread_id in the JSON file."""
+        generated_at, records = self.load()
+        updated = False
+        for record in records:
+            if record.notification.thread_id == thread_id and record.notification.unread:
+                record.notification.unread = False
                 updated = True
         if updated:
             self.save(records, generated_at)
@@ -259,6 +272,16 @@ class PostgresStorage:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE notification_records SET dismissed = true WHERE user_id = %s AND thread_id = %s",
+                    (user_id, thread_id),
+                )
+            conn.commit()
+
+    def mark_record_read(self, user_id: str, thread_id: str) -> None:
+        """Set unread=false for a specific thread_id."""
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE notification_records SET unread = false WHERE user_id = %s AND thread_id = %s",
                     (user_id, thread_id),
                 )
             conn.commit()

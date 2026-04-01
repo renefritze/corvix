@@ -180,6 +180,24 @@ def test_get_dismissed_thread_ids(migrated_postgres_url: str, storage: PostgresS
 
 
 @pytest.mark.integration
+def test_mark_record_read_updates_unread_flag(migrated_postgres_url: str, storage: PostgresStorage) -> None:
+    user_id = uuid4()
+    _create_user(migrated_postgres_url, user_id)
+    storage.save_records(
+        user_id=user_id,
+        records=[_record("t1", 2.0), _record("t2", 3.0)],
+        generated_at=datetime.now(tz=UTC),
+    )
+
+    storage.mark_record_read(user_id=user_id, thread_id="t2")
+    _, loaded = storage.load_records(user_id=user_id)
+    by_id = {record.notification.thread_id: record for record in loaded}
+
+    assert by_id["t1"].notification.unread is True
+    assert by_id["t2"].notification.unread is False
+
+
+@pytest.mark.integration
 def test_records_scoped_to_user(migrated_postgres_url: str, storage: PostgresStorage) -> None:
     first_user = uuid4()
     second_user = uuid4()

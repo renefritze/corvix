@@ -40,6 +40,7 @@ def test_notification_cache_implements_storage_backend(tmp_path: Path) -> None:
     assert callable(cache.save_records)
     assert callable(cache.load_records)
     assert callable(cache.dismiss_record)
+    assert callable(cache.mark_record_read)
     assert callable(cache.get_dismissed_thread_ids)
 
 
@@ -48,6 +49,7 @@ def test_storage_backend_is_protocol() -> None:
     assert "save_records" in members
     assert "load_records" in members
     assert "dismiss_record" in members
+    assert "mark_record_read" in members
     assert "get_dismissed_thread_ids" in members
 
 
@@ -167,6 +169,29 @@ def test_dismiss_nonexistent_thread_is_noop(tmp_path: Path) -> None:
 
 def test_dismissed_field_defaults_false() -> None:
     assert _make_record("x").dismissed is False
+
+
+def test_mark_record_read_sets_unread_false(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    records = [_make_record("1"), _make_record("2")]
+    cache.save_records(user_id="u", records=records, generated_at=datetime.now(tz=UTC))
+
+    cache.mark_record_read(user_id="u", thread_id="1")
+
+    _, loaded = cache.load_records(user_id="u")
+    by_id = {r.notification.thread_id: r for r in loaded}
+    assert by_id["1"].notification.unread is False
+    assert by_id["2"].notification.unread is True
+
+
+def test_mark_record_read_nonexistent_thread_is_noop(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    cache.save_records(user_id="u", records=[_make_record("1")], generated_at=datetime.now(tz=UTC))
+
+    cache.mark_record_read(user_id="u", thread_id="does-not-exist")
+
+    _, loaded = cache.load_records(user_id="u")
+    assert loaded[0].notification.unread is True
 
 
 def test_load_invalid_format_not_dict(tmp_path: Path) -> None:

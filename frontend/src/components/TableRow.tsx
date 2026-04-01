@@ -13,16 +13,24 @@ function relativeTime(iso: string): string {
 interface TableRowProps {
 	item: DashboardItem;
 	onDismiss: (threadId: string) => void;
+	onOpenTarget: (threadId: string) => void;
 	isPendingDismissal: boolean;
 }
 
 export function TableRow({
 	item,
 	onDismiss,
+	onOpenTarget,
 	isPendingDismissal,
 }: TableRowProps) {
+	function handleOpenTarget() {
+		if (!item.unread) return;
+		onOpenTarget(item.thread_id);
+	}
+
 	function handleKeyDown(e: KeyboardEvent) {
 		if (e.key === "Enter" && item.web_url) {
+			handleOpenTarget();
 			window.open(item.web_url, "_blank");
 		}
 		if (
@@ -56,6 +64,8 @@ export function TableRow({
 						target="_blank"
 						rel="noopener noreferrer"
 						class="title-link"
+						onClick={handleOpenTarget}
+						onAuxClick={handleOpenTarget}
 					>
 						{item.subject_title}
 					</a>

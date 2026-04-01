@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
+import { markNotificationRead } from "./api";
 import { EmptyState } from "./components/EmptyState";
 import { FilterBar } from "./components/FilterBar";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
@@ -61,6 +62,19 @@ export function App() {
 		}
 	}, [dismiss]);
 
+	const handleOpenTarget = useCallback(
+		(threadId: string) => {
+			void markNotificationRead(threadId)
+				.then(() => refresh())
+				.catch((err: unknown) => {
+					setToastError(
+						err instanceof Error ? err.message : "Mark read failed",
+					);
+				});
+		},
+		[refresh],
+	);
+
 	useKeyboard({
 		onRefresh: refresh,
 		onFocusFilters: () => filterBarRef.current?.focus(),
@@ -119,6 +133,7 @@ export function App() {
 						sortDirection={sortDirection}
 						onSort={handleSort}
 						onDismiss={dismiss}
+						onOpenTarget={handleOpenTarget}
 						pendingDismissals={new Set(pending.keys())}
 					/>
 				)}

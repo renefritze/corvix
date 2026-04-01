@@ -23,6 +23,14 @@ HTTP_OK = 200
 
 
 class _MockGitHubHandler(BaseHTTPRequestHandler):
+    def do_PATCH(self) -> None:
+        if self.path.startswith("/notifications/threads/"):
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.end_headers()
+
     def do_DELETE(self) -> None:
         if self.path.startswith("/notifications/threads/"):
             self.send_response(HTTPStatus.NO_CONTENT)
