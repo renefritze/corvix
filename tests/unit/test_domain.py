@@ -133,7 +133,7 @@ def test_from_api_payload_missing_updated_at_raises() -> None:
 
 
 def test_from_api_payload_missing_repo_full_name_raises() -> None:
-    with pytest.raises(ValueError, match="missing repository.full_name"):
+    with pytest.raises(ValueError, match=r"missing repository\.full_name"):
         Notification.from_api_payload(_valid_payload(repository={"id": 1}))
 
 
@@ -145,12 +145,12 @@ def test_from_api_payload_missing_reason_raises() -> None:
 
 
 def test_from_api_payload_missing_subject_title_raises() -> None:
-    with pytest.raises(ValueError, match="missing subject.title"):
+    with pytest.raises(ValueError, match=r"missing subject\.title"):
         Notification.from_api_payload(_valid_payload(subject={"type": "PullRequest"}))
 
 
 def test_from_api_payload_missing_subject_type_raises() -> None:
-    with pytest.raises(ValueError, match="missing subject.type"):
+    with pytest.raises(ValueError, match=r"missing subject\.type"):
         Notification.from_api_payload(_valid_payload(subject={"title": "Fix it"}))
 
 

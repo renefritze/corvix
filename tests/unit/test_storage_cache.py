@@ -63,7 +63,7 @@ def test_save_and_load_records_via_protocol(tmp_path: Path) -> None:
     cache.save_records(user_id="ignored", records=records, generated_at=now)
     generated_at, loaded = cache.load_records(user_id="ignored")
     assert generated_at is not None
-    assert len(loaded) == 2  # noqa: PLR2004
+    assert len(loaded) == 2
     assert {r.notification.thread_id for r in loaded} == {"1", "2"}
 
 
