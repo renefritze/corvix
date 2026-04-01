@@ -7,6 +7,8 @@ interface ToolbarProps {
 	onRefresh: () => void;
 	refreshing: boolean;
 	summary: DashboardSummary | null;
+	shortcutsOpen: boolean;
+	onToggleShortcuts: () => void;
 }
 
 export function Toolbar({
@@ -16,6 +18,8 @@ export function Toolbar({
 	onRefresh,
 	refreshing,
 	summary,
+	shortcutsOpen,
+	onToggleShortcuts,
 }: ToolbarProps) {
 	return (
 		<div class="toolbar-row">
@@ -27,6 +31,14 @@ export function Toolbar({
 				</span>
 			)}
 			<div class="toolbar-right">
+				<button
+					type="button"
+					onClick={onToggleShortcuts}
+					aria-expanded={shortcutsOpen}
+					aria-controls="shortcuts-panel"
+				>
+					? Shortcuts
+				</button>
 				{dashboardNames.length > 1 && (
 					<select
 						value={currentDashboard ?? ""}

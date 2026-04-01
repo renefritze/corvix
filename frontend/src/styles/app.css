@@ -163,6 +163,14 @@ button:disabled { opacity: 0.6; cursor: default; }
   table-layout: fixed;
 }
 
+.table-shortcut-hint {
+  caption-side: top;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 8px 12px;
+}
+
 .notification-table thead {
   position: sticky;
   top: 0;
@@ -211,11 +219,9 @@ button:disabled { opacity: 0.6; cursor: default; }
 
 .notification-row { transition: background 0.1s; }
 .notification-row:nth-child(even) { background: var(--row-alt); }
-.notification-row:hover, .notification-row:focus {
+.notification-row:hover {
   background: var(--row-hover);
-  outline: none;
 }
-.notification-row:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 .notification-row.unread { border-left: 3px solid var(--ok); }
 .notification-row.read { border-left: 3px solid transparent; }
 .notification-row.dismissing { opacity: 0.3; pointer-events: none; transition: opacity 0.18s; }
@@ -240,6 +246,38 @@ button:disabled { opacity: 0.6; cursor: default; }
   max-width: 100%;
 }
 a.title-link:hover { color: var(--accent); }
+a.title-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Shortcuts panel */
+.shortcuts-panel {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-elevated);
+  color: var(--muted);
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shortcuts-panel p:first-child {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+kbd {
+  font-family: "Menlo", "Consolas", monospace;
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+}
 
 /* Repository */
 .repo-label {

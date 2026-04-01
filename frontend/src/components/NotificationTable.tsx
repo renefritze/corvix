@@ -47,7 +47,10 @@ export function NotificationTable({
 }: NotificationTableProps) {
 	const COLS = 8;
 	return (
-		<table class="notification-table">
+		<table class="notification-table" aria-label="Notifications">
+			<caption class="table-shortcut-hint">
+				Press ? for keyboard shortcuts
+			</caption>
 			<TableHeader
 				sortColumn={sortColumn}
 				sortDirection={sortDirection}

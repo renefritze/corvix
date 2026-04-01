@@ -4,71 +4,96 @@ interface KeyboardOptions {
 	onRefresh: () => void;
 	onFocusFilters: () => void;
 	onDismissFocused: () => void;
+	onToggleShortcuts: () => void;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof HTMLElement)) return false;
+	return (
+		["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName) ||
+		target.isContentEditable
+	);
+}
+
+function focusRelativeRow(delta: number) {
+	const rows = Array.from(
+		document.querySelectorAll<HTMLAnchorElement>(
+			"tr.notification-row a.title-link[href]",
+		),
+	);
+	if (rows.length === 0) return;
+
+	const active = document.activeElement as HTMLElement | null;
+	const current = active?.closest(
+		"a.title-link[href]",
+	) as HTMLAnchorElement | null;
+	const idx = current ? rows.indexOf(current) : -1;
+
+	const nextIndex =
+		idx === -1
+			? delta > 0
+				? 0
+				: rows.length - 1
+			: Math.min(rows.length - 1, Math.max(0, idx + delta));
+
+	rows[nextIndex]?.focus();
 }
 
 export function useKeyboard({
 	onRefresh,
 	onFocusFilters,
 	onDismissFocused,
+	onToggleShortcuts,
 }: KeyboardOptions) {
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
-			const target = e.target as HTMLElement;
-			const inInput = ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName);
-
 			if (e.key === "Escape") {
 				(document.activeElement as HTMLElement | null)?.blur();
 				return;
 			}
 
-			if (e.key === "/") {
+			if (!e.altKey && !e.ctrlKey && !e.metaKey && e.key === "?") {
+				e.preventDefault();
+				onToggleShortcuts();
+				return;
+			}
+
+			if (isTypingTarget(e.target)) return;
+
+			if (!e.altKey || e.ctrlKey || e.metaKey) return;
+
+			const key = e.key.toLowerCase();
+
+			if (key === "r") {
+				e.preventDefault();
+				onRefresh();
+				return;
+			}
+
+			if (key === "f") {
 				e.preventDefault();
 				onFocusFilters();
 				return;
 			}
 
-			if (inInput) return;
-
-			if (e.key === "r" || e.key === "R") {
-				onRefresh();
+			if (key === "j") {
+				e.preventDefault();
+				focusRelativeRow(1);
 				return;
 			}
 
-			if (e.key === "d" || e.key === "D") {
-				const focused = document.activeElement as HTMLElement | null;
-				if (focused?.tagName === "TR") {
-					onDismissFocused();
-				}
+			if (key === "k") {
+				e.preventDefault();
+				focusRelativeRow(-1);
 				return;
 			}
 
-			if (e.key === "j" || e.key === "J") {
-				const rows = Array.from(
-					document.querySelectorAll<HTMLElement>("tr[tabindex='0']"),
-				);
-				const idx = rows.indexOf(document.activeElement as HTMLElement);
-				rows[idx + 1]?.focus();
-				return;
-			}
-
-			if (e.key === "k" || e.key === "K") {
-				const rows = Array.from(
-					document.querySelectorAll<HTMLElement>("tr[tabindex='0']"),
-				);
-				const idx = rows.indexOf(document.activeElement as HTMLElement);
-				rows[idx - 1]?.focus();
-				return;
-			}
-
-			if (e.key === "Enter") {
-				const focused = document.activeElement as HTMLElement | null;
-				if (focused?.tagName === "TR") {
-					const link = focused.querySelector<HTMLAnchorElement>("a[href]");
-					if (link) window.open(link.href, "_blank");
-				}
+			if (key === "d") {
+				e.preventDefault();
+				onDismissFocused();
 			}
 		}
 		document.addEventListener("keydown", handleKeyDown);
 		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [onRefresh, onFocusFilters, onDismissFocused]);
+	}, [onRefresh, onFocusFilters, onDismissFocused, onToggleShortcuts]);
 }

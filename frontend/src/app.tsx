@@ -16,6 +16,7 @@ import type { DashboardItem, FilterState } from "./types";
 export function App() {
 	const [dashboard, setDashboard] = useState<string | undefined>(undefined);
 	const [toastError, setToastError] = useState<string | null>(null);
+	const [showShortcuts, setShowShortcuts] = useState(false);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
 
 	const { snapshot, loading, refreshing, error, refresh } =
@@ -56,10 +57,9 @@ export function App() {
 
 	const handleDismissFocused = useCallback(() => {
 		const focused = document.activeElement as HTMLElement | null;
-		if (focused?.tagName === "TR") {
-			const threadId = focused.getAttribute("data-thread-id");
-			if (threadId) dismiss(threadId);
-		}
+		const row = focused?.closest<HTMLTableRowElement>("tr[data-thread-id]");
+		const threadId = row?.dataset.threadId;
+		if (threadId) dismiss(threadId);
 	}, [dismiss]);
 
 	const handleOpenTarget = useCallback(
@@ -79,6 +79,7 @@ export function App() {
 		onRefresh: refresh,
 		onFocusFilters: () => filterBarRef.current?.focus(),
 		onDismissFocused: handleDismissFocused,
+		onToggleShortcuts: () => setShowShortcuts((prev) => !prev),
 	});
 
 	const dashboardNames = snapshot?.dashboard_names ?? [];
@@ -97,7 +98,25 @@ export function App() {
 				onRefresh={refresh}
 				refreshing={refreshing}
 				summary={snapshot?.summary ?? null}
+				shortcutsOpen={showShortcuts}
+				onToggleShortcuts={() => setShowShortcuts((prev) => !prev)}
 			/>
+			{showShortcuts && (
+				<section
+					id="shortcuts-panel"
+					class="shortcuts-panel"
+					role="dialog"
+					aria-label="Keyboard shortcuts"
+				>
+					<p>Vimium-first shortcuts</p>
+					<p>
+						<kbd>Alt+F</kbd> focus filters, <kbd>Alt+R</kbd> refresh,{" "}
+						<kbd>Alt+J</kbd>
+						and <kbd>Alt+K</kbd> move between notifications, <kbd>Alt+D</kbd>
+						dismiss focused notification, <kbd>?</kbd> toggle this panel.
+					</p>
+				</section>
+			)}
 			{snapshot && (
 				<FilterBar
 					filters={filters}
