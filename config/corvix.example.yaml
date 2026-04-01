@@ -39,6 +39,21 @@ rules:
     exclude_from_dashboards: true
   per_repository: {}
 
+notifications:
+  enabled: true
+  detect:
+    include_read: false
+    min_score: 0
+  browser_tab:
+    enabled: true
+    max_per_cycle: 5
+    cooldown_seconds: 10
+  web_push:
+    enabled: false
+    vapid_public_key_env: CORVIX_VAPID_PUBLIC_KEY
+    vapid_private_key_env: CORVIX_VAPID_PRIVATE_KEY
+    subject: "mailto:ops@example.com"
+
 dashboards:
 - name: triage
   group_by: repository

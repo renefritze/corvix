@@ -17,16 +17,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 function focusRelativeRow(delta: number) {
 	const rows = Array.from(
-		document.querySelectorAll<HTMLAnchorElement>(
-			"tr.notification-row a.title-link[href]",
-		),
+		document.querySelectorAll<HTMLTableRowElement>("tr.notification-row"),
 	);
 	if (rows.length === 0) return;
 
 	const active = document.activeElement as HTMLElement | null;
 	const current = active?.closest(
-		"a.title-link[href]",
-	) as HTMLAnchorElement | null;
+		"tr.notification-row",
+	) as HTMLTableRowElement | null;
 	const idx = current ? rows.indexOf(current) : -1;
 
 	const nextIndex =
@@ -48,6 +46,7 @@ export function useKeyboard({
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			const typingTarget = isTypingTarget(e.target);
+			const hasModifiers = e.altKey || e.ctrlKey || e.metaKey;
 
 			if (e.key === "Escape") {
 				(document.activeElement as HTMLElement | null)?.blur();
@@ -66,9 +65,7 @@ export function useKeyboard({
 				return;
 			}
 
-			if (typingTarget) return;
-
-			if (!e.altKey || e.ctrlKey || e.metaKey) return;
+			if (typingTarget || hasModifiers) return;
 
 			const key = e.key.toLowerCase();
 

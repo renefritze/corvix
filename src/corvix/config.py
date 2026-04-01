@@ -103,6 +103,43 @@ class StateConfig:
 
 
 @dataclass(slots=True)
+class BrowserTabTargetConfig:
+    """Config for in-tab browser notification delivery."""
+
+    enabled: bool = True
+    max_per_cycle: int = 5
+    cooldown_seconds: int = 10
+
+
+@dataclass(slots=True)
+class WebPushTargetConfig:
+    """Config for background Web Push notification delivery (phase 2)."""
+
+    enabled: bool = False
+    vapid_public_key_env: str = "CORVIX_VAPID_PUBLIC_KEY"
+    vapid_private_key_env: str = "CORVIX_VAPID_PRIVATE_KEY"
+    subject: str = ""
+
+
+@dataclass(slots=True)
+class NotificationsDetectConfig:
+    """Controls which records qualify for notification events."""
+
+    include_read: bool = False
+    min_score: float = 0.0
+
+
+@dataclass(slots=True)
+class NotificationsConfig:
+    """Top-level notifications configuration."""
+
+    enabled: bool = True
+    detect: NotificationsDetectConfig = field(default_factory=NotificationsDetectConfig)
+    browser_tab: BrowserTabTargetConfig = field(default_factory=BrowserTabTargetConfig)
+    web_push: WebPushTargetConfig = field(default_factory=WebPushTargetConfig)
+
+
+@dataclass(slots=True)
 class AuthConfig:
     """Authentication mode configuration."""
 
@@ -129,6 +166,7 @@ class AppConfig:
     dashboards: list[DashboardSpec] = field(default_factory=list)
     auth: AuthConfig = field(default_factory=AuthConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    notifications: NotificationsConfig = field(default_factory=NotificationsConfig)
 
     def resolve_cache_file(self) -> Path:
         """Resolve the configured cache path."""
@@ -199,38 +237,6 @@ dashboards:
     match:
       reason_in: ["mention", "review_requested", "assign"]
 """
-
-
-def load_config(path: Path) -> AppConfig:
-    """Load and validate YAML config from disk."""
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    if not isinstance(data, dict):
-        msg = "Top-level YAML must be a map/object."
-        raise ValueError(msg)
-
-    github = _parse_github(data.get("github", {}))
-    polling = _parse_polling(data.get("polling", {}))
-    state = _parse_state(data.get("state", {}))
-    scoring = _parse_scoring(data.get("scoring", {}))
-    rules = _parse_rules(data.get("rules", {}))
-    dashboards = _parse_dashboards(data.get("dashboards", []))
-    auth = _parse_auth(data.get("auth", {}))
-    database = _parse_database(data.get("database", {}))
-    return AppConfig(
-        github=github,
-        polling=polling,
-        state=state,
-        scoring=scoring,
-        rules=rules,
-        dashboards=dashboards,
-        auth=auth,
-        database=database,
-    )
-
-
-def write_default_config(path: Path) -> None:
-    """Write a starter configuration file."""
-    path.write_text(DEFAULT_CONFIG, encoding="utf-8")
 
 
 def _ensure_map(value: object, section: str) -> dict[str, Any]:
@@ -372,3 +378,62 @@ def _parse_auth(value: object) -> AuthConfig:
 def _parse_database(value: object) -> DatabaseConfig:
     database = _ensure_map(value, "database")
     return DatabaseConfig(url_env=str(database.get("url_env", "DATABASE_URL")))
+
+
+def _parse_notifications(value: object) -> NotificationsConfig:
+    notif = _ensure_map(value, "notifications")
+    detect_raw = _ensure_map(notif.get("detect", {}), "notifications.detect")
+    browser_raw = _ensure_map(notif.get("browser_tab", {}), "notifications.browser_tab")
+    web_push_raw = _ensure_map(notif.get("web_push", {}), "notifications.web_push")
+    return NotificationsConfig(
+        enabled=bool(notif.get("enabled", True)),
+        detect=NotificationsDetectConfig(
+            include_read=bool(detect_raw.get("include_read", False)),
+            min_score=float(detect_raw.get("min_score", 0.0)),
+        ),
+        browser_tab=BrowserTabTargetConfig(
+            enabled=bool(browser_raw.get("enabled", True)),
+            max_per_cycle=int(browser_raw.get("max_per_cycle", 5)),
+            cooldown_seconds=int(browser_raw.get("cooldown_seconds", 10)),
+        ),
+        web_push=WebPushTargetConfig(
+            enabled=bool(web_push_raw.get("enabled", False)),
+            vapid_public_key_env=str(web_push_raw.get("vapid_public_key_env", "CORVIX_VAPID_PUBLIC_KEY")),
+            vapid_private_key_env=str(web_push_raw.get("vapid_private_key_env", "CORVIX_VAPID_PRIVATE_KEY")),
+            subject=str(web_push_raw.get("subject", "")),
+        ),
+    )
+
+
+def load_config(path: Path) -> AppConfig:
+    """Load and validate YAML config from disk."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        msg = "Top-level YAML must be a map/object."
+        raise ValueError(msg)
+
+    github = _parse_github(data.get("github", {}))
+    polling = _parse_polling(data.get("polling", {}))
+    state = _parse_state(data.get("state", {}))
+    scoring = _parse_scoring(data.get("scoring", {}))
+    rules = _parse_rules(data.get("rules", {}))
+    dashboards = _parse_dashboards(data.get("dashboards", []))
+    auth = _parse_auth(data.get("auth", {}))
+    database = _parse_database(data.get("database", {}))
+    notifications = _parse_notifications(data.get("notifications", {}))
+    return AppConfig(
+        github=github,
+        polling=polling,
+        state=state,
+        scoring=scoring,
+        rules=rules,
+        dashboards=dashboards,
+        auth=auth,
+        database=database,
+        notifications=notifications,
+    )
+
+
+def write_default_config(path: Path) -> None:
+    """Write a starter configuration file."""
+    path.write_text(DEFAULT_CONFIG, encoding="utf-8")

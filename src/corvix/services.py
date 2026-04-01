@@ -12,6 +12,10 @@ from corvix.actions import execute_actions
 from corvix.config import AppConfig, DashboardSpec
 from corvix.domain import NotificationRecord
 from corvix.ingestion import GitHubNotificationsClient
+from corvix.notifications.detector import detect_new_unread_events
+from corvix.notifications.dispatcher import NotificationDispatcher
+from corvix.notifications.models import DispatchResult
+from corvix.notifications.targets.base import NotificationTarget
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
@@ -26,17 +30,31 @@ class PollingSummary:
     excluded: int
     actions_taken: int
     errors: list[str] = field(default_factory=list)
+    dispatch: DispatchResult | None = None
 
 
-def run_poll_cycle(
+def run_poll_cycle(  # noqa: PLR0913
     config: AppConfig,
     client: GitHubNotificationsClient,
     cache: NotificationCache,
     apply_actions: bool,
     now: datetime | None = None,
+    notification_targets: list[NotificationTarget] | None = None,
 ) -> PollingSummary:
-    """Fetch notifications, score/evaluate, optionally execute actions, and persist cache."""
+    """Fetch notifications, score/evaluate, optionally execute actions, and persist cache.
+
+    If *notification_targets* is provided (and ``config.notifications.enabled``
+    is ``True``) the poll cycle will detect newly-arrived unread notifications
+    and fan-out delivery to each target after saving the snapshot.
+    """
     current_time = now if now is not None else datetime.now(tz=UTC)
+
+    # Load previous snapshot for newness detection before overwriting.
+    notif_cfg = config.notifications
+    previous_records: list[NotificationRecord] = []
+    if notif_cfg.enabled and notification_targets:
+        _, previous_records = cache.load()
+
     notifications = client.fetch_notifications(config.polling)
 
     records: list[NotificationRecord] = []
@@ -73,11 +91,24 @@ def run_poll_cycle(
         )
 
     cache.save(records=records, generated_at=current_time)
+
+    # Detect new events and dispatch to targets.
+    dispatch: DispatchResult | None = None
+    if notif_cfg.enabled and notification_targets:
+        events = detect_new_unread_events(
+            previous=previous_records,
+            current=records,
+            min_score=notif_cfg.detect.min_score,
+        )
+        dispatcher = NotificationDispatcher(targets=notification_targets)
+        dispatch = dispatcher.dispatch(events)
+
     return PollingSummary(
         fetched=len(notifications),
         excluded=excluded,
         actions_taken=action_count,
         errors=errors,
+        dispatch=dispatch,
     )
 
 

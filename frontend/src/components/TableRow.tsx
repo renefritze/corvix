@@ -49,6 +49,7 @@ export function TableRow({
 	return (
 		<tr
 			data-thread-id={item.thread_id}
+			tabIndex={0}
 			class={[
 				"notification-row",
 				item.unread ? "unread" : "read",

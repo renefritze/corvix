@@ -28,6 +28,7 @@ html, body {
   font-size: 14px;
   line-height: 1.5;
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 a { color: var(--accent); text-decoration: none; }
@@ -144,6 +145,10 @@ button:disabled { opacity: 0.6; cursor: default; }
 
 .refresh-btn { min-width: 90px; }
 .refresh-btn.refreshing { color: var(--muted); }
+
+.notif-btn { min-width: 76px; }
+.notif-btn.notif-active { color: var(--ok); border-color: var(--ok); }
+.notif-denied { display: inline-flex; align-items: center; padding: 4px 8px; font-size: 0.8rem; color: var(--muted); cursor: default; }
 
 /* ============================================================
    BOARD / MAIN CONTENT
@@ -424,6 +429,15 @@ kbd {
     padding-left: 40%;
     white-space: normal;
     text-overflow: clip;
+  }
+  .notification-table .col-title,
+  .notification-table .col-repository,
+  .notification-table .col-type,
+  .notification-table .col-reason,
+  .notification-table .col-score,
+  .notification-table .col-updated {
+    width: auto;
+    min-width: 0;
   }
   .notification-table td::before {
     content: attr(data-label);

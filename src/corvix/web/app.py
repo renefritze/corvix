@@ -88,6 +88,15 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     )
     payload = asdict(data)
     payload["dashboard_names"] = _dashboard_names(config.dashboards)
+    notif_cfg = config.notifications
+    payload["notifications_config"] = {
+        "enabled": notif_cfg.enabled,
+        "browser_tab": {
+            "enabled": notif_cfg.browser_tab.enabled,
+            "max_per_cycle": notif_cfg.browser_tab.max_per_cycle,
+            "cooldown_seconds": notif_cfg.browser_tab.cooldown_seconds,
+        },
+    }
     return payload
 
 
