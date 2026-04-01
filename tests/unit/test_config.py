@@ -131,6 +131,7 @@ rules:
     - name: complex
       match:
         repository_in: ["org/repo"]
+        repository_glob: ["org/*"]
         reason_in: ["mention"]
         subject_type_in: ["PullRequest"]
         title_contains_any: ["urgent"]
@@ -144,6 +145,7 @@ rules:
     config = load_config(config_file)
     m = config.rules.global_rules[0].match
     assert m.repository_in == ["org/repo"]
+    assert m.repository_glob == ["org/*"]
     assert m.reason_in == ["mention"]
     assert m.subject_type_in == ["PullRequest"]
     assert m.title_contains_any == ["urgent"]

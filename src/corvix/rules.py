@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
 
 from corvix.config import MatchCriteria, RuleAction, RuleSet
 from corvix.domain import Notification
@@ -59,8 +60,13 @@ def matches_criteria(
         age_hours = max(0.0, (now - notification.updated_at).total_seconds() / 3600.0)
         age_matches = age_hours <= criteria.max_age_hours
 
+    repository_glob_matches = not criteria.repository_glob or any(
+        fnmatchcase(notification.repository, pattern) for pattern in criteria.repository_glob
+    )
+
     return (
         (not criteria.repository_in or notification.repository in criteria.repository_in)
+        and repository_glob_matches
         and (not criteria.reason_in or notification.reason in criteria.reason_in)
         and (not criteria.subject_type_in or notification.subject_type in criteria.subject_type_in)
         and title_matches_tokens

@@ -17,6 +17,7 @@ class MatchCriteria:
     """Filter fields for rules and dashboards."""
 
     repository_in: list[str] = field(default_factory=list)
+    repository_glob: list[str] = field(default_factory=list)
     reason_in: list[str] = field(default_factory=list)
     subject_type_in: list[str] = field(default_factory=list)
     title_contains_any: list[str] = field(default_factory=list)
@@ -266,6 +267,7 @@ def _parse_match(value: object) -> MatchCriteria:
     match = _ensure_map(value, "match")
     return MatchCriteria(
         repository_in=_to_str_list(match.get("repository_in")),
+        repository_glob=_to_str_list(match.get("repository_glob")),
         reason_in=_to_str_list(match.get("reason_in")),
         subject_type_in=_to_str_list(match.get("subject_type_in")),
         title_contains_any=_to_str_list(match.get("title_contains_any")),

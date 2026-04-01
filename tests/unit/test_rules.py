@@ -51,6 +51,30 @@ def test_repository_in_no_match() -> None:
     )
 
 
+def test_repository_glob_match() -> None:
+    assert (
+        matches_criteria(
+            MatchCriteria(repository_glob=["org/oasys*"]),
+            _make_notification(repository="org/oasys-core"),
+            score=0.0,
+            now=NOW,
+        )
+        is True
+    )
+
+
+def test_repository_glob_no_match() -> None:
+    assert (
+        matches_criteria(
+            MatchCriteria(repository_glob=["org/oasys*"]),
+            _make_notification(repository="org/other"),
+            score=0.0,
+            now=NOW,
+        )
+        is False
+    )
+
+
 def test_reason_in_match() -> None:
     assert (
         matches_criteria(MatchCriteria(reason_in=["mention"]), _make_notification(reason="mention"), score=0.0, now=NOW)
