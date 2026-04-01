@@ -56,6 +56,7 @@ class NotificationRecordRow(Base):
     excluded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     matched_rules: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     actions_taken: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    context: Mapped[dict[str, object]] = mapped_column(postgresql.JSONB, nullable=False, default=dict)
     dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

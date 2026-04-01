@@ -25,7 +25,13 @@ def _make_record(thread_id: str, dismissed: bool = False) -> NotificationRecord:
         unread=True,
         updated_at=now - timedelta(hours=1),
     )
-    return NotificationRecord(notification=notification, score=10.0, excluded=False, dismissed=dismissed)
+    return NotificationRecord(
+        notification=notification,
+        score=10.0,
+        excluded=False,
+        dismissed=dismissed,
+        context={"github": {"latest_comment": {"is_ci_only": True}}},
+    )
 
 
 def _cache(path: Path) -> NotificationCache:
@@ -65,6 +71,7 @@ def test_save_and_load_records_via_protocol(tmp_path: Path) -> None:
     assert generated_at is not None
     assert len(loaded) == 2
     assert {r.notification.thread_id for r in loaded} == {"1", "2"}
+    assert loaded[0].context
 
 
 def test_load_returns_empty_when_no_file(tmp_path: Path) -> None:

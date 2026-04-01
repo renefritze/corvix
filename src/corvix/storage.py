@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from corvix.domain import Notification, NotificationRecord, format_timestamp, parse_timestamp
 
@@ -163,8 +164,8 @@ class PostgresStorage:
                         INSERT INTO notification_records
                             (user_id, thread_id, repository, reason, subject_title,
                              subject_type, unread, updated_at, thread_url, web_url, score,
-                             excluded, matched_rules, actions_taken, dismissed, snapshot_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             excluded, matched_rules, actions_taken, context, dismissed, snapshot_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (user_id, thread_id) DO UPDATE SET
                             repository    = EXCLUDED.repository,
                             reason        = EXCLUDED.reason,
@@ -178,6 +179,7 @@ class PostgresStorage:
                             excluded      = EXCLUDED.excluded,
                             matched_rules = EXCLUDED.matched_rules,
                             actions_taken = EXCLUDED.actions_taken,
+                            context       = EXCLUDED.context,
                             snapshot_at   = EXCLUDED.snapshot_at
                         """,
                         (
@@ -195,6 +197,7 @@ class PostgresStorage:
                             record.excluded,
                             record.matched_rules,
                             record.actions_taken,
+                            Jsonb(record.context),
                             record.dismissed,
                             generated_at,
                         ),
@@ -209,7 +212,7 @@ class PostgresStorage:
                     """
                     SELECT thread_id, repository, reason, subject_title, subject_type,
                            unread, updated_at, thread_url, web_url, score, excluded,
-                           matched_rules, actions_taken, dismissed, snapshot_at
+                           matched_rules, actions_taken, context, dismissed, snapshot_at
                     FROM notification_records
                     WHERE user_id = %s
                     ORDER BY snapshot_at DESC, score DESC
@@ -238,6 +241,7 @@ class PostgresStorage:
                 excluded,
                 matched_rules,
                 actions_taken,
+                context,
                 dismissed,
                 snapshot_at,
             ) = row
@@ -261,6 +265,7 @@ class PostgresStorage:
                     excluded=bool(excluded),
                     matched_rules=list(matched_rules or []),
                     actions_taken=list(actions_taken or []),
+                    context=_coerce_context(context),
                     dismissed=bool(dismissed),
                 )
             )
@@ -310,3 +315,16 @@ def _fsync_directory(path: Path) -> None:
         return
     finally:
         os.close(dir_fd)
+
+
+def _coerce_context(value: object) -> dict[str, object]:
+    if isinstance(value, dict):
+        return {str(key): item for key, item in value.items()}
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, dict):
+            return {str(key): item for key, item in parsed.items()}
+    return {}

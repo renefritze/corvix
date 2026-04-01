@@ -98,6 +98,7 @@ def _record(thread_id: str, score: float) -> NotificationRecord:
         excluded=False,
         matched_rules=["rule-a"],
         actions_taken=[],
+        context={"github": {"latest_comment": {"is_ci_only": False}}},
     )
 
 
@@ -116,6 +117,7 @@ def test_save_and_load_records(migrated_postgres_url: str, storage: PostgresStor
     by_id = {r.notification.thread_id: r for r in loaded}
     assert by_id["t1"].score == SCORE_HIGH
     assert by_id["t2"].score == SCORE_LOW
+    assert by_id["t1"].context == {"github": {"latest_comment": {"is_ci_only": False}}}
 
 
 @pytest.mark.integration
