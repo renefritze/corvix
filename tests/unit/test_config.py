@@ -131,6 +131,7 @@ rules:
     - name: complex
       match:
         repository_in: ["org/repo"]
+        repository_glob: ["org/*"]
         reason_in: ["mention"]
         subject_type_in: ["PullRequest"]
         title_contains_any: ["urgent"]
@@ -138,12 +139,18 @@ rules:
         unread: true
         min_score: 10.0
         max_age_hours: 48.0
+        context:
+          - path: github.latest_comment.author.login
+            op: equals
+            value: codecov[bot]
+            case_insensitive: true
 """,
         encoding="utf-8",
     )
     config = load_config(config_file)
     m = config.rules.global_rules[0].match
     assert m.repository_in == ["org/repo"]
+    assert m.repository_glob == ["org/*"]
     assert m.reason_in == ["mention"]
     assert m.subject_type_in == ["PullRequest"]
     assert m.title_contains_any == ["urgent"]
@@ -151,6 +158,83 @@ rules:
     assert m.unread is True
     assert m.min_score == 10.0
     assert m.max_age_hours == 48.0
+    assert len(m.context) == 1
+    assert m.context[0].path == "github.latest_comment.author.login"
+    assert m.context[0].op == "equals"
+    assert m.context[0].value == "codecov[bot]"
+    assert m.context[0].case_insensitive is True
+
+
+def test_config_enrichment_defaults(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text("{}\n", encoding="utf-8")
+
+    config = load_config(config_file)
+
+    assert config.enrichment.enabled is False
+    assert config.enrichment.max_requests_per_cycle == 25
+    assert config.enrichment.github_latest_comment.enabled is False
+    assert config.enrichment.github_latest_comment.timeout_seconds == 10.0
+
+
+def test_config_enrichment_override(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+enrichment:
+  enabled: true
+  max_requests_per_cycle: 100
+  github_latest_comment:
+    enabled: true
+    timeout_seconds: 4.5
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_file)
+
+    assert config.enrichment.enabled is True
+    assert config.enrichment.max_requests_per_cycle == 100
+    assert config.enrichment.github_latest_comment.enabled is True
+    assert config.enrichment.github_latest_comment.timeout_seconds == 4.5
+
+
+def test_config_match_context_invalid_operator_raises(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+rules:
+  global:
+    - name: bad-op
+      match:
+        context:
+          - path: github.latest_comment.body
+            op: starts_with
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"match\.context\[\]\.op"):
+        load_config(config_file)
+
+
+def test_config_match_context_requires_path(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+rules:
+  global:
+    - name: bad-path
+      match:
+        context:
+          - op: equals
+            value: x
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"match\.context\[\]\.path"):
+        load_config(config_file)
 
 
 def test_load_config_non_dict_top_level(tmp_path: Path) -> None:

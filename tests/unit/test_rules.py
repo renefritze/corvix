@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from corvix.config import MatchCriteria, Rule, RuleAction, RuleSet
+from corvix.config import ContextPredicate, MatchCriteria, Rule, RuleAction, RuleSet
 from corvix.domain import Notification
 from corvix.rules import evaluate_rules, matches_criteria
 
@@ -46,6 +46,30 @@ def test_repository_in_no_match() -> None:
     assert (
         matches_criteria(
             MatchCriteria(repository_in=["org/repo"]), _make_notification(repository="org/other"), score=0.0, now=NOW
+        )
+        is False
+    )
+
+
+def test_repository_glob_match() -> None:
+    assert (
+        matches_criteria(
+            MatchCriteria(repository_glob=["org/oasys*"]),
+            _make_notification(repository="org/oasys-core"),
+            score=0.0,
+            now=NOW,
+        )
+        is True
+    )
+
+
+def test_repository_glob_no_match() -> None:
+    assert (
+        matches_criteria(
+            MatchCriteria(repository_glob=["org/oasys*"]),
+            _make_notification(repository="org/other"),
+            score=0.0,
+            now=NOW,
         )
         is False
     )
@@ -192,6 +216,72 @@ def test_and_logic_all_criteria_must_match() -> None:
     )
 
 
+def test_context_equals_match() -> None:
+    criteria = MatchCriteria(
+        context=[ContextPredicate(path="github.latest_comment.author.login", op="equals", value="codecov[bot]")]
+    )
+    context = {"github": {"latest_comment": {"author": {"login": "codecov[bot]"}}}}
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
+
+
+def test_context_not_equals_match() -> None:
+    criteria = MatchCriteria(
+        context=[ContextPredicate(path="github.latest_comment.author.login", op="not_equals", value="someone")]
+    )
+    context = {"github": {"latest_comment": {"author": {"login": "codecov[bot]"}}}}
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
+
+
+def test_context_contains_case_insensitive() -> None:
+    criteria = MatchCriteria(
+        context=[
+            ContextPredicate(
+                path="github.latest_comment.body",
+                op="contains",
+                value="test report",
+                case_insensitive=True,
+            )
+        ]
+    )
+    context = {"github": {"latest_comment": {"body": "This has a Test Report link"}}}
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
+
+
+def test_context_regex_match() -> None:
+    criteria = MatchCriteria(context=[ContextPredicate(path="github.latest_comment.body", op="regex", value=r"^CI$")])
+    context = {"github": {"latest_comment": {"body": "CI"}}}
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
+
+
+def test_context_in_match() -> None:
+    criteria = MatchCriteria(
+        context=[
+            ContextPredicate(
+                path="github.latest_comment.author.login",
+                op="in",
+                value=["dependabot[bot]", "codecov[bot]"],
+            )
+        ]
+    )
+    context = {"github": {"latest_comment": {"author": {"login": "codecov[bot]"}}}}
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
+
+
+def test_context_exists_true_and_false() -> None:
+    exists_criteria = MatchCriteria(context=[ContextPredicate(path="github.latest_comment.body", op="exists")])
+    missing_criteria = MatchCriteria(
+        context=[ContextPredicate(path="github.latest_comment.body", op="exists", value=False)]
+    )
+    context = {"github": {"latest_comment": {"body": "CI"}}}
+    assert matches_criteria(exists_criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
+    assert matches_criteria(missing_criteria, _make_notification(), score=0.0, now=NOW, context=context) is False
+
+
+def test_context_missing_path_fails_non_exists_ops() -> None:
+    criteria = MatchCriteria(context=[ContextPredicate(path="github.latest_comment.body", op="equals", value="CI")])
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context={}) is False
+
+
 # --- evaluate_rules ---
 
 
@@ -200,6 +290,29 @@ def test_global_rule_matches() -> None:
     rules = RuleSet(global_rules=[Rule(name="test-rule", match=MatchCriteria(reason_in=["mention"]))])
     result = evaluate_rules(n, score=0.0, rules=rules, now=NOW)
     assert "test-rule" in result.matched_rules
+
+
+def test_rule_evaluation_with_context_predicate() -> None:
+    n = _make_notification(reason="comment")
+    rules = RuleSet(
+        global_rules=[
+            Rule(
+                name="mute-codecov",
+                match=MatchCriteria(
+                    context=[
+                        ContextPredicate(
+                            path="github.latest_comment.author.login",
+                            op="equals",
+                            value="codecov[bot]",
+                        )
+                    ]
+                ),
+            )
+        ]
+    )
+    context = {"github": {"latest_comment": {"author": {"login": "codecov[bot]"}}}}
+    result = evaluate_rules(n, score=0.0, rules=rules, now=NOW, context=context)
+    assert result.matched_rules == ["mute-codecov"]
 
 
 def test_per_repo_rule_matches() -> None:

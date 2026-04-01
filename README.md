@@ -48,6 +48,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Strict separation between ingestion (`corvix.ingestion`), automation/actions (`corvix.rules`, `corvix.actions`, `corvix.scoring`), and presentation (`corvix.presentation`, `corvix.web`)
 - Multiple dashboards with configurable sorting and grouping (see [Dashboards](#dashboards))
 - Global and per-repository rules for filtering and auto mark-read
+- Optional enrichment pipeline with context-based rule matching (e.g., latest-comment suppressions)
 - Custom scoring model for ranking notifications
 - YAML configuration with example committed and local override ignored by git
 - Litestar website dashboard with periodic auto-refresh

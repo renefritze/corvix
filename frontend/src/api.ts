@@ -18,3 +18,11 @@ export async function dismissNotification(threadId: string): Promise<void> {
 	);
 	if (!res.ok) throw new Error(`Dismiss failed: ${res.status}`);
 }
+
+export async function markNotificationRead(threadId: string): Promise<void> {
+	const res = await fetch(
+		`/api/notifications/${encodeURIComponent(threadId)}/mark-read`,
+		{ method: "POST", keepalive: true },
+	);
+	if (!res.ok) throw new Error(`Mark read failed: ${res.status}`);
+}

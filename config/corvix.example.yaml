@@ -13,6 +13,13 @@ polling:
 state:
   cache_file: /data/notifications.json
 
+enrichment:
+  enabled: true
+  max_requests_per_cycle: 25
+  github_latest_comment:
+    enabled: true
+    timeout_seconds: 10
+
 scoring:
   unread_bonus: 15
   age_decay_per_hour: 0.25
@@ -37,7 +44,60 @@ rules:
     actions:
     - type: mark_read
     exclude_from_dashboards: true
+  - name: mute-oasys-release-tags
+    match:
+      repository_glob: ["arup-group/oasys*"]
+      title_regex: "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  - name: mute-codecov-comments
+    match:
+      reason_in: ["comment"]
+      context:
+      - path: github.latest_comment.author.login
+        op: equals
+        value: codecov[bot]
+        case_insensitive: true
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  - name: mute-test-report-link-comments
+    match:
+      reason_in: ["comment"]
+      context:
+      - path: github.latest_comment.is_test_report_link_only
+        op: equals
+        value: true
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
+  - name: mute-ci-only-comments
+    match:
+      reason_in: ["comment"]
+      context:
+      - path: github.latest_comment.is_ci_only
+        op: equals
+        value: true
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
   per_repository: {}
+
+notifications:
+  enabled: true
+  detect:
+    include_read: false
+    min_score: 0
+  browser_tab:
+    enabled: true
+    max_per_cycle: 5
+    cooldown_seconds: 10
+  web_push:
+    enabled: false
+    vapid_public_key_env: CORVIX_VAPID_PUBLIC_KEY
+    vapid_private_key_env: CORVIX_VAPID_PRIVATE_KEY
+    subject: "mailto:ops@example.com"
 
 dashboards:
 - name: triage

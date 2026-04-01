@@ -13,28 +13,43 @@ function relativeTime(iso: string): string {
 interface TableRowProps {
 	item: DashboardItem;
 	onDismiss: (threadId: string) => void;
+	onOpenTarget: (threadId: string) => void;
 	isPendingDismissal: boolean;
 }
 
 export function TableRow({
 	item,
 	onDismiss,
+	onOpenTarget,
 	isPendingDismissal,
 }: TableRowProps) {
-	function handleKeyDown(e: KeyboardEvent) {
-		if (e.key === "Enter" && item.web_url) {
-			window.open(item.web_url, "_blank");
-		}
-		if (
-			(e.key === "d" || e.key === "D") &&
-			!(e.target as HTMLElement).matches("button")
-		) {
-			onDismiss(item.thread_id);
-		}
+	function handleOpenTarget() {
+		if (!item.unread) return;
+		onOpenTarget(item.thread_id);
+	}
+
+	function openInNewTab() {
+		if (!item.web_url) return;
+		window.open(item.web_url, "_blank", "noopener,noreferrer");
+	}
+
+	function handleTitleClick(e: MouseEvent) {
+		e.preventDefault();
+		openInNewTab();
+		handleOpenTarget();
+	}
+
+	function handleTitleAuxClick(e: MouseEvent) {
+		if (e.button !== 1) return;
+		e.preventDefault();
+		openInNewTab();
+		handleOpenTarget();
 	}
 
 	return (
 		<tr
+			data-thread-id={item.thread_id}
+			tabIndex={0}
 			class={[
 				"notification-row",
 				item.unread ? "unread" : "read",
@@ -42,9 +57,6 @@ export function TableRow({
 			]
 				.filter(Boolean)
 				.join(" ")}
-			tabIndex={0}
-			onKeyDown={handleKeyDown as unknown as (e: Event) => void}
-			aria-label={item.subject_title}
 		>
 			<td class="col-status" aria-hidden="true">
 				<span class={`unread-dot ${item.unread ? "dot-unread" : "dot-read"}`} />
@@ -56,6 +68,8 @@ export function TableRow({
 						target="_blank"
 						rel="noopener noreferrer"
 						class="title-link"
+						onClick={handleTitleClick as unknown as (e: Event) => void}
+						onAuxClick={handleTitleAuxClick as unknown as (e: Event) => void}
 					>
 						{item.subject_title}
 					</a>

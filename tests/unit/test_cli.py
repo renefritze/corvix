@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 from corvix import cli
 from corvix.presentation import DashboardRenderResult
-from corvix.services import PollingSummary, PollOptions
+from corvix.services import PollCycleInput, PollingSummary
 
 
 def _write_config(path: Path, cache_file: Path) -> None:
@@ -60,10 +60,8 @@ def test_poll_command_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     _write_config(config_path, tmp_path / "notifications.json")
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-    def _fake_run_poll_cycle(**kwargs: object) -> PollingSummary:
-        options = kwargs["options"]
-        assert isinstance(options, PollOptions)
-        assert options.apply_actions is False
+    def _fake_run_poll_cycle(poll_input: PollCycleInput) -> PollingSummary:
+        assert poll_input.apply_actions is False
         return PollingSummary(fetched=2, excluded=1, actions_taken=0, errors=[])
 
     monkeypatch.setattr(cli, "run_poll_cycle", _fake_run_poll_cycle)

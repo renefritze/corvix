@@ -12,6 +12,8 @@ from rich.console import Console
 from corvix.config import (
     AppConfig,
     DashboardSpec,
+    EnrichmentConfig,
+    GitHubLatestCommentEnrichmentConfig,
     MatchCriteria,
     PollingConfig,
     Rule,
@@ -21,7 +23,7 @@ from corvix.config import (
     StateConfig,
 )
 from corvix.domain import Notification
-from corvix.services import PollOptions, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
+from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache
 
 EXPECTED_FETCHED = 2
@@ -41,9 +43,15 @@ class FakeClient:
     def mark_thread_read(self, thread_id: str) -> None:
         self.marked_thread_ids.append(thread_id)
 
+    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> object:
+        del timeout_seconds
+        msg = f"unexpected enrichment fetch: {url}"
+        raise RuntimeError(msg)
+
 
 def _build_config(cache_path: Path) -> AppConfig:
     return AppConfig(
+        enrichment=EnrichmentConfig(),
         polling=PollingConfig(max_pages=1, per_page=10, interval_seconds=0),
         state=StateConfig(cache_file=cache_path),
         scoring=ScoringConfig(reason_weights={"mention": 20}, unread_bonus=10, age_decay_per_hour=0),
@@ -96,10 +104,13 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     summary = run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        options=PollOptions(apply_actions=True, now=now),
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=True,
+            now=now,
+        )
     )
 
     assert summary.fetched == EXPECTED_FETCHED
@@ -122,10 +133,13 @@ def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        options=PollOptions(apply_actions=False, now=now),
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
     )
 
     console = Console(record=True)
@@ -215,10 +229,13 @@ def test_poll_with_global_and_repository_rules(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     summary = run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        options=PollOptions(apply_actions=True, now=now),
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=True,
+            now=now,
+        )
     )
     _, records = cache.load()
     by_id = {record.notification.thread_id: record for record in records}
@@ -240,10 +257,13 @@ def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> 
     cache = NotificationCache(path=cache_path)
 
     run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        options=PollOptions(apply_actions=False, now=now),
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
     )
     cache.dismiss_record(user_id="", thread_id="1")
 
@@ -272,12 +292,52 @@ def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
         config=config,
         client=client,
         cache=cache,
-        options=PollOptions(apply_actions=False),
+        apply_actions=False,
         iterations=2,
     )
 
     assert len(summaries) == EXPECTED_WATCH_ITERATIONS
     assert all(s.fetched == EXPECTED_FETCHED for s in summaries)
+
+
+def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    config.enrichment = EnrichmentConfig(
+        enabled=True,
+        github_latest_comment=GitHubLatestCommentEnrichmentConfig(enabled=True, timeout_seconds=1.0),
+    )
+    notifications = [
+        Notification(
+            thread_id="3",
+            repository="org/repo",
+            reason="comment",
+            subject_title="CI",
+            subject_type="Issue",
+            unread=True,
+            updated_at=now,
+            thread_url="https://api.example.com/notifications/threads/3",
+        )
+    ]
+    client = FakeClient(notifications)
+    cache = NotificationCache(path=cache_path)
+
+    summary = run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
+    )
+
+    assert summary.fetched == 1
+    assert summary.errors
+    assert summary.errors[0].startswith("enrichment: provider=github.latest_comment")
+    _, records = cache.load()
+    assert len(records) == 1
 
 
 # --- _select_dashboards ---

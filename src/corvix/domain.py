@@ -127,6 +127,7 @@ class NotificationRecord:
     matched_rules: list[str] = field(default_factory=list)
     actions_taken: list[str] = field(default_factory=list)
     dismissed: bool = False
+    context: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a JSON-serializable dictionary."""
@@ -146,6 +147,7 @@ class NotificationRecord:
             "matched_rules": self.matched_rules,
             "actions_taken": self.actions_taken,
             "dismissed": self.dismissed,
+            "context": self.context,
         }
 
     @classmethod
@@ -162,6 +164,7 @@ class NotificationRecord:
         web_url_raw = p.get("web_url")
         matched_rules_raw = p.get("matched_rules", [])
         actions_taken_raw = p.get("actions_taken", [])
+        context_raw = p.get("context", {})
         notification = Notification(
             thread_id=str(p.get("thread_id", "")),
             repository=str(p.get("repository", "")),
@@ -181,6 +184,7 @@ class NotificationRecord:
             matched_rules=[value for value in matched_rules_raw if isinstance(value, str)],
             actions_taken=[value for value in actions_taken_raw if isinstance(value, str)],
             dismissed=bool(p.get("dismissed", False)),
+            context={str(key): value for key, value in context_raw.items()} if isinstance(context_raw, dict) else {},
         )
 
 

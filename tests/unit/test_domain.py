@@ -138,7 +138,7 @@ def test_from_api_payload_missing_updated_at_raises() -> None:
 
 
 def test_from_api_payload_missing_repo_full_name_raises() -> None:
-    with pytest.raises(ValueError, match="missing repository.full_name"):
+    with pytest.raises(ValueError, match=r"missing repository\.full_name"):
         Notification.from_api_payload(_valid_payload(repository={"id": 1}))
 
 
@@ -150,12 +150,12 @@ def test_from_api_payload_missing_reason_raises() -> None:
 
 
 def test_from_api_payload_missing_subject_title_raises() -> None:
-    with pytest.raises(ValueError, match="missing subject.title"):
+    with pytest.raises(ValueError, match=r"missing subject\.title"):
         Notification.from_api_payload(_valid_payload(subject={"type": "PullRequest"}))
 
 
 def test_from_api_payload_missing_subject_type_raises() -> None:
-    with pytest.raises(ValueError, match="missing subject.type"):
+    with pytest.raises(ValueError, match=r"missing subject\.type"):
         Notification.from_api_payload(_valid_payload(subject={"title": "Fix it"}))
 
 
@@ -185,7 +185,13 @@ def _make_record(thread_id: str = "1", dismissed: bool = False) -> NotificationR
         updated_at=datetime(2024, 1, 1, tzinfo=UTC),
         web_url="https://github.com/org/repo/pull/1",
     )
-    return NotificationRecord(notification=n, score=5.0, excluded=False, dismissed=dismissed)
+    return NotificationRecord(
+        notification=n,
+        score=5.0,
+        excluded=False,
+        dismissed=dismissed,
+        context={"github": {"latest_comment": {"is_ci_only": True}}},
+    )
 
 
 def test_to_dict_from_dict_round_trip() -> None:
@@ -196,6 +202,7 @@ def test_to_dict_from_dict_round_trip() -> None:
     assert restored.score == record.score
     assert restored.excluded == record.excluded
     assert restored.dismissed == record.dismissed
+    assert restored.context == record.context
 
 
 def test_dismissed_true_round_trips() -> None:
@@ -238,6 +245,12 @@ def test_from_dict_without_subject_url_is_none() -> None:
     as_dict = _make_record().to_dict()
     del as_dict["subject_url"]
     assert NotificationRecord.from_dict(as_dict).notification.subject_url is None
+
+
+def test_from_dict_without_context_defaults_empty_dict() -> None:
+    as_dict = _make_record().to_dict()
+    del as_dict["context"]
+    assert NotificationRecord.from_dict(as_dict).context == {}
 
 
 def test_derive_web_url_issue() -> None:

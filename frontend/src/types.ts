@@ -25,6 +25,17 @@ export interface DashboardSummary {
 	reason_count: number;
 }
 
+export interface BrowserTabNotificationsConfig {
+	enabled: boolean;
+	max_per_cycle: number;
+	cooldown_seconds: number;
+}
+
+export interface NotificationsConfig {
+	enabled: boolean;
+	browser_tab: BrowserTabNotificationsConfig;
+}
+
 export interface SnapshotPayload {
 	name: string;
 	generated_at: string | null;
@@ -32,6 +43,7 @@ export interface SnapshotPayload {
 	total_items: number;
 	summary: DashboardSummary;
 	dashboard_names: string[];
+	notifications_config: NotificationsConfig | null;
 }
 
 export type SortColumn =

@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
+import { markNotificationRead } from "./api";
 import { EmptyState } from "./components/EmptyState";
 import { FilterBar } from "./components/FilterBar";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { NotificationTable } from "./components/NotificationTable";
 import { Toolbar } from "./components/Toolbar";
 import { UndoToast } from "./components/UndoToast";
+import { useBrowserNotifications } from "./hooks/useBrowserNotifications";
 import { useDismiss } from "./hooks/useDismiss";
 import { useFilters } from "./hooks/useFilters";
 import { useKeyboard } from "./hooks/useKeyboard";
@@ -15,6 +17,7 @@ import type { DashboardItem, FilterState } from "./types";
 export function App() {
 	const [dashboard, setDashboard] = useState<string | undefined>(undefined);
 	const [toastError, setToastError] = useState<string | null>(null);
+	const [showShortcuts, setShowShortcuts] = useState(false);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
 
 	const { snapshot, loading, refreshing, error, refresh } =
@@ -27,6 +30,18 @@ export function App() {
 		if (!snapshot) return [];
 		return snapshot.groups.flatMap((g) => g.items);
 	}, [snapshot]);
+
+	const notifConfig = snapshot?.notifications_config?.browser_tab ?? null;
+	const {
+		permission: notifPermission,
+		active: notifActive,
+		supported: notifSupported,
+		enable: enableNotifications,
+		disable: disableNotifications,
+	} = useBrowserNotifications({
+		items: allItems,
+		config: notifConfig,
+	});
 
 	const filteredGroups = useMemo(() => {
 		if (!snapshot) return [];
@@ -55,23 +70,33 @@ export function App() {
 
 	const handleDismissFocused = useCallback(() => {
 		const focused = document.activeElement as HTMLElement | null;
-		if (focused?.tagName === "TR") {
-			const threadId = focused.getAttribute("data-thread-id");
-			if (threadId) dismiss(threadId);
-		}
+		const row = focused?.closest<HTMLTableRowElement>("tr[data-thread-id]");
+		const threadId = row?.dataset.threadId;
+		if (threadId) dismiss(threadId);
 	}, [dismiss]);
+
+	const handleOpenTarget = useCallback(
+		(threadId: string) => {
+			void markNotificationRead(threadId)
+				.then(() => refresh())
+				.catch((err: unknown) => {
+					setToastError(
+						err instanceof Error ? err.message : "Mark read failed",
+					);
+				});
+		},
+		[refresh],
+	);
 
 	useKeyboard({
 		onRefresh: refresh,
 		onFocusFilters: () => filterBarRef.current?.focus(),
 		onDismissFocused: handleDismissFocused,
+		onToggleShortcuts: () => setShowShortcuts((prev) => !prev),
 	});
 
 	const dashboardNames = snapshot?.dashboard_names ?? [];
 	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
-
-	// Suppress unused variable warning - allItems used for filter options
-	void (allItems as DashboardItem[]);
 
 	return (
 		<div class="shell">
@@ -83,7 +108,29 @@ export function App() {
 				onRefresh={refresh}
 				refreshing={refreshing}
 				summary={snapshot?.summary ?? null}
+				shortcutsOpen={showShortcuts}
+				onToggleShortcuts={() => setShowShortcuts((prev) => !prev)}
+				notifSupported={notifSupported}
+				notifActive={notifActive}
+				notifPermission={notifPermission}
+				onEnableNotifications={() => void enableNotifications()}
+				onDisableNotifications={disableNotifications}
 			/>
+			{showShortcuts && (
+				<section
+					id="shortcuts-panel"
+					class="shortcuts-panel"
+					role="dialog"
+					aria-label="Keyboard shortcuts"
+				>
+					<p>Vimium-first shortcuts</p>
+					<p>
+						<kbd>F</kbd> focus filters, <kbd>R</kbd> refresh, <kbd>J</kbd>
+						and <kbd>K</kbd> move between notifications, <kbd>D</kbd>
+						dismiss focused notification, <kbd>?</kbd> toggle this panel.
+					</p>
+				</section>
+			)}
 			{snapshot && (
 				<FilterBar
 					filters={filters}
@@ -119,6 +166,7 @@ export function App() {
 						sortDirection={sortDirection}
 						onSort={handleSort}
 						onDismiss={dismiss}
+						onOpenTarget={handleOpenTarget}
 						pendingDismissals={new Set(pending.keys())}
 					/>
 				)}

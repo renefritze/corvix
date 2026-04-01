@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
+from typing import cast
 
 from corvix.config import MatchCriteria, RuleAction, RuleSet
 from corvix.domain import Notification
@@ -24,6 +26,7 @@ def evaluate_rules(
     score: float,
     rules: RuleSet,
     now: datetime | None = None,
+    context: dict[str, object] | None = None,
 ) -> RuleEvaluation:
     """Evaluate global and per-repository rules."""
     current_time = now if now is not None else datetime.now(tz=UTC)
@@ -31,8 +34,9 @@ def evaluate_rules(
     matched_rules: list[str] = []
     actions: list[RuleAction] = []
     excluded = False
+    active_context = context if context is not None else {}
     for rule in candidate_rules:
-        if not matches_criteria(rule.match, notification, score, current_time):
+        if not matches_criteria(rule.match, notification, score, current_time, context=active_context):
             continue
         matched_rules.append(rule.name)
         actions.extend(rule.actions)
@@ -45,6 +49,7 @@ def matches_criteria(
     notification: Notification,
     score: float,
     now: datetime,
+    context: dict[str, object] | None = None,
 ) -> bool:
     """Check whether a notification satisfies configured criteria."""
     title = notification.subject_title
@@ -59,8 +64,14 @@ def matches_criteria(
         age_hours = max(0.0, (now - notification.updated_at).total_seconds() / 3600.0)
         age_matches = age_hours <= criteria.max_age_hours
 
+    repository_glob_matches = not criteria.repository_glob or any(
+        fnmatchcase(notification.repository, pattern) for pattern in criteria.repository_glob
+    )
+    context_predicates_match = _matches_context_predicates(criteria=criteria, context=context or {})
+
     return (
         (not criteria.repository_in or notification.repository in criteria.repository_in)
+        and repository_glob_matches
         and (not criteria.reason_in or notification.reason in criteria.reason_in)
         and (not criteria.subject_type_in or notification.subject_type in criteria.subject_type_in)
         and title_matches_tokens
@@ -68,4 +79,82 @@ def matches_criteria(
         and unread_matches
         and score_matches
         and age_matches
+        and context_predicates_match
     )
+
+
+def _matches_context_predicates(criteria: MatchCriteria, context: dict[str, object]) -> bool:
+    if not criteria.context:
+        return True
+    for predicate in criteria.context:
+        path_exists, path_value = _resolve_context_path(context=context, path=predicate.path)
+        if not _evaluate_context_predicate(
+            op=predicate.op,
+            path_exists=path_exists,
+            path_value=path_value,
+            expected=predicate.value,
+            case_insensitive=predicate.case_insensitive,
+        ):
+            return False
+    return True
+
+
+def _resolve_context_path(context: dict[str, object], path: str) -> tuple[bool, object | None]:
+    node: object = context
+    for segment in path.split("."):
+        if not isinstance(node, dict):
+            return False, None
+        node_map = cast(dict[str, object], node)
+        if segment not in node_map:
+            return False, None
+        node = node_map[segment]
+    return True, node
+
+
+def _evaluate_context_predicate(
+    *,
+    op: str,
+    path_exists: bool,
+    path_value: object | None,
+    expected: object | None,
+    case_insensitive: bool,
+) -> bool:
+    if op == "exists":
+        expected_exists = bool(expected) if expected is not None else True
+        return path_exists == expected_exists
+    if not path_exists:
+        return False
+    if op == "regex":
+        if not isinstance(path_value, str) or not isinstance(expected, str):
+            return False
+        flags = re.IGNORECASE if case_insensitive else 0
+        return re.search(expected, path_value, flags=flags) is not None
+    evaluators = {
+        "equals": _equals(path_value, expected, case_insensitive),
+        "not_equals": not _equals(path_value, expected, case_insensitive),
+        "contains": _contains(path_value, expected, case_insensitive),
+        "in": _in_values(path_value, expected, case_insensitive),
+    }
+    return evaluators.get(op, False)
+
+
+def _equals(left: object | None, right: object | None, case_insensitive: bool) -> bool:
+    if case_insensitive and isinstance(left, str) and isinstance(right, str):
+        return left.casefold() == right.casefold()
+    return left == right
+
+
+def _contains(path_value: object | None, expected: object | None, case_insensitive: bool) -> bool:
+    if isinstance(path_value, str) and isinstance(expected, str):
+        left = path_value.casefold() if case_insensitive else path_value
+        right = expected.casefold() if case_insensitive else expected
+        return right in left
+    if isinstance(path_value, (list, tuple, set, frozenset)):
+        return any(_equals(item, expected, case_insensitive) for item in path_value)
+    return False
+
+
+def _in_values(path_value: object | None, expected: object | None, case_insensitive: bool) -> bool:
+    if not isinstance(expected, (list, tuple, set, frozenset)):
+        return False
+    return any(_equals(path_value, candidate, case_insensitive) for candidate in expected)

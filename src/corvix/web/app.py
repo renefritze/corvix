@@ -88,6 +88,15 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     )
     payload = asdict(data)
     payload["dashboard_names"] = _dashboard_names(config.dashboards)
+    notif_cfg = config.notifications
+    payload["notifications_config"] = {
+        "enabled": notif_cfg.enabled,
+        "browser_tab": {
+            "enabled": notif_cfg.browser_tab.enabled,
+            "max_per_cycle": notif_cfg.browser_tab.max_per_cycle,
+            "cooldown_seconds": notif_cfg.browser_tab.cooldown_seconds,
+        },
+    }
     return payload
 
 
@@ -115,6 +124,30 @@ def dismiss_notification(thread_id: str) -> Response[None]:
 
     cache = NotificationCache(path=config.resolve_cache_file())
     cache.dismiss_record(user_id="", thread_id=thread_id)
+    return Response(content=None, status_code=204)
+
+
+@post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=False)
+def mark_notification_read(thread_id: str) -> Response[None]:
+    """Mark a notification thread as read in GitHub and local storage."""
+    config = _load_runtime_config()
+    try:
+        token = get_env_value(config.github.token_env)
+    except ValueError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
+    if not token:
+        msg = f"GitHub token env var '{config.github.token_env}' (or '{config.github.token_env}_FILE') is not set."
+        raise HTTPException(status_code=500, detail=msg)
+
+    client = GitHubNotificationsClient(token=token, api_base_url=config.github.api_base_url)
+    try:
+        client.mark_thread_read(thread_id)
+    except Exception as error:
+        msg = f"Failed to mark thread {thread_id} as read: {error}"
+        raise HTTPException(status_code=502, detail=msg) from error
+
+    cache = NotificationCache(path=config.resolve_cache_file())
+    cache.mark_record_read(user_id="", thread_id=thread_id)
     return Response(content=None, status_code=204)
 
 
@@ -157,6 +190,7 @@ app = Litestar(
         dashboards,
         snapshot,
         dismiss_notification,
+        mark_notification_read,
         create_static_files_router(path="/assets", directories=[_STATIC_ASSETS_DIR]),
     ],
 )

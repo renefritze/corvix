@@ -32,6 +32,7 @@ interface NotificationTableProps {
 	sortDirection: SortDirection;
 	onSort: (col: SortColumn) => void;
 	onDismiss: (threadId: string) => void;
+	onOpenTarget: (threadId: string) => void;
 	pendingDismissals: Set<string>;
 }
 
@@ -41,11 +42,15 @@ export function NotificationTable({
 	sortDirection,
 	onSort,
 	onDismiss,
+	onOpenTarget,
 	pendingDismissals,
 }: NotificationTableProps) {
 	const COLS = 8;
 	return (
-		<table class="notification-table">
+		<table class="notification-table" aria-label="Notifications">
+			<caption class="table-shortcut-hint">
+				Press ? for keyboard shortcuts
+			</caption>
 			<TableHeader
 				sortColumn={sortColumn}
 				sortDirection={sortDirection}
@@ -66,6 +71,7 @@ export function NotificationTable({
 								key={item.thread_id}
 								item={item}
 								onDismiss={onDismiss}
+								onOpenTarget={onOpenTarget}
 								isPendingDismissal={pendingDismissals.has(item.thread_id)}
 							/>
 						)),
