@@ -178,3 +178,36 @@ jobs:
     - name: Test e2e suite
       run: |-
         uv run --frozen pytest -m "e2e"
+
+  tests-status:
+    name: tests-status
+    if: ${{ always() }}
+    needs:
+    - docker-compose-build
+    - fast-tests
+    - integration-tests
+    - e2e-tests
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Fail if any required test job failed
+      env:
+        DOCKER_COMPOSE_BUILD_RESULT: ${{ needs.docker-compose-build.result }}
+        FAST_TESTS_RESULT: ${{ needs.fast-tests.result }}
+        INTEGRATION_TESTS_RESULT: ${{ needs.integration-tests.result }}
+        E2E_TESTS_RESULT: ${{ needs.e2e-tests.result }}
+      run: |-
+        echo "docker-compose-build: ${DOCKER_COMPOSE_BUILD_RESULT}"
+        echo "fast-tests: ${FAST_TESTS_RESULT}"
+        echo "integration-tests: ${INTEGRATION_TESTS_RESULT}"
+        echo "e2e-tests: ${E2E_TESTS_RESULT}"
+
+        for result in \
+          "${DOCKER_COMPOSE_BUILD_RESULT}" \
+          "${FAST_TESTS_RESULT}" \
+          "${INTEGRATION_TESTS_RESULT}" \
+          "${E2E_TESTS_RESULT}"; do
+          if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
+            echo "Detected failing upstream test job result: ${result}"
+            exit 1
+          fi
+        done
