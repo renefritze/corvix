@@ -11,7 +11,7 @@ from rich.console import Console
 from corvix.actions import execute_actions
 from corvix.config import AppConfig, DashboardSpec
 from corvix.domain import NotificationRecord
-from corvix.ingestion import GitHubNotificationsClient
+from corvix.ingestion import GitHubNotificationsClient, WebUrlEnricher, resolve_web_urls
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
@@ -28,16 +28,25 @@ class PollingSummary:
     errors: list[str] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class PollOptions:
+    """Per-cycle options for a polling run."""
+
+    apply_actions: bool = False
+    now: datetime | None = None
+    enricher: WebUrlEnricher | None = None
+
+
 def run_poll_cycle(
     config: AppConfig,
     client: GitHubNotificationsClient,
     cache: NotificationCache,
-    apply_actions: bool,
-    now: datetime | None = None,
+    options: PollOptions,
 ) -> PollingSummary:
     """Fetch notifications, score/evaluate, optionally execute actions, and persist cache."""
-    current_time = now if now is not None else datetime.now(tz=UTC)
+    current_time = options.now if options.now is not None else datetime.now(tz=UTC)
     notifications = client.fetch_notifications(config.polling)
+    resolve_web_urls(notifications, enricher=options.enricher)
 
     records: list[NotificationRecord] = []
     excluded = 0
@@ -55,7 +64,7 @@ def run_poll_cycle(
             notification=notification,
             actions=evaluation.actions,
             gateway=client,
-            apply_actions=apply_actions,
+            apply_actions=options.apply_actions,
             dismiss_gateway=client,
         )
         errors.extend(action_result.errors)
@@ -85,21 +94,14 @@ def run_watch_loop(
     config: AppConfig,
     client: GitHubNotificationsClient,
     cache: NotificationCache,
-    apply_actions: bool,
+    options: PollOptions,
     iterations: int | None = None,
 ) -> list[PollingSummary]:
     """Run polling loop suitable for local daemon usage."""
     runs: list[PollingSummary] = []
     iteration = 0
     while iterations is None or iteration < iterations:
-        runs.append(
-            run_poll_cycle(
-                config=config,
-                client=client,
-                cache=cache,
-                apply_actions=apply_actions,
-            ),
-        )
+        runs.append(run_poll_cycle(config=config, client=client, cache=cache, options=options))
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break

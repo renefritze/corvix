@@ -86,17 +86,22 @@ def test_from_api_payload_valid() -> None:
     assert n.thread_url == "https://api.github.com/notifications/threads/123"
 
 
+def test_from_api_payload_preserves_subject_url() -> None:
+    n = Notification.from_api_payload(_valid_payload())
+    assert n.subject_url == "https://api.github.com/repos/org/repo/pulls/42"
+
+
 def test_from_api_payload_derives_pull_request_web_url() -> None:
     n = Notification.from_api_payload(_valid_payload())
     assert n.web_url == "https://github.com/org/repo/pull/42"
 
 
-def test_from_api_payload_falls_back_to_repository_web_url() -> None:
+def test_from_api_payload_unmappable_subject_url_is_none() -> None:
     payload = _valid_payload()
     assert isinstance(payload["subject"], dict)
     payload["subject"] = {"title": "Notice", "type": "RepositoryVulnerabilityAlert", "url": None}
     n = Notification.from_api_payload(payload)
-    assert n.web_url == "https://github.com/org/repo"
+    assert n.web_url is None
 
 
 def test_from_api_payload_missing_subject_raises() -> None:
@@ -213,6 +218,28 @@ def test_from_dict_without_web_url_is_none() -> None:
     assert NotificationRecord.from_dict(as_dict).notification.web_url is None
 
 
+def test_subject_url_round_trips() -> None:
+    n = Notification(
+        thread_id="1",
+        repository="org/repo",
+        reason="mention",
+        subject_title="Test",
+        subject_type="CheckSuite",
+        unread=True,
+        updated_at=datetime(2024, 1, 1, tzinfo=UTC),
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+    )
+    record = NotificationRecord(notification=n, score=1.0, excluded=False)
+    restored = NotificationRecord.from_dict(record.to_dict())
+    assert restored.notification.subject_url == "https://api.github.com/repos/org/repo/check-suites/555"
+
+
+def test_from_dict_without_subject_url_is_none() -> None:
+    as_dict = _make_record().to_dict()
+    del as_dict["subject_url"]
+    assert NotificationRecord.from_dict(as_dict).notification.subject_url is None
+
+
 def test_derive_web_url_issue() -> None:
     payload = _valid_payload(
         subject={
@@ -249,10 +276,22 @@ def test_derive_web_url_release_tag() -> None:
     assert n.web_url == "https://github.com/org/repo/releases/tag/v1.0"
 
 
+def test_derive_web_url_workflow_run() -> None:
+    payload = _valid_payload(
+        subject={
+            "title": "CI failed",
+            "type": "WorkflowRun",
+            "url": "https://api.github.com/repos/org/repo/actions/runs/99999",
+        },
+    )
+    n = Notification.from_api_payload(payload)
+    assert n.web_url == "https://github.com/org/repo/actions/runs/99999"
+
+
 def test_derive_web_url_no_subject_url() -> None:
     payload = _valid_payload(subject={"title": "Notice", "type": "Issue", "url": None})
     n = Notification.from_api_payload(payload)
-    assert n.web_url == "https://github.com/org/repo"
+    assert n.web_url is None
 
 
 def test_map_subject_api_url_mismatched_repo_returns_none() -> None:

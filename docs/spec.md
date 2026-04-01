@@ -30,7 +30,8 @@ Normalized view of one GitHub notification thread. Constructed via `Notification
 | `unread` | `bool` | `unread` |
 | `updated_at` | `datetime` (UTC) | `updated_at` (ISO 8601) |
 | `thread_url` | `str \| None` | `url` |
-| `web_url` | `str \| None` | derived human-facing GitHub URL (fallback repo URL) |
+| `subject_url` | `str \| None` | `subject.url` (GitHub API URL for the subject resource) |
+| `web_url` | `str \| None` | derived human-facing GitHub URL; `None` if unresolvable (see §2.4) |
 
 ### 2.2 `NotificationRecord` (processed)
 
@@ -62,6 +63,7 @@ JSON file at the path configured in `state.cache_file`:
       "unread": true,
       "updated_at": "2024-01-01T00:00:00Z",
       "thread_url": "https://api.github.com/notifications/threads/1",
+      "subject_url": "https://api.github.com/repos/owner/repo/pulls/1",
       "web_url": "https://github.com/owner/repo/pull/1",
       "score": 1.0,
       "excluded": false,
@@ -74,6 +76,31 @@ JSON file at the path configured in `state.cache_file`:
 ```
 
 Canonical persisted schema is the flattened record returned by `NotificationRecord.to_dict()`.
+
+### 2.4 URL resolution
+
+`web_url` is derived in two stages during each poll cycle.
+
+**Fast path** — pure string mapping in `_map_subject_api_url_to_web`, no API calls:
+
+| Subject type | API path pattern | Web URL |
+|---|---|---|
+| `PullRequest` | `.../pulls/{id}` | `.../pull/{id}` |
+| `Issue` | `.../issues/{id}` | `.../issues/{id}` |
+| `Commit` | `.../commits/{sha}` | `.../commit/{sha}` |
+| `Release` (tagged) | `.../releases/tags/{tag}` | `.../releases/tag/{tag}` |
+| `Discussion` | `.../discussions/{id}` | `.../discussions/{id}` |
+| `WorkflowRun` | `.../actions/runs/{id}` | `.../actions/runs/{id}` |
+
+**Enrichment path** — `resolve_web_urls()` makes a targeted GitHub API call for notification types where no 1:1 URL mapping exists. Only runs when `web_url` is still `None` after the fast path and `subject_url` is available.
+
+| Subject type | API call | Resolved to |
+|---|---|---|
+| `CheckSuite` | `GET /repos/{owner}/{repo}/check-suites/{id}/check-runs?per_page=1` | `html_url` of first check-run |
+
+If enrichment fails (API error, empty response, unknown type), `web_url` stays `None` and the UI renders the title as plain text rather than a link.
+
+The enricher is injected via the `WebUrlEnricher` Protocol. `GitHubNotificationsClient` implements it. Passing `enricher=None` to `run_poll_cycle` disables enrichment entirely (fast path still runs).
 
 ---
 

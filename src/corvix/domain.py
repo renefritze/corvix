@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 _MIN_API_REPO_SEGMENTS = 4
 _MIN_RESOURCE_SEGMENTS = 2
 _RELEASE_TAG_SEGMENTS = 3
+_ACTIONS_RUNS_SEGMENTS = 3
 _API_RESOURCE_TO_WEB_PATH = {
     "pulls": "pull",
     "issues": "issues",
@@ -45,6 +46,7 @@ class Notification:
     unread: bool
     updated_at: datetime
     thread_url: str | None = None
+    subject_url: str | None = None
     web_url: str | None = None
 
     @classmethod
@@ -97,6 +99,8 @@ class Notification:
 
         thread_url = payload.get("url")
         thread_url_str = thread_url if isinstance(thread_url, str) else None
+        subject_url_raw = subject.get("url")
+        subject_url_str = subject_url_raw if isinstance(subject_url_raw, str) else None
         web_url = _derive_web_url(payload)
 
         return cls(
@@ -108,6 +112,7 @@ class Notification:
             unread=unread,
             updated_at=parse_timestamp(updated),
             thread_url=thread_url_str,
+            subject_url=subject_url_str,
             web_url=web_url,
         )
 
@@ -134,6 +139,7 @@ class NotificationRecord:
             "unread": self.notification.unread,
             "updated_at": format_timestamp(self.notification.updated_at),
             "thread_url": self.notification.thread_url,
+            "subject_url": self.notification.subject_url,
             "web_url": self.notification.web_url,
             "score": self.score,
             "excluded": self.excluded,
@@ -152,6 +158,7 @@ class NotificationRecord:
 
         p: dict[str, Any] = cast(dict[str, Any], payload)
         thread_url_raw = p.get("thread_url")
+        subject_url_raw = p.get("subject_url")
         web_url_raw = p.get("web_url")
         matched_rules_raw = p.get("matched_rules", [])
         actions_taken_raw = p.get("actions_taken", [])
@@ -164,6 +171,7 @@ class NotificationRecord:
             unread=bool(p.get("unread", False)),
             updated_at=parse_timestamp(updated_at),
             thread_url=thread_url_raw if isinstance(thread_url_raw, str) else None,
+            subject_url=subject_url_raw if isinstance(subject_url_raw, str) else None,
             web_url=web_url_raw if isinstance(web_url_raw, str) else None,
         )
         return cls(
@@ -193,9 +201,9 @@ def _derive_web_url(payload: dict[str, object]) -> str | None:
 
     subject_url = subject.get("url")
     if not isinstance(subject_url, str) or not subject_url:
-        return repo_base
+        return None
 
-    return _map_subject_api_url_to_web(subject_url=subject_url, repo_name=repo_name, repo_base=repo_base) or repo_base
+    return _map_subject_api_url_to_web(subject_url=subject_url, repo_name=repo_name, repo_base=repo_base)
 
 
 def _map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str) -> str | None:
@@ -215,4 +223,6 @@ def _map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str
         return f"{repo_base}/{mapped_web_path}/{resource[1]}"
     if resource_name == "releases" and len(resource) >= _RELEASE_TAG_SEGMENTS and resource[1] == "tags":
         return f"{repo_base}/releases/tag/{resource[2]}"
+    if resource_name == "actions" and len(resource) >= _ACTIONS_RUNS_SEGMENTS and resource[1] == "runs":
+        return f"{repo_base}/actions/runs/{resource[2]}"
     return None

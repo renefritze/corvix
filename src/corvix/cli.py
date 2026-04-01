@@ -13,7 +13,7 @@ from corvix.config import AppConfig, load_config, write_default_config
 from corvix.db import get_database_url
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
-from corvix.services import render_cached_dashboards, run_poll_cycle, run_watch_loop
+from corvix.services import PollOptions, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache, PostgresStorage
 from corvix.web.app import run as run_web
 
@@ -71,7 +71,7 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
         config=app_config,
         client=client,
         cache=cache,
-        apply_actions=apply_actions,
+        options=PollOptions(apply_actions=apply_actions, enricher=client),
     )
     click.echo(f"Fetched: {summary.fetched}")
     click.echo(f"Excluded from dashboards: {summary.excluded}")
@@ -106,7 +106,7 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
         config=app_config,
         client=client,
         cache=cache,
-        apply_actions=apply_actions,
+        options=PollOptions(apply_actions=apply_actions, enricher=client),
         iterations=iterations,
     )
     for index, summary in enumerate(summaries, start=1):
