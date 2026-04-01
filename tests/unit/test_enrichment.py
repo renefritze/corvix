@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TypeIs
 
 from corvix.config import EnrichmentConfig
 from corvix.domain import Notification
-from corvix.enrichment.base import EnrichmentContext
+from corvix.enrichment.base import EnrichmentContext, EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
+from corvix.types import JsonValue
+
+
+def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
 def _notification(*, thread_id: str = "1", reason: str = "comment", thread_url: str | None = None) -> Notification:
@@ -24,73 +30,82 @@ def _notification(*, thread_id: str = "1", reason: str = "comment", thread_url: 
     )
 
 
-class _FakeClient:
-    def __init__(self, responses: dict[str, object]) -> None:
+class _FakeClient(JsonFetchClient):
+    def __init__(self, responses: dict[str, JsonValue]) -> None:
         self.responses = responses
         self.calls: list[str] = []
 
-    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> object:
+    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
         return self.responses[url]
 
 
-class _CachingProvider:
+class _CachingProvider(EnrichmentProvider):
     name = "test.cache"
 
-    def enrich(self, notification: Notification, client: _FakeClient, ctx: EnrichmentContext) -> dict[str, object]:
+    def enrich(self, notification: Notification, client: JsonFetchClient, ctx: EnrichmentContext) -> dict[str, object]:
         first = ctx.get_json(client=client, url="https://api.example.com/a", timeout_seconds=1.0)
         second = ctx.get_json(client=client, url="https://api.example.com/a", timeout_seconds=1.0)
         return {"same_payload": first == second, "thread": notification.thread_id}
 
 
-class _BudgetProvider:
+class _BudgetProvider(EnrichmentProvider):
     name = "test.budget"
 
-    def enrich(self, notification: Notification, client: _FakeClient, ctx: EnrichmentContext) -> dict[str, object]:
+    def enrich(self, notification: Notification, client: JsonFetchClient, ctx: EnrichmentContext) -> dict[str, object]:
         ctx.get_json(client=client, url=f"https://api.example.com/{notification.thread_id}", timeout_seconds=1.0)
         return {"ok": True}
 
 
-class _BrokenProvider:
+class _BrokenProvider(EnrichmentProvider):
     name = "test.broken"
 
-    def enrich(self, notification: Notification, client: _FakeClient, ctx: EnrichmentContext) -> dict[str, object]:
+    def enrich(self, notification: Notification, client: JsonFetchClient, ctx: EnrichmentContext) -> dict[str, object]:
         del client
         del ctx
         raise RuntimeError(f"boom {notification.thread_id}")
 
 
+def _require_nested_value(root: dict[str, object], *path: str) -> object:
+    node: object = root
+    for segment in path:
+        assert _is_str_object_map(node)
+        assert segment in node
+        node = node[segment]
+    return node
+
+
 def test_engine_dedupes_url_fetches_with_cycle_cache() -> None:
-    engine = EnrichmentEngine(config=EnrichmentConfig(enabled=True), providers=[_CachingProvider()])
+    providers: list[EnrichmentProvider] = [_CachingProvider()]
+    engine = EnrichmentEngine(config=EnrichmentConfig(enabled=True), providers=providers)
     notifications = [_notification(thread_id="1"), _notification(thread_id="2")]
     client = _FakeClient(responses={"https://api.example.com/a": {"v": 1}})
 
     result = engine.run(notifications=notifications, client=client)
 
     assert client.calls == ["https://api.example.com/a"]
-    assert result.contexts_by_thread_id["1"]["test"]["cache"]["same_payload"] is True
-    assert result.contexts_by_thread_id["2"]["test"]["cache"]["same_payload"] is True
+    assert _require_nested_value(result.contexts_by_thread_id["1"], "test", "cache", "same_payload") is True
+    assert _require_nested_value(result.contexts_by_thread_id["2"], "test", "cache", "same_payload") is True
 
 
 def test_engine_respects_request_budget() -> None:
-    engine = EnrichmentEngine(
-        config=EnrichmentConfig(enabled=True, max_requests_per_cycle=1),
-        providers=[_BudgetProvider()],
-    )
+    providers: list[EnrichmentProvider] = [_BudgetProvider()]
+    engine = EnrichmentEngine(config=EnrichmentConfig(enabled=True, max_requests_per_cycle=1), providers=providers)
     notifications = [_notification(thread_id="1"), _notification(thread_id="2")]
     client = _FakeClient(responses={"https://api.example.com/1": {}, "https://api.example.com/2": {}})
 
     result = engine.run(notifications=notifications, client=client)
 
     assert client.calls == ["https://api.example.com/1"]
-    assert result.contexts_by_thread_id["1"]["test"]["budget"]["ok"] is True
+    assert _require_nested_value(result.contexts_by_thread_id["1"], "test", "budget", "ok") is True
     assert result.contexts_by_thread_id["2"] == {}
     assert result.errors
     assert "budget exhausted" in result.errors[0].casefold()
 
 
 def test_engine_provider_failure_is_non_fatal() -> None:
-    engine = EnrichmentEngine(config=EnrichmentConfig(enabled=True), providers=[_BrokenProvider()])
+    providers: list[EnrichmentProvider] = [_BrokenProvider()]
+    engine = EnrichmentEngine(config=EnrichmentConfig(enabled=True), providers=providers)
     notifications = [_notification(thread_id="1")]
     client = _FakeClient(responses={})
 

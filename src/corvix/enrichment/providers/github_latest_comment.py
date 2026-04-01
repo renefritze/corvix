@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TypeIs
 
 from corvix.domain import Notification
-from corvix.enrichment.base import EnrichmentContext
-from corvix.ingestion import GitHubNotificationsClient
+from corvix.enrichment.base import EnrichmentContext, JsonFetchClient
 
 _TEST_REPORT_LINK_ONLY_RE = re.compile(r"^\[\s*Test report\s*\]\([^\s)]+\)$", re.IGNORECASE)
+
+
+def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
 @dataclass(slots=True)
@@ -23,7 +27,7 @@ class GitHubLatestCommentProvider:
     def enrich(
         self,
         notification: Notification,
-        client: GitHubNotificationsClient,
+        client: JsonFetchClient,
         ctx: EnrichmentContext,
     ) -> dict[str, object]:
         """Return latest comment metadata under the provider namespace."""
@@ -31,22 +35,21 @@ class GitHubLatestCommentProvider:
             return {}
 
         thread_payload = ctx.get_json(client=client, url=notification.thread_url, timeout_seconds=self.timeout_seconds)
-        if not isinstance(thread_payload, dict):
+        if not _is_str_object_map(thread_payload):
             return {}
-        latest_comment_url = _extract_latest_comment_url(cast(dict[str, Any], thread_payload))
+        latest_comment_url = _extract_latest_comment_url(thread_payload)
         if latest_comment_url is None:
             return {}
 
         comment_payload = ctx.get_json(client=client, url=latest_comment_url, timeout_seconds=self.timeout_seconds)
-        if not isinstance(comment_payload, dict):
+        if not _is_str_object_map(comment_payload):
             return {}
 
-        payload = cast(dict[str, Any], comment_payload)
-        body_raw = payload.get("body")
+        body_raw = comment_payload.get("body")
         body = body_raw if isinstance(body_raw, str) else ""
-        user = payload.get("user")
+        user = comment_payload.get("user")
         author_login: str | None = None
-        if isinstance(user, dict):
+        if _is_str_object_map(user):
             login = user.get("login")
             if isinstance(login, str):
                 author_login = login
@@ -59,9 +62,9 @@ class GitHubLatestCommentProvider:
         }
 
 
-def _extract_latest_comment_url(thread_payload: dict[str, Any]) -> str | None:
+def _extract_latest_comment_url(thread_payload: Mapping[str, object]) -> str | None:
     subject = thread_payload.get("subject")
-    if not isinstance(subject, dict):
+    if not _is_str_object_map(subject):
         return None
     latest_comment_url = subject.get("latest_comment_url")
     return latest_comment_url if isinstance(latest_comment_url, str) and latest_comment_url else None

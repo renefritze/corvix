@@ -31,17 +31,23 @@ def _make_notification(
     )
 
 
-def _config(**kwargs: object) -> ScoringConfig:
-    defaults: dict[str, object] = {
-        "unread_bonus": 10.0,
-        "age_decay_per_hour": 0.0,
-        "reason_weights": {},
-        "repository_weights": {},
-        "subject_type_weights": {},
-        "title_keyword_weights": {},
-    }
-    defaults.update(kwargs)
-    return ScoringConfig(**defaults)  # type: ignore[arg-type]
+def _config(
+    *,
+    unread_bonus: float = 10.0,
+    age_decay_per_hour: float = 0.0,
+    reason_weights: dict[str, float] | None = None,
+    repository_weights: dict[str, float] | None = None,
+    subject_type_weights: dict[str, float] | None = None,
+    title_keyword_weights: dict[str, float] | None = None,
+) -> ScoringConfig:
+    return ScoringConfig(
+        unread_bonus=unread_bonus,
+        age_decay_per_hour=age_decay_per_hour,
+        reason_weights=reason_weights or {},
+        repository_weights=repository_weights or {},
+        subject_type_weights=subject_type_weights or {},
+        title_keyword_weights=title_keyword_weights or {},
+    )
 
 
 NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC)

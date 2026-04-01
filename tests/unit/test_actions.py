@@ -26,7 +26,7 @@ def _make_record(notification: Notification, dismissed: bool = False) -> Notific
     return NotificationRecord(notification=notification, score=10.0, excluded=False, dismissed=dismissed)
 
 
-class FakeMarkRead:
+class FakeMarkRead(MarkReadGateway):
     def __init__(self) -> None:
         self.marked: list[str] = []
 
@@ -34,7 +34,7 @@ class FakeMarkRead:
         self.marked.append(thread_id)
 
 
-class FakeDismiss:
+class FakeDismiss(DismissGateway):
     def __init__(self) -> None:
         self.dismissed: list[str] = []
 
@@ -48,12 +48,12 @@ class FakeFullClient(FakeMarkRead, FakeDismiss):
         self.dismissed: list[str] = []
 
 
-class FailMarkRead:
+class FailMarkRead(MarkReadGateway):
     def mark_thread_read(self, thread_id: str) -> None:
         raise RuntimeError("API error")
 
 
-class FailDismiss:
+class FailDismiss(DismissGateway):
     def dismiss_thread(self, thread_id: str) -> None:
         raise RuntimeError("dismiss error")
 
@@ -62,12 +62,12 @@ class FailDismiss:
 
 
 def test_fake_mark_read_implements_protocol() -> None:
-    gw: MarkReadGateway = FakeMarkRead()  # type: ignore[assignment]
+    gw: MarkReadGateway = FakeMarkRead()
     gw.mark_thread_read("x")
 
 
 def test_fake_dismiss_implements_protocol() -> None:
-    gw: DismissGateway = FakeDismiss()  # type: ignore[assignment]
+    gw: DismissGateway = FakeDismiss()
     gw.dismiss_thread("x")
 
 
@@ -114,7 +114,7 @@ def test_mark_read_exception_records_error() -> None:
         notification=_make_notification(),
         actions=[RuleAction(action_type="mark_read")],
         context=ActionExecutionContext(
-            gateway=FailMarkRead(),  # type: ignore[arg-type]
+            gateway=FailMarkRead(),
             apply_actions=True,
         ),
     )
@@ -199,7 +199,7 @@ def test_dismiss_exception_records_error() -> None:
         context=ActionExecutionContext(
             gateway=FakeMarkRead(),
             apply_actions=True,
-            dismiss_gateway=FailDismiss(),  # type: ignore[arg-type]
+            dismiss_gateway=FailDismiss(),
             record=record,
         ),
     )

@@ -25,6 +25,7 @@ from corvix.config import (
 from corvix.domain import Notification
 from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache
+from corvix.types import JsonValue
 
 EXPECTED_FETCHED = 2
 EXPECTED_EXCLUDED = 1
@@ -37,13 +38,14 @@ class FakeClient:
         self._notifications = notifications
         self.marked_thread_ids: list[str] = []
 
-    def fetch_notifications(self, _polling: PollingConfig) -> list[Notification]:
+    def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
+        del polling
         return deepcopy(self._notifications)
 
     def mark_thread_read(self, thread_id: str) -> None:
         self.marked_thread_ids.append(thread_id)
 
-    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> object:
+    def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
         msg = f"unexpected enrichment fetch: {url}"
         raise RuntimeError(msg)

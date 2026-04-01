@@ -5,17 +5,16 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import cast
+from typing import Protocol
 
 from rich.console import Console
 
-from corvix.actions import ActionExecutionContext, execute_actions
-from corvix.config import AppConfig, DashboardSpec
-from corvix.domain import NotificationRecord
-from corvix.enrichment.base import EnrichmentProvider
+from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
+from corvix.config import AppConfig, DashboardSpec, PollingConfig
+from corvix.domain import Notification, NotificationRecord
+from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
-from corvix.ingestion import GitHubNotificationsClient
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
 from corvix.notifications.models import DispatchResult
@@ -24,6 +23,14 @@ from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
 from corvix.storage import NotificationCache
+
+
+class NotificationsClient(MarkReadGateway, JsonFetchClient, Protocol):
+    """Client capabilities required by the poll cycle orchestration."""
+
+    def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
+        """Fetch notifications with configured polling options."""
+        ...
 
 
 @dataclass(slots=True)
@@ -51,7 +58,7 @@ class PollCycleInput:
     """
 
     config: AppConfig
-    client: GitHubNotificationsClient
+    client: NotificationsClient
     cache: NotificationCache
     apply_actions: bool = False
     now: datetime | None = None
@@ -101,7 +108,7 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
             context=ActionExecutionContext(
                 gateway=input.client,
                 apply_actions=input.apply_actions,
-                dismiss_gateway=input.client,
+                dismiss_gateway=input.client if isinstance(input.client, DismissGateway) else None,
             ),
         )
         errors.extend(action_result.errors)
@@ -145,7 +152,7 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
 
 def run_watch_loop(
     config: AppConfig,
-    client: GitHubNotificationsClient,
+    client: NotificationsClient,
     cache: NotificationCache,
     apply_actions: bool,
     iterations: int | None = None,
@@ -205,11 +212,8 @@ def _build_enrichment_providers(config: AppConfig) -> list[EnrichmentProvider]:
     providers: list[EnrichmentProvider] = []
     if config.enrichment.github_latest_comment.enabled:
         providers.append(
-            cast(
-                EnrichmentProvider,
-                GitHubLatestCommentProvider(
-                    timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
-                ),
+            GitHubLatestCommentProvider(
+                timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
             )
         )
     return providers

@@ -23,7 +23,9 @@ def test_parse_timestamp_z_suffix() -> None:
     assert ts.month == 1
     assert ts.day == 15
     assert ts.tzinfo is not None
-    assert ts.utcoffset().total_seconds() == 0  # type: ignore[union-attr]
+    offset = ts.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 0
 
 
 def test_parse_timestamp_plus_offset() -> None:
@@ -166,9 +168,9 @@ def test_from_api_payload_no_thread_url() -> None:
     assert n.thread_url is None
 
 
-def test_from_api_payload_unread_truthy_coerced() -> None:
-    n = Notification.from_api_payload(_valid_payload(unread=1))
-    assert n.unread is True
+def test_from_api_payload_invalid_unread_type_raises() -> None:
+    with pytest.raises(ValueError, match="field 'unread' must be a boolean"):
+        Notification.from_api_payload(_valid_payload(unread=1))
 
 
 # --- NotificationRecord to_dict / from_dict ---

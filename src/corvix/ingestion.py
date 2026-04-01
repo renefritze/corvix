@@ -5,29 +5,42 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import Protocol
 from urllib import parse, request
 from urllib.parse import urlparse
 
 from corvix.config import PollingConfig
 from corvix.domain import Notification
+from corvix.types import JsonObject, JsonValue
 
 logger = logging.getLogger(__name__)
 
 _ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite"})
 _CHECK_SUITE_PATH_SEGMENTS = 5
 
-type JsonScalar = str | int | float | bool | None
-type JsonObject = dict[str, object]
-type JsonArray = list[object]
-type JsonValue = JsonObject | JsonArray | JsonScalar
 
-
-def _as_json_object(value: object) -> JsonObject | None:
+def _as_json_object(value: JsonValue) -> JsonObject | None:
     """Return value as a JSON object when it is a dict."""
     if not isinstance(value, dict):
         return None
-    return cast(JsonObject, value)
+    return value
+
+
+def _coerce_json_value(value: object) -> JsonValue:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_coerce_json_value(item) for item in value]
+    if isinstance(value, dict):
+        output: JsonObject = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                msg = "JSON object contains a non-string key."
+                raise ValueError(msg)
+            output[key] = _coerce_json_value(item)
+        return output
+    msg = "Unsupported JSON value type."
+    raise ValueError(msg)
 
 
 class WebUrlEnricher(Protocol):
@@ -156,7 +169,7 @@ class GitHubNotificationsClient:
 
         with request.urlopen(req, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8")
-        return cast(JsonValue, json.loads(raw))
+        return _coerce_json_value(json.loads(raw))
 
     def _request_no_content(self, url: str, method: str) -> None:
         req = request.Request(url=url, method=method, headers=self._headers(), data=b"")

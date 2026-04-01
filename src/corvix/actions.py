@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     pass
 
 
+@runtime_checkable
 class MarkReadGateway(Protocol):
     """Gateway interface for marking notification threads as read."""
 
@@ -19,6 +20,7 @@ class MarkReadGateway(Protocol):
         """Mark a thread as read."""
 
 
+@runtime_checkable
 class DismissGateway(Protocol):
     """Gateway interface for dismissing (deleting) notification threads."""
 

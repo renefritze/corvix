@@ -1,6 +1,6 @@
 """Notification enrichment package."""
 
-from corvix.enrichment.base import EnrichmentContext, EnrichmentProvider
+from corvix.enrichment.base import EnrichmentContext, EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine, EnrichmentRunResult
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 
@@ -10,4 +10,5 @@ __all__ = [
     "EnrichmentProvider",
     "EnrichmentRunResult",
     "GitHubLatestCommentProvider",
+    "JsonFetchClient",
 ]

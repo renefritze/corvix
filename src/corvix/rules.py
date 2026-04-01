@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatchcase
-from typing import cast
+from typing import TypeIs
 
 from corvix.config import MatchCriteria, RuleAction, RuleSet
 from corvix.domain import Notification
+
+
+def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
 @dataclass(slots=True)
@@ -26,7 +31,7 @@ def evaluate_rules(
     score: float,
     rules: RuleSet,
     now: datetime | None = None,
-    context: dict[str, object] | None = None,
+    context: Mapping[str, object] | None = None,
 ) -> RuleEvaluation:
     """Evaluate global and per-repository rules."""
     current_time = now if now is not None else datetime.now(tz=UTC)
@@ -49,7 +54,7 @@ def matches_criteria(
     notification: Notification,
     score: float,
     now: datetime,
-    context: dict[str, object] | None = None,
+    context: Mapping[str, object] | None = None,
 ) -> bool:
     """Check whether a notification satisfies configured criteria."""
     title = notification.subject_title
@@ -83,7 +88,7 @@ def matches_criteria(
     )
 
 
-def _matches_context_predicates(criteria: MatchCriteria, context: dict[str, object]) -> bool:
+def _matches_context_predicates(criteria: MatchCriteria, context: Mapping[str, object]) -> bool:
     if not criteria.context:
         return True
     for predicate in criteria.context:
@@ -99,15 +104,14 @@ def _matches_context_predicates(criteria: MatchCriteria, context: dict[str, obje
     return True
 
 
-def _resolve_context_path(context: dict[str, object], path: str) -> tuple[bool, object | None]:
+def _resolve_context_path(context: Mapping[str, object], path: str) -> tuple[bool, object | None]:
     node: object = context
     for segment in path.split("."):
-        if not isinstance(node, dict):
+        if not _is_str_object_map(node):
             return False, None
-        node_map = cast(dict[str, object], node)
-        if segment not in node_map:
+        if segment not in node:
             return False, None
-        node = node_map[segment]
+        node = node[segment]
     return True, node
 
 

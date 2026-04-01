@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import cast
+from typing import TypeIs
 
 from corvix.config import EnrichmentConfig
 from corvix.domain import Notification
-from corvix.enrichment.base import EnrichmentContext, EnrichmentProvider
-from corvix.ingestion import GitHubNotificationsClient
+from corvix.enrichment.base import EnrichmentContext, EnrichmentProvider, JsonFetchClient
+
+
+def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
 @dataclass(slots=True)
@@ -29,7 +32,7 @@ class EnrichmentEngine:
     def run(
         self,
         notifications: list[Notification],
-        client: GitHubNotificationsClient,
+        client: JsonFetchClient,
     ) -> EnrichmentRunResult:
         """Run enabled providers for all notifications in one cycle."""
         if not self.config.enabled or not self.providers:
@@ -64,17 +67,16 @@ def _set_nested_namespace(root: dict[str, object], namespace: str, payload: dict
     node: dict[str, object] = root
     for segment in segments[:-1]:
         raw_child = node.get(segment)
-        if not isinstance(raw_child, dict):
+        if not _is_str_object_map(raw_child):
             child = {}
             node[segment] = child
             node = child
             continue
-        node = cast(dict[str, object], raw_child)
+        node = raw_child
 
     leaf = segments[-1]
     existing = node.get(leaf)
-    if isinstance(existing, dict):
-        existing_map = cast(dict[str, object], existing)
-        existing_map.update(payload)
+    if _is_str_object_map(existing):
+        existing.update(payload)
         return
     node[leaf] = dict(payload)
