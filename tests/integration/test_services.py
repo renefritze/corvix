@@ -21,7 +21,7 @@ from corvix.config import (
     StateConfig,
 )
 from corvix.domain import Notification
-from corvix.services import _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
+from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache
 
 EXPECTED_FETCHED = 2
@@ -96,11 +96,13 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     summary = run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        apply_actions=True,
-        now=now,
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=True,
+            now=now,
+        )
     )
 
     assert summary.fetched == EXPECTED_FETCHED
@@ -123,11 +125,13 @@ def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        apply_actions=False,
-        now=now,
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
     )
 
     console = Console(record=True)
@@ -217,11 +221,13 @@ def test_poll_with_global_and_repository_rules(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     summary = run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        apply_actions=True,
-        now=now,
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=True,
+            now=now,
+        )
     )
     _, records = cache.load()
     by_id = {record.notification.thread_id: record for record in records}
@@ -243,11 +249,13 @@ def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> 
     cache = NotificationCache(path=cache_path)
 
     run_poll_cycle(
-        config=config,
-        client=client,
-        cache=cache,
-        apply_actions=False,
-        now=now,
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
     )
     cache.dismiss_record(user_id="", thread_id="1")
 
