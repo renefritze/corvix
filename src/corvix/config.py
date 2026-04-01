@@ -10,6 +10,17 @@ import yaml
 
 _POLLING_PER_PAGE_MIN = 1
 _POLLING_PER_PAGE_MAX = 50
+_CONTEXT_OPERATORS = {"equals", "not_equals", "contains", "regex", "in", "exists"}
+
+
+@dataclass(slots=True)
+class ContextPredicate:
+    """Predicate evaluated against enriched notification context."""
+
+    path: str
+    op: str
+    value: object | None = None
+    case_insensitive: bool = False
 
 
 @dataclass(slots=True)
@@ -25,6 +36,7 @@ class MatchCriteria:
     unread: bool | None = None
     min_score: float | None = None
     max_age_hours: float | None = None
+    context: list[ContextPredicate] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -97,6 +109,25 @@ class GitHubConfig:
 
 
 @dataclass(slots=True)
+class GitHubLatestCommentEnrichmentConfig:
+    """Config for enriching comment notifications with latest-comment metadata."""
+
+    enabled: bool = False
+    timeout_seconds: float = 10.0
+
+
+@dataclass(slots=True)
+class EnrichmentConfig:
+    """Top-level enrichment configuration."""
+
+    enabled: bool = False
+    max_requests_per_cycle: int = 25
+    github_latest_comment: GitHubLatestCommentEnrichmentConfig = field(
+        default_factory=GitHubLatestCommentEnrichmentConfig
+    )
+
+
+@dataclass(slots=True)
 class StateConfig:
     """State/cache location for persisted notifications."""
 
@@ -160,6 +191,7 @@ class AppConfig:
     """Top-level application config."""
 
     github: GitHubConfig = field(default_factory=GitHubConfig)
+    enrichment: EnrichmentConfig = field(default_factory=EnrichmentConfig)
     polling: PollingConfig = field(default_factory=PollingConfig)
     state: StateConfig = field(default_factory=StateConfig)
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
@@ -275,6 +307,31 @@ def _parse_match(value: object) -> MatchCriteria:
         unread=bool(match["unread"]) if "unread" in match else None,
         min_score=float(match["min_score"]) if "min_score" in match else None,
         max_age_hours=float(match["max_age_hours"]) if "max_age_hours" in match else None,
+        context=_parse_context_predicates(match.get("context", [])),
+    )
+
+
+def _parse_context_predicates(value: object) -> list[ContextPredicate]:
+    predicates = _ensure_list(value, "match.context")
+    return [_parse_context_predicate(item) for item in predicates]
+
+
+def _parse_context_predicate(value: object) -> ContextPredicate:
+    predicate = _ensure_map(value, "match.context predicate")
+    path = str(predicate.get("path", "")).strip()
+    if not path:
+        msg = "Config field 'match.context[].path' is required."
+        raise ValueError(msg)
+    op = str(predicate.get("op", "")).strip()
+    if op not in _CONTEXT_OPERATORS:
+        supported = ", ".join(sorted(_CONTEXT_OPERATORS))
+        msg = f"Config field 'match.context[].op' must be one of: {supported}."
+        raise ValueError(msg)
+    return ContextPredicate(
+        path=path,
+        op=op,
+        value=predicate.get("value"),
+        case_insensitive=bool(predicate.get("case_insensitive", False)),
     )
 
 
@@ -364,6 +421,22 @@ def _parse_polling(value: object) -> PollingConfig:
     )
 
 
+def _parse_enrichment(value: object) -> EnrichmentConfig:
+    enrichment = _ensure_map(value, "enrichment")
+    latest_comment_raw = _ensure_map(
+        enrichment.get("github_latest_comment", {}),
+        "enrichment.github_latest_comment",
+    )
+    return EnrichmentConfig(
+        enabled=bool(enrichment.get("enabled", False)),
+        max_requests_per_cycle=int(enrichment.get("max_requests_per_cycle", 25)),
+        github_latest_comment=GitHubLatestCommentEnrichmentConfig(
+            enabled=bool(latest_comment_raw.get("enabled", False)),
+            timeout_seconds=float(latest_comment_raw.get("timeout_seconds", 10.0)),
+        ),
+    )
+
+
 def _parse_state(value: object) -> StateConfig:
     state = _ensure_map(value, "state")
     return StateConfig(cache_file=Path(str(state.get("cache_file", "~/.cache/corvix/notifications.json"))))
@@ -415,6 +488,7 @@ def load_config(path: Path) -> AppConfig:
         raise ValueError(msg)
 
     github = _parse_github(data.get("github", {}))
+    enrichment = _parse_enrichment(data.get("enrichment", {}))
     polling = _parse_polling(data.get("polling", {}))
     state = _parse_state(data.get("state", {}))
     scoring = _parse_scoring(data.get("scoring", {}))
@@ -425,6 +499,7 @@ def load_config(path: Path) -> AppConfig:
     notifications = _parse_notifications(data.get("notifications", {}))
     return AppConfig(
         github=github,
+        enrichment=enrichment,
         polling=polling,
         state=state,
         scoring=scoring,

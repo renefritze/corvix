@@ -13,6 +13,13 @@ polling:
 state:
   cache_file: /data/notifications.json
 
+enrichment:
+  enabled: false
+  max_requests_per_cycle: 25
+  github_latest_comment:
+    enabled: false
+    timeout_seconds: 10
+
 scoring:
   unread_bonus: 15
   age_decay_per_hour: 0.25
