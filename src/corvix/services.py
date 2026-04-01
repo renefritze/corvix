@@ -5,12 +5,14 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import cast
 
 from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, execute_actions
 from corvix.config import AppConfig, DashboardSpec
 from corvix.domain import NotificationRecord
+from corvix.enrichment.base import EnrichmentProvider
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 from corvix.ingestion import GitHubNotificationsClient
@@ -199,12 +201,15 @@ def _select_dashboards(config: AppConfig, dashboard_name: str | None) -> list[Da
     return selected
 
 
-def _build_enrichment_providers(config: AppConfig) -> list[GitHubLatestCommentProvider]:
-    providers: list[GitHubLatestCommentProvider] = []
+def _build_enrichment_providers(config: AppConfig) -> list[EnrichmentProvider]:
+    providers: list[EnrichmentProvider] = []
     if config.enrichment.github_latest_comment.enabled:
         providers.append(
-            GitHubLatestCommentProvider(
-                timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
+            cast(
+                EnrichmentProvider,
+                GitHubLatestCommentProvider(
+                    timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
+                ),
             )
         )
     return providers

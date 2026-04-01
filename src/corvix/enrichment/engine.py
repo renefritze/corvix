@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import cast
 
 from corvix.config import EnrichmentConfig
 from corvix.domain import Notification
@@ -60,17 +61,20 @@ def _set_nested_namespace(root: dict[str, object], namespace: str, payload: dict
     segments = [segment for segment in namespace.split(".") if segment]
     if not segments:
         return
-    node = root
+    node: dict[str, object] = root
     for segment in segments[:-1]:
-        child = node.get(segment)
-        if not isinstance(child, dict):
+        raw_child = node.get(segment)
+        if not isinstance(raw_child, dict):
             child = {}
             node[segment] = child
-        node = child
+            node = child
+            continue
+        node = cast(dict[str, object], raw_child)
 
     leaf = segments[-1]
     existing = node.get(leaf)
     if isinstance(existing, dict):
-        existing.update(payload)
+        existing_map = cast(dict[str, object], existing)
+        existing_map.update(payload)
         return
     node[leaf] = dict(payload)

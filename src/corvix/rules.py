@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatchcase
+from typing import cast
 
 from corvix.config import MatchCriteria, RuleAction, RuleSet
 from corvix.domain import Notification
@@ -101,9 +102,12 @@ def _matches_context_predicates(criteria: MatchCriteria, context: dict[str, obje
 def _resolve_context_path(context: dict[str, object], path: str) -> tuple[bool, object | None]:
     node: object = context
     for segment in path.split("."):
-        if not isinstance(node, dict) or segment not in node:
+        if not isinstance(node, dict):
             return False, None
-        node = node[segment]
+        node_map = cast(dict[str, object], node)
+        if segment not in node_map:
+            return False, None
+        node = node_map[segment]
     return True, node
 
 
