@@ -99,6 +99,7 @@ def run_poll_cycle(  # noqa: PLR0913
             previous=previous_records,
             current=records,
             min_score=notif_cfg.detect.min_score,
+            include_read=notif_cfg.detect.include_read,
         )
         dispatcher = NotificationDispatcher(targets=notification_targets)
         dispatch = dispatcher.dispatch(events)

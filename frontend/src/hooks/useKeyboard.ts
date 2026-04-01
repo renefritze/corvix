@@ -37,6 +37,16 @@ function focusRelativeRow(delta: number) {
 	rows[nextIndex]?.focus();
 }
 
+function openFocusedRow() {
+	const active = document.activeElement as HTMLElement | null;
+	const row = active?.closest(
+		"tr.notification-row",
+	) as HTMLTableRowElement | null;
+	if (!row) return;
+	const link = row.querySelector<HTMLAnchorElement>("a.title-link");
+	if (link) link.click();
+}
+
 export function useKeyboard({
 	onRefresh,
 	onFocusFilters,
@@ -96,6 +106,10 @@ export function useKeyboard({
 			if (key === "d") {
 				e.preventDefault();
 				onDismissFocused();
+			}
+
+			if (e.key === "Enter") {
+				openFocusedRow();
 			}
 		}
 		document.addEventListener("keydown", handleKeyDown);

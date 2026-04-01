@@ -230,6 +230,11 @@ button:disabled { opacity: 0.6; cursor: default; }
 .notification-row.unread { border-left: 3px solid var(--ok); }
 .notification-row.read { border-left: 3px solid transparent; }
 .notification-row.dismissing { opacity: 0.3; pointer-events: none; transition: opacity 0.18s; }
+.notification-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--row-hover);
+}
 
 /* Unread dot */
 .unread-dot {

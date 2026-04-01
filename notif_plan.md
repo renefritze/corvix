@@ -73,8 +73,7 @@ Create a domain event and dispatcher layer in backend:
   - `targets/base.py`
     - `NotificationTarget` protocol:
       - `name`
-      - `is_enabled(config) -> bool`
-      - `deliver(events, context) -> DeliveryResult`
+      - `deliver(events) -> DeliveryResult`
   - `dispatcher.py`
     - `NotificationDispatcher` fan-out to enabled targets
     - per-target error isolation and structured results

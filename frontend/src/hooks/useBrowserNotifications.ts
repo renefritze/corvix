@@ -124,18 +124,18 @@ export function useBrowserNotifications({
 			(item) => item.unread && !seenRef.current.has(item.thread_id),
 		);
 
-		if (newItems.length === 0) return;
+		// Cap burst and only mark actually-notified items as seen.
+		const toNotify = newItems.slice(0, maxPerCycle);
+		if (toNotify.length === 0) return;
 
-		// Update seen set immediately to avoid duplicates on next render.
 		const updatedSeen = new Set(seenRef.current);
-		for (const item of newItems) {
+		for (const item of toNotify) {
 			updatedSeen.add(item.thread_id);
 		}
 		seenRef.current = updatedSeen;
 		saveSeen(updatedSeen);
 
-		// Cap burst and apply cooldown.
-		const toNotify = newItems.slice(0, maxPerCycle);
+		// Apply cooldown for this notification burst.
 		cooldownUntilRef.current = now + cooldownMs;
 
 		for (const item of toNotify) {

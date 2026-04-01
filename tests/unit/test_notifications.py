@@ -103,6 +103,17 @@ class TestDetectNewUnreadEvents:
         events = detect_new_unread_events(previous=[], current=current, min_score=5.0)
         assert len(events) == 1
 
+    def test_include_read_false_skips_read_records(self) -> None:
+        current = [_record("1", unread=False)]
+        events = detect_new_unread_events(previous=[], current=current, include_read=False)
+        assert events == []
+
+    def test_include_read_true_emits_events_for_read_records(self) -> None:
+        current = [_record("1", unread=False), _record("2", unread=True)]
+        events = detect_new_unread_events(previous=[], current=current, include_read=True)
+        assert len(events) == 2
+        assert {e.thread_id for e in events} == {"1", "2"}
+
     def test_multiple_new_records_all_generate_events(self) -> None:
         current = [_record("1", unread=True), _record("2", unread=True), _record("3", unread=False)]
         events = detect_new_unread_events(previous=[], current=current)

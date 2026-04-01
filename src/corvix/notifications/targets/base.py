@@ -13,9 +13,8 @@ class NotificationTarget(Protocol):
     """Delivery channel for notification events.
 
     Implement this protocol to add a new notification channel (browser push,
-    Slack, webhook, email, …).  The dispatcher calls ``is_enabled`` first;
-    if it returns ``False`` the target is skipped entirely.  ``deliver`` is
-    only called when there is at least one event to process.
+    Slack, webhook, email, …).  ``deliver`` is only called when there is at
+    least one event to process.
 
     Errors raised inside ``deliver`` are caught by the dispatcher and surfaced
     in ``DeliveryResult.errors``; they never propagate to the poll loop.

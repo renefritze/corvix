@@ -49,7 +49,7 @@ jobs:
       with:
         path: docs/_build/html/
   deploy_docs:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-24.04
     needs: [build_docs]
     if: ${{ github.ref == 'refs/heads/main' }}
     environment:
