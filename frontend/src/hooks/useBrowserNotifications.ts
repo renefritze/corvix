@@ -143,7 +143,7 @@ export function useBrowserNotifications({
 				const notif = new Notification(item.subject_title, {
 					body: `${item.repository} · ${item.reason}`,
 					tag: item.thread_id,
-					icon: "/favicon.ico",
+					icon: "/assets/favicon.svg",
 				});
 				notif.addEventListener("click", () => {
 					if (item.web_url) {

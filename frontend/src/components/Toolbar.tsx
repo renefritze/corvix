@@ -92,7 +92,15 @@ export function Toolbar({
 }: ToolbarProps) {
 	return (
 		<div class="toolbar-row">
-			<span class="app-name">Corvix</span>
+			<span class="app-brand">
+				<img
+					class="app-brand-icon"
+					src="/assets/favicon.svg"
+					alt=""
+					aria-hidden="true"
+				/>
+				<span class="app-name">Corvix</span>
+			</span>
 			{summary && (
 				<span class="inline-stats">
 					{summary.unread_items + summary.read_items} notifications ·{" "}

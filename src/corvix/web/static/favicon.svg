@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Corvix raven mark">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9fd3ff" />
+      <stop offset="100%" stop-color="#3a78b8" />
+    </linearGradient>
+    <linearGradient id="beak" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffd95a" />
+      <stop offset="100%" stop-color="#f0a62e" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#sky)" />
+  <path fill="#0f172a" d="M50 14c-8 0-14 3-21 10L15 36l8 11h14l5-8 8-2-7-4 5-10-10-9h12z" />
+  <path fill="#18243b" d="M22 47h15l6-10-10-4-8 3z" />
+  <path fill="url(#beak)" d="M41 35l11 2-12 6z" />
+  <circle cx="35" cy="28" r="3.2" fill="#f8fafc" />
+  <circle cx="36" cy="28" r="1.2" fill="#0f172a" />
+  <path fill="none" stroke="#d5ebff" stroke-width="2.5" stroke-linecap="round" d="M14 51c6-8 13-12 22-14" />
+</svg>
