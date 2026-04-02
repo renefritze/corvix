@@ -367,6 +367,7 @@ def test_mark_read_github_error_returns_502(configured_client: TestClient, monke
 
     assert response.status_code == HTTPStatus.BAD_GATEWAY
     assert "Failed to mark thread" in response.text
+    assert "boom" not in response.text
 
 
 def test_mark_read_token_env_error_returns_500(

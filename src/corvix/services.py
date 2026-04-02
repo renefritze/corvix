@@ -15,6 +15,7 @@ from corvix.domain import Notification, NotificationRecord
 from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
+from corvix.ingestion import resolve_web_urls
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
 from corvix.notifications.models import DispatchResult
@@ -82,6 +83,10 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         _, previous_records = input.cache.load()
 
     notifications = input.client.fetch_notifications(input.config.polling)
+    resolve_web_urls(
+        notifications,
+        enricher=input.client if hasattr(input.client, "enrich_web_url") else None,
+    )
     enrichment_engine = EnrichmentEngine(
         config=input.config.enrichment,
         providers=_build_enrichment_providers(input.config),

@@ -28,21 +28,12 @@ export function TableRow({
 		onOpenTarget(item.thread_id);
 	}
 
-	function openInNewTab() {
-		if (!item.web_url) return;
-		window.open(item.web_url, "_blank", "noopener,noreferrer");
-	}
-
-	function handleTitleClick(e: MouseEvent) {
-		e.preventDefault();
-		openInNewTab();
+	function handleTitleClick() {
 		handleOpenTarget();
 	}
 
 	function handleTitleAuxClick(e: MouseEvent) {
 		if (e.button !== 1) return;
-		e.preventDefault();
-		openInNewTab();
 		handleOpenTarget();
 	}
 

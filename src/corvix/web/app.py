@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 from importlib.resources import files
 from os import environ
@@ -17,6 +18,8 @@ from corvix.dashboarding import build_dashboard_data
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
+
+logger = logging.getLogger(__name__)
 
 THEMES: dict[str, dict[str, str]] = {
     "midnight": {
@@ -127,7 +130,7 @@ def dismiss_notification(thread_id: str) -> Response[None]:
     return Response(content=None, status_code=204)
 
 
-@post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=False)
+@post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=True)
 def mark_notification_read(thread_id: str) -> Response[None]:
     """Mark a notification thread as read in GitHub and local storage."""
     config = _load_runtime_config()
@@ -143,7 +146,8 @@ def mark_notification_read(thread_id: str) -> Response[None]:
     try:
         client.mark_thread_read(thread_id)
     except Exception as error:
-        msg = f"Failed to mark thread {thread_id} as read: {error}"
+        logger.exception("Failed to mark thread as read", extra={"thread_id": thread_id})
+        msg = f"Failed to mark thread {thread_id} as read."
         raise HTTPException(status_code=502, detail=msg) from error
 
     cache = NotificationCache(path=config.resolve_cache_file())

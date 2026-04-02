@@ -87,7 +87,7 @@ Canonical persisted schema is the flattened record returned by `NotificationReco
 
 ### 2.4 URL resolution
 
-`web_url` is derived in two stages during each poll cycle.
+`web_url` is derived in two stages during each poll cycle (`run_poll_cycle`).
 
 **Fast path** — pure string mapping in `_map_subject_api_url_to_web`, no API calls:
 
@@ -108,7 +108,7 @@ Canonical persisted schema is the flattened record returned by `NotificationReco
 
 If enrichment fails (API error, empty response, unknown type), `web_url` stays `None` and the UI renders the title as plain text rather than a link.
 
-The enricher is injected via the `WebUrlEnricher` Protocol. `GitHubNotificationsClient` implements it. Passing `enricher=None` to `run_poll_cycle` disables enrichment entirely (fast path still runs).
+The enricher is injected via the `WebUrlEnricher` Protocol. `GitHubNotificationsClient` implements it, and `run_poll_cycle` calls `resolve_web_urls(notifications, enricher=input.client)` before scoring/rules. If no enricher is provided (or resolution fails), fast-path behavior still applies and unresolved `web_url` values remain `None`.
 
 ---
 

@@ -51,6 +51,12 @@ class FakeClient:
         raise RuntimeError(msg)
 
 
+class FakeClientWithWebUrlEnrichment(FakeClient):
+    def enrich_web_url(self, notification: Notification) -> str | None:
+        del notification
+        return "https://github.com/org/repo/actions/runs/123"
+
+
 def _build_config(cache_path: Path) -> AppConfig:
     return AppConfig(
         enrichment=EnrichmentConfig(),
@@ -281,6 +287,42 @@ def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> 
     assert len(results) == 1
     assert results[0].rows == 0
     assert "Please review" not in rendered_text
+
+
+def test_poll_cycle_resolves_web_urls_with_client_enricher(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClientWithWebUrlEnrichment(
+        [
+            Notification(
+                thread_id="99",
+                repository="org/repo",
+                reason="mention",
+                subject_title="Check suite finished",
+                subject_type="CheckSuite",
+                unread=True,
+                updated_at=now,
+                thread_url="https://api.github.com/notifications/threads/99",
+                subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+                web_url=None,
+            )
+        ]
+    )
+    cache = NotificationCache(path=cache_path)
+
+    run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
+    )
+
+    _, records = cache.load()
+    assert records[0].notification.web_url == "https://github.com/org/repo/actions/runs/123"
 
 
 def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
