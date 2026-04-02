@@ -4,7 +4,7 @@ github:
   api_base_url: https://api.github.com
 
 polling:
-  interval_seconds: 300
+  interval_seconds: 60
   per_page: 50
   max_pages: 5
   all: false
@@ -17,6 +17,9 @@ enrichment:
   enabled: true
   max_requests_per_cycle: 25
   github_latest_comment:
+    enabled: true
+    timeout_seconds: 10
+  github_pr_state:
     enabled: true
     timeout_seconds: 10
 
@@ -54,7 +57,14 @@ rules:
   - name: mute-dependabot-prs
     match:
       subject_type_in: ["PullRequest"]
-      title_regex: "^Bump .+ from .+ to .+$"
+      context:
+      - path: github.pr_state.author.login
+        op: equals
+        value: dependabot[bot]
+        case_insensitive: true
+      - path: github.pr_state.state
+        op: equals
+        value: closed
     actions:
     - type: mark_read
     exclude_from_dashboards: true

@@ -92,7 +92,7 @@ class ScoringConfig:
 class PollingConfig:
     """Polling behavior for ingestion."""
 
-    interval_seconds: int = 300
+    interval_seconds: int = 60
     per_page: int = 50
     max_pages: int = 5
     all: bool = False
@@ -116,6 +116,14 @@ class GitHubLatestCommentEnrichmentConfig:
 
 
 @dataclass(slots=True)
+class GitHubPRStateEnrichmentConfig:
+    """Config for enriching pull-request notifications with PR state."""
+
+    enabled: bool = False
+    timeout_seconds: float = 10.0
+
+
+@dataclass(slots=True)
 class EnrichmentConfig:
     """Top-level enrichment configuration."""
 
@@ -124,6 +132,7 @@ class EnrichmentConfig:
     github_latest_comment: GitHubLatestCommentEnrichmentConfig = field(
         default_factory=GitHubLatestCommentEnrichmentConfig
     )
+    github_pr_state: GitHubPRStateEnrichmentConfig = field(default_factory=GitHubPRStateEnrichmentConfig)
 
 
 @dataclass(slots=True)
@@ -216,9 +225,12 @@ enrichment:
   github_latest_comment:
     enabled: false
     timeout_seconds: 10
+  github_pr_state:
+    enabled: false
+    timeout_seconds: 10
 
 polling:
-  interval_seconds: 300
+  interval_seconds: 60
   per_page: 50
   max_pages: 5
   all: false
@@ -516,7 +528,7 @@ def _parse_polling(value: object) -> PollingConfig:
         msg = f"Config value 'polling.per_page' must be between {_POLLING_PER_PAGE_MIN} and {_POLLING_PER_PAGE_MAX}."
         raise ValueError(msg)
     return PollingConfig(
-        interval_seconds=_get_int(polling, "interval_seconds", 300, "polling.interval_seconds"),
+        interval_seconds=_get_int(polling, "interval_seconds", 60, "polling.interval_seconds"),
         per_page=per_page,
         max_pages=_get_int(polling, "max_pages", 5, "polling.max_pages"),
         all=_get_bool(polling, "all", False, "polling.all"),
@@ -529,6 +541,10 @@ def _parse_enrichment(value: object) -> EnrichmentConfig:
     latest_comment_raw = _ensure_map(
         enrichment.get("github_latest_comment", {}),
         "enrichment.github_latest_comment",
+    )
+    pr_state_raw = _ensure_map(
+        enrichment.get("github_pr_state", {}),
+        "enrichment.github_pr_state",
     )
     return EnrichmentConfig(
         enabled=_get_bool(enrichment, "enabled", False, "enrichment.enabled"),
@@ -545,6 +561,15 @@ def _parse_enrichment(value: object) -> EnrichmentConfig:
                 "timeout_seconds",
                 10.0,
                 "enrichment.github_latest_comment.timeout_seconds",
+            ),
+        ),
+        github_pr_state=GitHubPRStateEnrichmentConfig(
+            enabled=_get_bool(pr_state_raw, "enabled", False, "enrichment.github_pr_state.enabled"),
+            timeout_seconds=_get_float(
+                pr_state_raw,
+                "timeout_seconds",
+                10.0,
+                "enrichment.github_pr_state.timeout_seconds",
             ),
         ),
     )

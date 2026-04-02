@@ -10,6 +10,7 @@ from corvix.domain import Notification
 from corvix.enrichment.base import EnrichmentContext, EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
+from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
 from corvix.types import JsonValue
 
 
@@ -17,16 +18,24 @@ def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
     return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
-def _notification(*, thread_id: str = "1", reason: str = "comment", thread_url: str | None = None) -> Notification:
+def _notification(
+    *,
+    thread_id: str = "1",
+    reason: str = "comment",
+    thread_url: str | None = None,
+    subject_type: str = "Issue",
+    subject_url: str | None = None,
+) -> Notification:
     return Notification(
         thread_id=thread_id,
         repository="org/repo",
         reason=reason,
         subject_title="Ping",
-        subject_type="Issue",
+        subject_type=subject_type,
         unread=True,
         updated_at=datetime.now(tz=UTC),
         thread_url=thread_url or f"https://api.example.com/notifications/threads/{thread_id}",
+        subject_url=subject_url,
     )
 
 
@@ -167,3 +176,127 @@ def test_latest_comment_provider_skips_non_comment_reason() -> None:
 
     assert payload == {}
     assert client.calls == []
+
+
+def test_pr_state_provider_skips_non_pr_notification() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    client = _FakeClient(responses={})
+    context = EnrichmentContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="Issue", subject_url="https://api.example.com/repos/org/repo/issues/1"),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload == {}
+    assert client.calls == []
+
+
+def test_pr_state_provider_skips_notification_without_subject_url() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    client = _FakeClient(responses={})
+    context = EnrichmentContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=None),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload == {}
+    assert client.calls == []
+
+
+def test_pr_state_provider_enriches_open_pr() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/123"
+    client = _FakeClient(
+        responses={
+            subject_url: {
+                "state": "open",
+                "merged": False,
+                "draft": False,
+                "user": {"login": "alice"},
+            }
+        }
+    )
+    context = EnrichmentContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload == {
+        "state": "open",
+        "merged": False,
+        "draft": False,
+        "author": {"login": "alice"},
+    }
+
+
+def test_pr_state_provider_enriches_merged_pr() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/456"
+    client = _FakeClient(
+        responses={
+            subject_url: {
+                "state": "closed",
+                "merged": True,
+                "draft": False,
+                "user": {"login": "dependabot[bot]"},
+            }
+        }
+    )
+    context = EnrichmentContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload["state"] == "closed"
+    assert payload["merged"] is True
+    assert payload["author"] == {"login": "dependabot[bot]"}
+
+
+def test_pr_state_provider_returns_empty_author_when_user_missing() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/789"
+    client = _FakeClient(
+        responses={
+            subject_url: {
+                "state": "closed",
+                "merged": False,
+                "draft": True,
+            }
+        }
+    )
+    context = EnrichmentContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload["author"] == {}
+    assert payload["draft"] is True
+
+
+def test_pr_state_provider_ignores_malformed_payload() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/999"
+    client = _FakeClient(responses={subject_url: "not-an-object"})
+    context = EnrichmentContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload == {}

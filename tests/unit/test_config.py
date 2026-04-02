@@ -93,7 +93,7 @@ def test_config_polling_defaults(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text("{}\n", encoding="utf-8")
     config = load_config(config_file)
-    assert config.polling.interval_seconds == 300
+    assert config.polling.interval_seconds == 60
     assert config.polling.per_page == 50
     assert config.polling.max_pages == 5
 
@@ -175,6 +175,8 @@ def test_config_enrichment_defaults(tmp_path: Path) -> None:
     assert config.enrichment.max_requests_per_cycle == 25
     assert config.enrichment.github_latest_comment.enabled is False
     assert config.enrichment.github_latest_comment.timeout_seconds == 10.0
+    assert config.enrichment.github_pr_state.enabled is False
+    assert config.enrichment.github_pr_state.timeout_seconds == 10.0
 
 
 def test_config_enrichment_override(tmp_path: Path) -> None:
@@ -187,6 +189,9 @@ enrichment:
   github_latest_comment:
     enabled: true
     timeout_seconds: 4.5
+  github_pr_state:
+    enabled: true
+    timeout_seconds: 7.5
 """,
         encoding="utf-8",
     )
@@ -197,6 +202,8 @@ enrichment:
     assert config.enrichment.max_requests_per_cycle == 100
     assert config.enrichment.github_latest_comment.enabled is True
     assert config.enrichment.github_latest_comment.timeout_seconds == 4.5
+    assert config.enrichment.github_pr_state.enabled is True
+    assert config.enrichment.github_pr_state.timeout_seconds == 7.5
 
 
 def test_config_match_context_invalid_operator_raises(tmp_path: Path) -> None:

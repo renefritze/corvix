@@ -15,6 +15,7 @@ from corvix.domain import Notification, NotificationRecord
 from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
+from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
 from corvix.ingestion import resolve_web_urls
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
@@ -219,6 +220,12 @@ def _build_enrichment_providers(config: AppConfig) -> list[EnrichmentProvider]:
         providers.append(
             GitHubLatestCommentProvider(
                 timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
+            )
+        )
+    if config.enrichment.github_pr_state.enabled:
+        providers.append(
+            GitHubPRStateProvider(
+                timeout_seconds=config.enrichment.github_pr_state.timeout_seconds,
             )
         )
     return providers
