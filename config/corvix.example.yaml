@@ -51,6 +51,13 @@ rules:
     actions:
     - type: mark_read
     exclude_from_dashboards: true
+  - name: mute-dependabot-prs
+    match:
+      subject_type_in: ["PullRequest"]
+      title_regex: "^Bump .+ from .+ to .+$"
+    actions:
+    - type: mark_read
+    exclude_from_dashboards: true
   - name: mute-codecov-comments
     match:
       reason_in: ["comment"]
