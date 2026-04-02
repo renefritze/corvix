@@ -88,13 +88,13 @@ export function useBrowserNotifications({
 	// Cooldown: timestamp (ms) after which the next burst is allowed.
 	const cooldownUntilRef = useRef<number>(0);
 
+	const featureEnabled = config?.enabled;
+
 	const active =
-		supported &&
-		userEnabled &&
-		permission === "granted" &&
-		(config?.enabled ?? true);
+		supported && userEnabled && permission === "granted" && featureEnabled;
 
 	const enable = useCallback(async () => {
+		if (!featureEnabled) return;
 		if (!supported) return;
 		const result = await Notification.requestPermission();
 		const perm = result as NotifPermission;
@@ -103,12 +103,13 @@ export function useBrowserNotifications({
 			setUserEnabled(true);
 			saveUserEnabled(true);
 		}
-	}, [supported]);
+	}, [featureEnabled, supported]);
 
 	const disable = useCallback(() => {
+		if (!featureEnabled) return;
 		setUserEnabled(false);
 		saveUserEnabled(false);
-	}, []);
+	}, [featureEnabled]);
 
 	// Fire browser notifications for newly-seen unread items.
 	useEffect(() => {
