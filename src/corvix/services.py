@@ -108,6 +108,13 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
             now=current_time,
             context=record_context,
         )
+        record = NotificationRecord(
+            notification=notification,
+            score=score,
+            excluded=evaluation.excluded,
+            matched_rules=evaluation.matched_rules,
+            context=record_context,
+        )
         action_result = execute_actions(
             notification=notification,
             actions=evaluation.actions,
@@ -115,22 +122,15 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
                 gateway=input.client,
                 apply_actions=input.apply_actions,
                 dismiss_gateway=input.client if isinstance(input.client, DismissGateway) else None,
+                record=record,
             ),
         )
+        record.actions_taken = action_result.actions_taken
         errors.extend(action_result.errors)
         action_count += len(action_result.actions_taken)
         if evaluation.excluded:
             excluded += 1
-        records.append(
-            NotificationRecord(
-                notification=notification,
-                score=score,
-                excluded=evaluation.excluded,
-                matched_rules=evaluation.matched_rules,
-                actions_taken=action_result.actions_taken,
-                context=record_context,
-            ),
-        )
+        records.append(record)
 
     errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
     input.cache.save(records=records, generated_at=current_time)

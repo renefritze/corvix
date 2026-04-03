@@ -57,6 +57,15 @@ class FakeClientWithWebUrlEnrichment(FakeClient):
         return "https://github.com/org/repo/actions/runs/123"
 
 
+class FakeClientWithDismiss(FakeClient):
+    def __init__(self, notifications: list[Notification]) -> None:
+        super().__init__(notifications)
+        self.dismissed_thread_ids: list[str] = []
+
+    def dismiss_thread(self, thread_id: str) -> None:
+        self.dismissed_thread_ids.append(thread_id)
+
+
 def _build_config(cache_path: Path) -> AppConfig:
     return AppConfig(
         enrichment=EnrichmentConfig(),
@@ -131,6 +140,44 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
     assert len(records) == EXPECTED_FETCHED
     assert len([record for record in records if record.excluded]) == EXPECTED_EXCLUDED
     assert records[1].actions_taken == ["mark_read"]
+
+
+def test_poll_cycle_persists_dismissed_records(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    config.rules = RuleSet(
+        global_rules=[
+            Rule(
+                name="dismiss-mentions",
+                match=MatchCriteria(reason_in=["mention"]),
+                actions=[RuleAction(action_type="dismiss")],
+            )
+        ]
+    )
+    client = FakeClientWithDismiss(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+
+    summary = run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=True,
+            now=now,
+        )
+    )
+
+    assert summary.fetched == EXPECTED_FETCHED
+    assert summary.excluded == 0
+    assert summary.actions_taken == 1
+    assert client.dismissed_thread_ids == ["1"]
+
+    _, records = cache.load()
+    by_id = {record.notification.thread_id: record for record in records}
+    assert by_id["1"].dismissed is True
+    assert by_id["1"].actions_taken == ["dismiss"]
+    assert by_id["2"].dismissed is False
 
 
 def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:

@@ -225,6 +225,46 @@ rules:
         load_config(config_file)
 
 
+def test_config_match_context_regex_requires_string_value(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+rules:
+  global:
+    - name: bad-regex-value
+      match:
+        context:
+          - path: github.latest_comment.body
+            op: regex
+            value: 123
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"match\.context\[\]\.value"):
+        load_config(config_file)
+
+
+def test_config_match_context_invalid_regex_raises(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+rules:
+  global:
+    - name: bad-regex
+      match:
+        context:
+          - path: github.latest_comment.body
+            op: regex
+            value: "("
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"match\.context\[\]\.value.*invalid regex"):
+        load_config(config_file)
+
+
 def test_config_match_context_requires_path(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text(

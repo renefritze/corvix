@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -432,10 +433,20 @@ def _parse_context_predicate(value: object) -> ContextPredicate:
         supported = ", ".join(sorted(_CONTEXT_OPERATORS))
         msg = f"Config field 'match.context[].op' must be one of: {supported}."
         raise ValueError(msg)
+    predicate_value = predicate.get("value")
+    if op == "regex":
+        if not isinstance(predicate_value, str):
+            msg = "Config field 'match.context[].value' must be a string when op is 'regex'."
+            raise ValueError(msg)
+        try:
+            re.compile(predicate_value)
+        except re.error as error:
+            msg = f"Config field 'match.context[].value' contains an invalid regex: {error}."
+            raise ValueError(msg) from error
     return ContextPredicate(
         path=path_raw.strip(),
         op=op,
-        value=predicate.get("value"),
+        value=predicate_value,
         case_insensitive=_get_bool(predicate, "case_insensitive", False, "match.context[].case_insensitive"),
     )
 

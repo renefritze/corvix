@@ -132,7 +132,10 @@ def _evaluate_context_predicate(
         if not isinstance(path_value, str) or not isinstance(expected, str):
             return False
         flags = re.IGNORECASE if case_insensitive else 0
-        return re.search(expected, path_value, flags=flags) is not None
+        try:
+            return re.search(expected, path_value, flags=flags) is not None
+        except re.error:
+            return False
     evaluators = {
         "equals": _equals(path_value, expected, case_insensitive),
         "not_equals": not _equals(path_value, expected, case_insensitive),

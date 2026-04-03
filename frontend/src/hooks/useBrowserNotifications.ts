@@ -88,7 +88,7 @@ export function useBrowserNotifications({
 	// Cooldown: timestamp (ms) after which the next burst is allowed.
 	const cooldownUntilRef = useRef<number>(0);
 
-	const featureEnabled = config?.enabled;
+	const featureEnabled = config?.enabled ?? false;
 
 	const active =
 		supported && userEnabled && permission === "granted" && featureEnabled;

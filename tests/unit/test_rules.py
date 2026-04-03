@@ -253,6 +253,12 @@ def test_context_regex_match() -> None:
     assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is True
 
 
+def test_context_regex_invalid_pattern_returns_false() -> None:
+    criteria = MatchCriteria(context=[ContextPredicate(path="github.latest_comment.body", op="regex", value="(")])
+    context = {"github": {"latest_comment": {"body": "CI"}}}
+    assert matches_criteria(criteria, _make_notification(), score=0.0, now=NOW, context=context) is False
+
+
 def test_context_in_match() -> None:
     criteria = MatchCriteria(
         context=[
