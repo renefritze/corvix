@@ -127,6 +127,7 @@ def _included_by_dashboard(
         notification=record.notification,
         score=record.score,
         now=now,
+        context=record.context,
     )
 
 

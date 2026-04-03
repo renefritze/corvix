@@ -17,5 +17,8 @@ target-version = "py313"
 extend-include = [".CMakePresets.json.in", "docs/conf.py.in"]
 
 [lint.per-file-ignores]
-# ignore magic numbers in test sources (matches clang-tidy setup for tests/*)
-"tests/python/*" = ["PLR2004"]
+# test helpers and assertions intentionally use literals and wide builders
+"tests/**/*.py" = ["PLR0913", "PLR2004"]
+# permit intentionally broad fixture wrappers in tests
+"tests/unit/*" = ["RUF043"]
+"tests/integration/*" = ["RUF043"]

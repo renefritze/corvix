@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from http import HTTPStatus
 from pathlib import Path
 
 import pytest
 from litestar.testing import TestClient
 
+from corvix.config import load_config
 from corvix.web.app import INDEX_HTML, THEMES, app
 
 GENERATED_AT = "2024-01-01T00:00:00Z"
@@ -300,6 +302,81 @@ def test_dismiss_token_env_error_returns_500(
     monkeypatch.setattr("corvix.web.app.get_env_value", lambda _name: (_ for _ in ()).throw(ValueError("bad env")))
 
     response = configured_client.post("/api/notifications/123/dismiss")
+
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def test_mark_read_without_token_returns_500(
+    configured_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
+    response = configured_client.post("/api/notifications/123/mark-read")
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def test_mark_read_success(configured_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(
+        "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
+        lambda _self, thread_id: calls.append(thread_id),
+    )
+
+    response = configured_client.post("/api/notifications/abc123/mark-read")
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert calls == ["abc123"]
+
+
+def test_mark_read_updates_cache_unread_state(configured_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "notifications": [_record_payload(thread_id="1", repository="org/repo-a", reason="mention", score=1.0)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.mark_thread_read", lambda *_args: None)
+
+    response = configured_client.post("/api/notifications/1/mark-read")
+    assert response.status_code == HTTPStatus.NO_CONTENT
+
+    payload = json.loads(cache_file.read_text(encoding="utf-8"))
+    notifications = payload["notifications"]
+    assert len(notifications) == 1
+    assert notifications[0]["thread_id"] == "1"
+    assert notifications[0]["unread"] is False
+
+
+def test_mark_read_github_error_returns_502(configured_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    def _raise(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.mark_thread_read", _raise)
+
+    response = configured_client.post("/api/notifications/123/mark-read")
+
+    assert response.status_code == HTTPStatus.BAD_GATEWAY
+    assert "Failed to mark thread" in response.text
+    assert "boom" not in response.text
+
+
+def test_mark_read_token_env_error_returns_500(
+    configured_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("corvix.web.app.get_env_value", lambda _name: (_ for _ in ()).throw(ValueError("bad env")))
+
+    response = configured_client.post("/api/notifications/123/mark-read")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 

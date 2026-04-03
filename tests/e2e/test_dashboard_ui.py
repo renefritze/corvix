@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import pytest
 
+from tests.e2e.playwright_types import PageLike, RouteLike
+
 pytest.importorskip("playwright")
 
 
 @pytest.mark.e2e
-def test_page_loads_and_renders_title(app_page: object) -> None:
+def test_page_loads_and_renders_title(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     expect(app_page).to_have_title("Corvix")
@@ -16,7 +18,7 @@ def test_page_loads_and_renders_title(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_notifications_table_renders(app_page: object) -> None:
+def test_notifications_table_renders(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     table = app_page.locator("table.notification-table")
@@ -25,7 +27,7 @@ def test_notifications_table_renders(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_page_loads_css_and_js(page: object, corvix_server: str) -> None:
+def test_page_loads_css_and_js(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     console_errors: list[str] = []
@@ -39,13 +41,14 @@ def test_page_loads_css_and_js(page: object, corvix_server: str) -> None:
     page.goto(corvix_server)
     expect(page.locator("link[rel='stylesheet'][href*='/assets/']")).to_have_count(1)
     body_background = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
+    assert isinstance(body_background, str)
     assert body_background.startswith("rgb(")
     assert page_errors == []
     assert console_errors == []
 
 
 @pytest.mark.e2e
-def test_dashboard_selector_lists_and_switches(app_page: object) -> None:
+def test_dashboard_selector_lists_and_switches(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     selector = app_page.get_by_label("Select dashboard")
@@ -57,7 +60,7 @@ def test_dashboard_selector_lists_and_switches(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_empty_dashboard_shows_empty_state(app_page: object) -> None:
+def test_empty_dashboard_shows_empty_state(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     selector = app_page.get_by_label("Select dashboard")
@@ -68,7 +71,7 @@ def test_empty_dashboard_shows_empty_state(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_filter_bar_filters_by_reason(app_page: object) -> None:
+def test_filter_bar_filters_by_reason(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     reason_filter = app_page.get_by_label("Reason filter")
@@ -78,7 +81,7 @@ def test_filter_bar_filters_by_reason(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_notification_row_shows_key_fields(app_page: object) -> None:
+def test_notification_row_shows_key_fields(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     row = app_page.locator("tr.notification-row", has_text="Review API changes")
@@ -90,7 +93,7 @@ def test_notification_row_shows_key_fields(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_sort_order_matches_config(app_page: object) -> None:
+def test_sort_order_matches_config(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     selector = app_page.get_by_label("Select dashboard")
@@ -102,7 +105,7 @@ def test_sort_order_matches_config(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_filter_clears_when_input_emptied(app_page: object) -> None:
+def test_filter_clears_when_input_emptied(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     rows = app_page.locator("tr.notification-row")
@@ -115,7 +118,7 @@ def test_filter_clears_when_input_emptied(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_dismiss_removes_row(app_page: object) -> None:
+def test_dismiss_removes_row(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     rows = app_page.locator("tr.notification-row")
@@ -125,7 +128,7 @@ def test_dismiss_removes_row(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: object) -> None:
+def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     rows = app_page.locator("tr.notification-row")
@@ -139,10 +142,10 @@ def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: object) -> Non
 
 
 @pytest.mark.e2e
-def test_loading_skeleton_shown_then_replaced(page: object, corvix_server: str) -> None:
+def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    def delayed_snapshot(route: object) -> None:
+    def delayed_snapshot(route: RouteLike) -> None:
         route.fetch(timeout=5_000)
         page.wait_for_timeout(500)
         route.continue_()
@@ -155,7 +158,7 @@ def test_loading_skeleton_shown_then_replaced(page: object, corvix_server: str) 
 
 
 @pytest.mark.e2e
-def test_server_error_shows_error_state(page: object, corvix_server: str) -> None:
+def test_server_error_shows_error_state(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     page.route(
@@ -172,7 +175,7 @@ def test_server_error_shows_error_state(page: object, corvix_server: str) -> Non
 
 
 @pytest.mark.e2e
-def test_groups_displayed_with_headers(app_page: object) -> None:
+def test_groups_displayed_with_headers(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     headers = app_page.locator("tr.group-header-row .group-header-cell")
@@ -184,7 +187,7 @@ def test_groups_displayed_with_headers(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_mobile_viewport_renders_without_horizontal_scroll(page: object, corvix_server: str) -> None:
+def test_mobile_viewport_renders_without_horizontal_scroll(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     page.set_viewport_size({"width": 375, "height": 667})
@@ -193,11 +196,12 @@ def test_mobile_viewport_renders_without_horizontal_scroll(page: object, corvix_
     has_horizontal_overflow = page.evaluate(
         "() => document.documentElement.scrollWidth > document.documentElement.clientWidth",
     )
+    assert isinstance(has_horizontal_overflow, bool)
     assert has_horizontal_overflow is False
 
 
 @pytest.mark.e2e
-def test_keyboard_navigation_with_j_and_k(app_page: object) -> None:
+def test_keyboard_navigation_with_j_and_k(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     first_row = app_page.locator("tr.notification-row").first
@@ -210,7 +214,7 @@ def test_keyboard_navigation_with_j_and_k(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_keyboard_dismiss_with_d(app_page: object) -> None:
+def test_keyboard_dismiss_with_d(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     rows = app_page.locator("tr.notification-row")
@@ -222,7 +226,7 @@ def test_keyboard_dismiss_with_d(app_page: object) -> None:
 
 
 @pytest.mark.e2e
-def test_dismiss_persists_on_reload(app_page: object) -> None:
+def test_dismiss_persists_on_reload(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     app_page.get_by_label("Dismiss Dependency update").click()

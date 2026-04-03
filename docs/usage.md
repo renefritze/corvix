@@ -22,6 +22,32 @@ Set your GitHub token (or provide `GITHUB_TOKEN_FILE`):
 export GITHUB_TOKEN=ghp_your_token
 ```
 
+Enable comment enrichment if you want context-based suppression rules:
+
+```yaml
+enrichment:
+  enabled: true
+  github_latest_comment:
+    enabled: true
+```
+
+Example context-based rule:
+
+```yaml
+rules:
+  global:
+    - name: mute-codecov-comments
+      match:
+        reason_in: ["comment"]
+        context:
+          - path: github.latest_comment.author.login
+            op: equals
+            value: codecov[bot]
+      actions:
+        - type: mark_read
+      exclude_from_dashboards: true
+```
+
 ## CLI
 
 Run one poll cycle (dry-run actions by default):

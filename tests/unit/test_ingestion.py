@@ -1,13 +1,15 @@
-"""Tests for GitHubNotificationsClient."""
+"""Tests for GitHubNotificationsClient and URL enrichment."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
 
 from corvix.config import PollingConfig
-from corvix.ingestion import GitHubNotificationsClient
+from corvix.domain import Notification
+from corvix.ingestion import GitHubNotificationsClient, resolve_web_urls
 
 
 def _client() -> GitHubNotificationsClient:
@@ -123,3 +125,166 @@ def test_headers_contain_bearer_token() -> None:
     client = _client()
     headers = client._headers()
     assert headers["Authorization"] == "Bearer test-token"
+
+
+# --- resolve_web_urls ---
+
+
+def _make_notification(
+    subject_type: str = "PullRequest",
+    subject_url: str | None = "https://api.github.com/repos/org/repo/pulls/42",
+    web_url: str | None = "https://github.com/org/repo/pull/42",
+) -> Notification:
+    return Notification(
+        thread_id="1",
+        repository="org/repo",
+        reason="mention",
+        subject_title="Test",
+        subject_type=subject_type,
+        unread=True,
+        updated_at=datetime(2024, 1, 1, tzinfo=UTC),
+        subject_url=subject_url,
+        web_url=web_url,
+    )
+
+
+class FakeEnricher:
+    """Test double for WebUrlEnricher."""
+
+    def __init__(self, url: str | None = "https://github.com/org/repo/actions/runs/1") -> None:
+        self.calls: list[Notification] = []
+        self._url = url
+
+    def enrich_web_url(self, notification: Notification) -> str | None:
+        self.calls.append(notification)
+        return self._url
+
+
+def test_resolve_web_urls_none_enricher_is_noop() -> None:
+    n = _make_notification(subject_type="CheckSuite", web_url=None)
+    resolve_web_urls([n], enricher=None)
+    assert n.web_url is None
+
+
+def test_resolve_web_urls_skips_already_resolved() -> None:
+    enricher = FakeEnricher()
+    n = _make_notification(subject_type="CheckSuite", web_url="https://existing.url")
+    resolve_web_urls([n], enricher=enricher)
+    assert enricher.calls == []
+    assert n.web_url == "https://existing.url"
+
+
+def test_resolve_web_urls_skips_non_enrichable_type() -> None:
+    enricher = FakeEnricher()
+    n = _make_notification(subject_type="PullRequest", web_url=None)
+    resolve_web_urls([n], enricher=enricher)
+    assert enricher.calls == []
+
+
+def test_resolve_web_urls_skips_missing_subject_url() -> None:
+    enricher = FakeEnricher()
+    n = _make_notification(subject_type="CheckSuite", subject_url=None, web_url=None)
+    resolve_web_urls([n], enricher=enricher)
+    assert enricher.calls == []
+
+
+def test_resolve_web_urls_enriches_check_suite() -> None:
+    enricher = FakeEnricher(url="https://github.com/org/repo/actions/runs/777")
+    n = _make_notification(
+        subject_type="CheckSuite",
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+        web_url=None,
+    )
+    resolve_web_urls([n], enricher=enricher)
+    assert len(enricher.calls) == 1
+    assert n.web_url == "https://github.com/org/repo/actions/runs/777"
+
+
+# --- enrich_web_url on GitHubNotificationsClient ---
+
+
+def test_enrich_check_suite_returns_html_url() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="CheckSuite",
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+        web_url=None,
+    )
+    api_response = {
+        "total_count": 1,
+        "check_runs": [
+            {"html_url": "https://github.com/org/repo/actions/runs/777/job/888"},
+        ],
+    }
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value=api_response):
+        result = client.enrich_web_url(n)
+    assert result == "https://github.com/org/repo/actions/runs/777/job/888"
+
+
+def test_enrich_check_suite_no_runs_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="CheckSuite",
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value={"check_runs": []}):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_check_suite_api_error_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="CheckSuite",
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", side_effect=OSError("timeout")):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_non_check_suite_returns_none() -> None:
+    client = _client()
+    n = _make_notification(subject_type="Issue", web_url=None)
+    result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_check_suite_malformed_subject_url_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="CheckSuite",
+        subject_url="https://api.github.com/repos/org/repo",  # too short, no check-suites segment
+        web_url=None,
+    )
+    result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_check_suite_non_dict_api_response_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="CheckSuite",
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value=[]):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_fetch_json_url_calls_request_json_with_timeout() -> None:
+    client = _client()
+    target_url = "https://api.example.com/repos/org/repo/issues/1"
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value={"ok": True}) as mock_req:
+        payload = client.fetch_json_url(target_url, timeout_seconds=5.5)
+    assert payload == {"ok": True}
+    mock_req.assert_called_once_with(target_url, method="GET", timeout_seconds=5.5)
+
+
+def test_fetch_json_url_rejects_non_api_host() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="base host"):
+        client.fetch_json_url("https://evil.example.net/repos/org/repo/issues/1")

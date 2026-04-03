@@ -19,7 +19,6 @@ jobs:
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
         submodules: recursive
-        token: ${{ secrets.OASYS_REPO_SCOPE_GITHUB_PAT }}
         # we rely on git describe to create our project version, that needs all commits since the most recent tag
         # there's no easy way to only get those -> fetch all
         fetch-depth: 0
@@ -31,7 +30,6 @@ jobs:
           **/requirements*.txt
           **/pyproject.toml
           **/uv.lock
-        python-version: '3.12'
     - name: Install doc building dependencies
       run: |
         sudo apt-get install -y doxygen ninja-build
@@ -45,13 +43,13 @@ jobs:
         uv sync --group docs
     - name: Build docs
       run: |
-        make -C docs html
+        make docs-build
     - name: Upload html artifact
       uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b  # v4.0.0
       with:
         path: docs/_build/html/
   deploy_docs:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [build_docs]
     if: ${{ github.ref == 'refs/heads/main' }}
     environment:

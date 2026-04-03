@@ -23,7 +23,9 @@ def test_parse_timestamp_z_suffix() -> None:
     assert ts.month == 1
     assert ts.day == 15
     assert ts.tzinfo is not None
-    assert ts.utcoffset().total_seconds() == 0  # type: ignore[union-attr]
+    offset = ts.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 0
 
 
 def test_parse_timestamp_plus_offset() -> None:
@@ -86,17 +88,22 @@ def test_from_api_payload_valid() -> None:
     assert n.thread_url == "https://api.github.com/notifications/threads/123"
 
 
+def test_from_api_payload_preserves_subject_url() -> None:
+    n = Notification.from_api_payload(_valid_payload())
+    assert n.subject_url == "https://api.github.com/repos/org/repo/pulls/42"
+
+
 def test_from_api_payload_derives_pull_request_web_url() -> None:
     n = Notification.from_api_payload(_valid_payload())
     assert n.web_url == "https://github.com/org/repo/pull/42"
 
 
-def test_from_api_payload_falls_back_to_repository_web_url() -> None:
+def test_from_api_payload_unmappable_subject_url_is_none() -> None:
     payload = _valid_payload()
     assert isinstance(payload["subject"], dict)
     payload["subject"] = {"title": "Notice", "type": "RepositoryVulnerabilityAlert", "url": None}
     n = Notification.from_api_payload(payload)
-    assert n.web_url == "https://github.com/org/repo"
+    assert n.web_url is None
 
 
 def test_from_api_payload_missing_subject_raises() -> None:
@@ -133,7 +140,7 @@ def test_from_api_payload_missing_updated_at_raises() -> None:
 
 
 def test_from_api_payload_missing_repo_full_name_raises() -> None:
-    with pytest.raises(ValueError, match="missing repository.full_name"):
+    with pytest.raises(ValueError, match=r"missing repository\.full_name"):
         Notification.from_api_payload(_valid_payload(repository={"id": 1}))
 
 
@@ -145,12 +152,12 @@ def test_from_api_payload_missing_reason_raises() -> None:
 
 
 def test_from_api_payload_missing_subject_title_raises() -> None:
-    with pytest.raises(ValueError, match="missing subject.title"):
+    with pytest.raises(ValueError, match=r"missing subject\.title"):
         Notification.from_api_payload(_valid_payload(subject={"type": "PullRequest"}))
 
 
 def test_from_api_payload_missing_subject_type_raises() -> None:
-    with pytest.raises(ValueError, match="missing subject.type"):
+    with pytest.raises(ValueError, match=r"missing subject\.type"):
         Notification.from_api_payload(_valid_payload(subject={"title": "Fix it"}))
 
 
@@ -161,9 +168,9 @@ def test_from_api_payload_no_thread_url() -> None:
     assert n.thread_url is None
 
 
-def test_from_api_payload_unread_truthy_coerced() -> None:
-    n = Notification.from_api_payload(_valid_payload(unread=1))
-    assert n.unread is True
+def test_from_api_payload_invalid_unread_type_raises() -> None:
+    with pytest.raises(ValueError, match="field 'unread' must be a boolean"):
+        Notification.from_api_payload(_valid_payload(unread=1))
 
 
 # --- NotificationRecord to_dict / from_dict ---
@@ -180,7 +187,13 @@ def _make_record(thread_id: str = "1", dismissed: bool = False) -> NotificationR
         updated_at=datetime(2024, 1, 1, tzinfo=UTC),
         web_url="https://github.com/org/repo/pull/1",
     )
-    return NotificationRecord(notification=n, score=5.0, excluded=False, dismissed=dismissed)
+    return NotificationRecord(
+        notification=n,
+        score=5.0,
+        excluded=False,
+        dismissed=dismissed,
+        context={"github": {"latest_comment": {"is_ci_only": True}}},
+    )
 
 
 def test_to_dict_from_dict_round_trip() -> None:
@@ -191,6 +204,7 @@ def test_to_dict_from_dict_round_trip() -> None:
     assert restored.score == record.score
     assert restored.excluded == record.excluded
     assert restored.dismissed == record.dismissed
+    assert restored.context == record.context
 
 
 def test_dismissed_true_round_trips() -> None:
@@ -211,6 +225,34 @@ def test_from_dict_without_web_url_is_none() -> None:
     as_dict = _make_record().to_dict()
     del as_dict["web_url"]
     assert NotificationRecord.from_dict(as_dict).notification.web_url is None
+
+
+def test_subject_url_round_trips() -> None:
+    n = Notification(
+        thread_id="1",
+        repository="org/repo",
+        reason="mention",
+        subject_title="Test",
+        subject_type="CheckSuite",
+        unread=True,
+        updated_at=datetime(2024, 1, 1, tzinfo=UTC),
+        subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+    )
+    record = NotificationRecord(notification=n, score=1.0, excluded=False)
+    restored = NotificationRecord.from_dict(record.to_dict())
+    assert restored.notification.subject_url == "https://api.github.com/repos/org/repo/check-suites/555"
+
+
+def test_from_dict_without_subject_url_is_none() -> None:
+    as_dict = _make_record().to_dict()
+    del as_dict["subject_url"]
+    assert NotificationRecord.from_dict(as_dict).notification.subject_url is None
+
+
+def test_from_dict_without_context_defaults_empty_dict() -> None:
+    as_dict = _make_record().to_dict()
+    del as_dict["context"]
+    assert NotificationRecord.from_dict(as_dict).context == {}
 
 
 def test_derive_web_url_issue() -> None:
@@ -249,10 +291,22 @@ def test_derive_web_url_release_tag() -> None:
     assert n.web_url == "https://github.com/org/repo/releases/tag/v1.0"
 
 
+def test_derive_web_url_workflow_run() -> None:
+    payload = _valid_payload(
+        subject={
+            "title": "CI failed",
+            "type": "WorkflowRun",
+            "url": "https://api.github.com/repos/org/repo/actions/runs/99999",
+        },
+    )
+    n = Notification.from_api_payload(payload)
+    assert n.web_url == "https://github.com/org/repo/actions/runs/99999"
+
+
 def test_derive_web_url_no_subject_url() -> None:
     payload = _valid_payload(subject={"title": "Notice", "type": "Issue", "url": None})
     n = Notification.from_api_payload(payload)
-    assert n.web_url == "https://github.com/org/repo"
+    assert n.web_url is None
 
 
 def test_map_subject_api_url_mismatched_repo_returns_none() -> None:

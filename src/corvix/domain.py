@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, cast
 from urllib.parse import urlparse
 
 _MIN_API_REPO_SEGMENTS = 4
 _MIN_RESOURCE_SEGMENTS = 2
 _RELEASE_TAG_SEGMENTS = 3
+_ACTIONS_RUNS_SEGMENTS = 3
 _API_RESOURCE_TO_WEB_PATH = {
     "pulls": "pull",
     "issues": "issues",
@@ -17,6 +18,78 @@ _API_RESOURCE_TO_WEB_PATH = {
     "compare": "compare",
     "discussions": "discussions",
 }
+
+
+def _as_object_map(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    output: dict[str, object] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            return None
+        output[key] = item
+    return output
+
+
+def _require_non_empty_str(payload: Mapping[str, object], key: str, label: str) -> str:
+    value = payload.get(key)
+    if isinstance(value, str) and value:
+        return value
+    msg = f"Invalid {label}: missing {key}."
+    raise ValueError(msg)
+
+
+def _optional_str(payload: Mapping[str, object], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    msg = f"Invalid stored record: field '{key}' must be a string or null."
+    raise ValueError(msg)
+
+
+def _optional_bool(payload: Mapping[str, object], key: str, default: bool, label: str) -> bool:
+    if key not in payload:
+        return default
+    value = payload[key]
+    if isinstance(value, bool):
+        return value
+    msg = f"Invalid {label}: field '{key}' must be a boolean."
+    raise ValueError(msg)
+
+
+def _optional_float(payload: Mapping[str, object], key: str, default: float, label: str) -> float:
+    if key not in payload:
+        return default
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        msg = f"Invalid {label}: field '{key}' must be a number."
+        raise ValueError(msg)
+    return float(value)
+
+
+def _optional_str_list(payload: Mapping[str, object], key: str) -> list[str]:
+    value = payload.get(key, [])
+    if not isinstance(value, list):
+        msg = f"Invalid stored record: field '{key}' must be a list of strings."
+        raise ValueError(msg)
+    output: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            msg = f"Invalid stored record: field '{key}' must be a list of strings."
+            raise ValueError(msg)
+        output.append(item)
+    return output
+
+
+def _optional_context(payload: Mapping[str, object], key: str) -> dict[str, object]:
+    value = payload.get(key, {})
+    context = _as_object_map(value)
+    if context is None:
+        msg = f"Invalid stored record: field '{key}' must be an object."
+        raise ValueError(msg)
+    return context
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -45,58 +118,57 @@ class Notification:
     unread: bool
     updated_at: datetime
     thread_url: str | None = None
+    subject_url: str | None = None
     web_url: str | None = None
 
     @classmethod
-    def from_api_payload(cls, payload: dict[str, object]) -> Notification:
+    def from_api_payload(cls, payload: Mapping[str, object]) -> Notification:
         """Build a notification from a GitHub API response payload."""
-        subject = payload.get("subject")
-        repository = payload.get("repository")
-        if not isinstance(subject, dict):
+        subject = _as_object_map(payload.get("subject"))
+        repository = _as_object_map(payload.get("repository"))
+        if subject is None:
             msg = "Invalid notification payload: missing subject map."
             raise ValueError(msg)
-        if not isinstance(repository, dict):
+        if repository is None:
             msg = "Invalid notification payload: missing repository map."
             raise ValueError(msg)
-        subject = cast(dict[str, object], subject)
-        repository = cast(dict[str, object], repository)
 
-        thread_id = str(payload.get("id", ""))
-        if not thread_id:
+        thread_id = payload.get("id")
+        if not isinstance(thread_id, str) or not thread_id:
             msg = "Invalid notification payload: missing thread id."
             raise ValueError(msg)
 
         updated = payload.get("updated_at")
-        if not isinstance(updated, str):
+        if not isinstance(updated, str) or not updated:
             msg = "Invalid notification payload: missing updated_at timestamp."
             raise ValueError(msg)
 
         repo_name = repository.get("full_name")
-        if not isinstance(repo_name, str):
+        if not isinstance(repo_name, str) or not repo_name:
             msg = "Invalid notification payload: missing repository.full_name."
             raise ValueError(msg)
 
         reason = payload.get("reason")
-        if not isinstance(reason, str):
+        if not isinstance(reason, str) or not reason:
             msg = "Invalid notification payload: missing reason."
             raise ValueError(msg)
 
         subject_title = subject.get("title")
-        if not isinstance(subject_title, str):
+        if not isinstance(subject_title, str) or not subject_title:
             msg = "Invalid notification payload: missing subject.title."
             raise ValueError(msg)
 
         subject_type = subject.get("type")
-        if not isinstance(subject_type, str):
+        if not isinstance(subject_type, str) or not subject_type:
             msg = "Invalid notification payload: missing subject.type."
             raise ValueError(msg)
 
-        unread = payload.get("unread", False)
-        if not isinstance(unread, bool):
-            unread = bool(unread)
+        unread = _optional_bool(payload, "unread", False, "notification payload")
 
         thread_url = payload.get("url")
         thread_url_str = thread_url if isinstance(thread_url, str) else None
+        subject_url_raw = subject.get("url")
+        subject_url_str = subject_url_raw if isinstance(subject_url_raw, str) else None
         web_url = _derive_web_url(payload)
 
         return cls(
@@ -108,6 +180,7 @@ class Notification:
             unread=unread,
             updated_at=parse_timestamp(updated),
             thread_url=thread_url_str,
+            subject_url=subject_url_str,
             web_url=web_url,
         )
 
@@ -122,6 +195,7 @@ class NotificationRecord:
     matched_rules: list[str] = field(default_factory=list)
     actions_taken: list[str] = field(default_factory=list)
     dismissed: bool = False
+    context: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a JSON-serializable dictionary."""
@@ -134,55 +208,48 @@ class NotificationRecord:
             "unread": self.notification.unread,
             "updated_at": format_timestamp(self.notification.updated_at),
             "thread_url": self.notification.thread_url,
+            "subject_url": self.notification.subject_url,
             "web_url": self.notification.web_url,
             "score": self.score,
             "excluded": self.excluded,
             "matched_rules": self.matched_rules,
             "actions_taken": self.actions_taken,
             "dismissed": self.dismissed,
+            "context": self.context,
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> NotificationRecord:
+    def from_dict(cls, payload: Mapping[str, object]) -> NotificationRecord:
         """Parse a stored record."""
-        updated_at = payload.get("updated_at")
-        if not isinstance(updated_at, str):
-            msg = "Invalid stored record: missing updated_at."
-            raise ValueError(msg)
-
-        p: dict[str, Any] = cast(dict[str, Any], payload)
-        thread_url_raw = p.get("thread_url")
-        web_url_raw = p.get("web_url")
-        matched_rules_raw = p.get("matched_rules", [])
-        actions_taken_raw = p.get("actions_taken", [])
+        updated_at = _require_non_empty_str(payload, "updated_at", "stored record")
         notification = Notification(
-            thread_id=str(p.get("thread_id", "")),
-            repository=str(p.get("repository", "")),
-            reason=str(p.get("reason", "")),
-            subject_title=str(p.get("subject_title", "")),
-            subject_type=str(p.get("subject_type", "")),
-            unread=bool(p.get("unread", False)),
+            thread_id=_require_non_empty_str(payload, "thread_id", "stored record"),
+            repository=_require_non_empty_str(payload, "repository", "stored record"),
+            reason=_require_non_empty_str(payload, "reason", "stored record"),
+            subject_title=_require_non_empty_str(payload, "subject_title", "stored record"),
+            subject_type=_require_non_empty_str(payload, "subject_type", "stored record"),
+            unread=_optional_bool(payload, "unread", False, "stored record"),
             updated_at=parse_timestamp(updated_at),
-            thread_url=thread_url_raw if isinstance(thread_url_raw, str) else None,
-            web_url=web_url_raw if isinstance(web_url_raw, str) else None,
+            thread_url=_optional_str(payload, "thread_url"),
+            subject_url=_optional_str(payload, "subject_url"),
+            web_url=_optional_str(payload, "web_url"),
         )
         return cls(
             notification=notification,
-            score=float(p.get("score", 0.0)),
-            excluded=bool(p.get("excluded", False)),
-            matched_rules=[value for value in matched_rules_raw if isinstance(value, str)],
-            actions_taken=[value for value in actions_taken_raw if isinstance(value, str)],
-            dismissed=bool(p.get("dismissed", False)),
+            score=_optional_float(payload, "score", 0.0, "stored record"),
+            excluded=_optional_bool(payload, "excluded", False, "stored record"),
+            matched_rules=_optional_str_list(payload, "matched_rules"),
+            actions_taken=_optional_str_list(payload, "actions_taken"),
+            dismissed=_optional_bool(payload, "dismissed", False, "stored record"),
+            context=_optional_context(payload, "context"),
         )
 
 
-def _derive_web_url(payload: dict[str, object]) -> str | None:
-    subject = payload.get("subject")
-    repository = payload.get("repository")
-    if not isinstance(subject, dict) or not isinstance(repository, dict):
+def _derive_web_url(payload: Mapping[str, object]) -> str | None:
+    subject = _as_object_map(payload.get("subject"))
+    repository = _as_object_map(payload.get("repository"))
+    if subject is None or repository is None:
         return None
-    subject = cast(dict[str, object], subject)
-    repository = cast(dict[str, object], repository)
 
     repo_name = repository.get("full_name")
     if not isinstance(repo_name, str) or not repo_name:
@@ -193,9 +260,9 @@ def _derive_web_url(payload: dict[str, object]) -> str | None:
 
     subject_url = subject.get("url")
     if not isinstance(subject_url, str) or not subject_url:
-        return repo_base
+        return None
 
-    return _map_subject_api_url_to_web(subject_url=subject_url, repo_name=repo_name, repo_base=repo_base) or repo_base
+    return _map_subject_api_url_to_web(subject_url=subject_url, repo_name=repo_name, repo_base=repo_base)
 
 
 def _map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str) -> str | None:
@@ -215,4 +282,6 @@ def _map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str
         return f"{repo_base}/{mapped_web_path}/{resource[1]}"
     if resource_name == "releases" and len(resource) >= _RELEASE_TAG_SEGMENTS and resource[1] == "tags":
         return f"{repo_base}/releases/tag/{resource[2]}"
+    if resource_name == "actions" and len(resource) >= _ACTIONS_RUNS_SEGMENTS and resource[1] == "runs":
+        return f"{repo_base}/actions/runs/{resource[2]}"
     return None

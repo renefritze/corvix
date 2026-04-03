@@ -1,0 +1,273 @@
+---
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: Corvix
+    - generic [ref=e167]: 12 notifications · 12 unread · 8 repos
+    - generic [ref=e6]:
+      - button "? Shortcuts" [ref=e7] [cursor=pointer]
+      - button "Enable browser notifications" [ref=e8] [cursor=pointer]: Notifs off
+      - combobox "Select dashboard" [ref=e168]:
+        - option "triage" [selected]
+        - option "overview"
+      - button "Refresh" [ref=e9] [cursor=pointer]: ↻ Refresh
+  - generic [ref=e169]:
+    - combobox "Unread state filter" [ref=e170]:
+      - option "All" [selected]
+      - option "Unread only"
+      - option "Read only"
+    - combobox "Reason filter" [ref=e171]:
+      - option "All reasons" [selected]
+      - option "assign"
+      - option "review_requested"
+    - combobox "Repository filter" [ref=e172]:
+      - option "All repositories" [selected]
+      - option "arup-group/oasys-core"
+      - option "arup-group/oasys-oss-terraform"
+      - option "arup-group/oasys-section-profiles"
+      - option "arup-group/oasys-solver-fem"
+      - option "arup-group/oasys-sonar-management"
+      - option "arup-group/oasys-sonar-management-terraform"
+      - option "arup-group/oasys-vcpkg-registry"
+      - option "renefritze/server-ms"
+    - button "Clear" [ref=e173] [cursor=pointer]
+    - generic [ref=e174]: "Snapshot: 10:39:24 AM"
+  - main [ref=e10]:
+    - table "Notifications" [ref=e175]:
+      - caption [ref=e176]: Press ? for keyboard shortcuts
+      - rowgroup [ref=e177]:
+        - row "Unread status Title Repository Type Reason Score Updated Actions" [ref=e178]:
+          - columnheader "Unread status" [ref=e179]
+          - columnheader "Title" [ref=e180] [cursor=pointer]:
+            - button "Title" [ref=e181]
+          - columnheader "Repository" [ref=e182] [cursor=pointer]:
+            - button "Repository" [ref=e183]
+          - columnheader "Type" [ref=e184] [cursor=pointer]:
+            - button "Type" [ref=e185]
+          - columnheader "Reason" [ref=e186] [cursor=pointer]:
+            - button "Reason" [ref=e187]
+          - columnheader "Score" [ref=e188] [cursor=pointer]:
+            - button "Score" [ref=e189]: Score ▼
+          - columnheader "Updated" [ref=e190] [cursor=pointer]:
+            - button "Updated" [ref=e191]
+          - columnheader "Actions" [ref=e192]
+      - rowgroup [ref=e193]:
+        - row "arup-group/oasys-vcpkg-registry (1)" [ref=e194]:
+          - cell "arup-group/oasys-vcpkg-registry (1)" [ref=e195]:
+            - text: arup-group/oasys-vcpkg-registry
+            - generic [ref=e196]: (1)
+        - ? row "oasys-section-profiles | add v0.130.0 arup-group/oasys-vcpkg-registry PullRequest review_requested 63.0
+            11m ago Dismiss oasys-section-profiles | add v0.130.0" [ref=e197]
+          :
+          - cell [ref=e198]
+          - cell "oasys-section-profiles | add v0.130.0" [ref=e200]:
+            - link "oasys-section-profiles | add v0.130.0" [ref=e201] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-vcpkg-registry/pull/2172
+          - cell "arup-group/oasys-vcpkg-registry" [ref=e202]:
+            - generic [ref=e203]: arup-group/oasys-vcpkg-registry
+          - cell "PullRequest" [ref=e204]
+          - cell "review_requested" [ref=e205]
+          - cell "63.0" [ref=e206]
+          - cell "11m ago" [ref=e207]
+          - cell "Dismiss oasys-section-profiles | add v0.130.0" [ref=e208]:
+            - button "Dismiss oasys-section-profiles | add v0.130.0" [ref=e209] [cursor=pointer]: ✕
+        - row "arup-group/oasys-section-profiles (1)" [ref=e210]:
+          - cell "arup-group/oasys-section-profiles (1)" [ref=e211]:
+            - text: arup-group/oasys-section-profiles
+            - generic [ref=e212]: (1)
+        - ? row "Bump the all group across 1 directory with 9 updates arup-group/oasys-section-profiles PullRequest review_requested
+            62.9 32m ago Dismiss Bump the all group across 1 directory with 9 updates" [ref=e213]
+          :
+          - cell [ref=e214]
+          - cell "Bump the all group across 1 directory with 9 updates" [ref=e216]:
+            - link "Bump the all group across 1 directory with 9 updates" [ref=e217] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-section-profiles/pull/175
+          - cell "arup-group/oasys-section-profiles" [ref=e218]:
+            - generic [ref=e219]: arup-group/oasys-section-profiles
+          - cell "PullRequest" [ref=e220]
+          - cell "review_requested" [ref=e221]
+          - cell "62.9" [ref=e222]
+          - cell "32m ago" [ref=e223]
+          - cell "Dismiss Bump the all group across 1 directory with 9 updates" [ref=e224]:
+            - button "Dismiss Bump the all group across 1 directory with 9 updates" [ref=e225] [cursor=pointer]: ✕
+        - row "arup-group/oasys-oss-terraform (1)" [ref=e226]:
+          - cell "arup-group/oasys-oss-terraform (1)" [ref=e227]:
+            - text: arup-group/oasys-oss-terraform
+            - generic [ref=e228]: (1)
+        - ? row "Bump hashicorp/aws from 5.100.0 to 6.30.0 in the all group arup-group/oasys-oss-terraform PullRequest review_requested
+            61.8 4h ago Dismiss Bump hashicorp/aws from 5.100.0 to 6.30.0 in the all group" [ref=e229]
+          :
+          - cell [ref=e230]
+          - cell "Bump hashicorp/aws from 5.100.0 to 6.30.0 in the all group" [ref=e232]:
+            - link "Bump hashicorp/aws from 5.100.0 to 6.30.0 in the all group" [ref=e233] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-oss-terraform/pull/326
+          - cell "arup-group/oasys-oss-terraform" [ref=e234]:
+            - generic [ref=e235]: arup-group/oasys-oss-terraform
+          - cell "PullRequest" [ref=e236]
+          - cell "review_requested" [ref=e237]
+          - cell "61.8" [ref=e238]
+          - cell "4h ago" [ref=e239]
+          - cell "Dismiss Bump hashicorp/aws from 5.100.0 to 6.30.0 in the all group" [ref=e240]:
+            - button "Dismiss Bump hashicorp/aws from 5.100.0 to 6.30.0 in the all group" [ref=e241] [cursor=pointer]: ✕
+        - row "arup-group/oasys-solver-fem (1)" [ref=e242]:
+          - cell "arup-group/oasys-solver-fem (1)" [ref=e243]:
+            - text: arup-group/oasys-solver-fem
+            - generic [ref=e244]: (1)
+        - ? row "Bump the all group with 5 updates arup-group/oasys-solver-fem PullRequest review_requested 61.3 6h ago Dismiss
+            Bump the all group with 5 updates" [ref=e245]
+          :
+          - cell [ref=e246]
+          - cell "Bump the all group with 5 updates" [ref=e248]:
+            - link "Bump the all group with 5 updates" [ref=e249] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-solver-fem/pull/419
+          - cell "arup-group/oasys-solver-fem" [ref=e250]:
+            - generic [ref=e251]: arup-group/oasys-solver-fem
+          - cell "PullRequest" [ref=e252]
+          - cell "review_requested" [ref=e253]
+          - cell "61.3" [ref=e254]
+          - cell "6h ago" [ref=e255]
+          - cell "Dismiss Bump the all group with 5 updates" [ref=e256]:
+            - button "Dismiss Bump the all group with 5 updates" [ref=e257] [cursor=pointer]: ✕
+        - row "arup-group/oasys-sonar-management (2)" [ref=e258]:
+          - cell "arup-group/oasys-sonar-management (2)" [ref=e259]:
+            - text: arup-group/oasys-sonar-management
+            - generic [ref=e260]: (2)
+        - ? row "Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.7.0 arup-group/oasys-sonar-management
+            PullRequest review_requested 60.7 9h ago Dismiss Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml
+            from 2025.4.0 to 2026.7.0" [ref=e261]
+          :
+          - cell [ref=e262]
+          - cell "Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.7.0" [ref=e264]:
+            - ? link "Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.7.0"
+                [ref=e265] [cursor=pointer]
+              :
+              - /url: https://github.com/arup-group/oasys-sonar-management/pull/13
+          - cell "arup-group/oasys-sonar-management" [ref=e266]:
+            - generic [ref=e267]: arup-group/oasys-sonar-management
+          - cell "PullRequest" [ref=e268]
+          - cell "review_requested" [ref=e269]
+          - cell "60.7" [ref=e270]
+          - cell "9h ago" [ref=e271]
+          - cell "Dismiss Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.7.0" [ref=e272]:
+            - ? button "Dismiss Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to
+                2026.7.0" [ref=e273] [cursor=pointer]
+              : ✕
+        - ? row "Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.6.0 arup-group/oasys-sonar-management
+            PullRequest review_requested 60.7 9h ago Dismiss Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml
+            from 2025.4.0 to 2026.6.0" [ref=e274]
+          :
+          - cell [ref=e275]
+          - cell "Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.6.0" [ref=e277]:
+            - ? link "Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.6.0"
+                [ref=e278] [cursor=pointer]
+              :
+              - /url: https://github.com/arup-group/oasys-sonar-management/pull/12
+          - cell "arup-group/oasys-sonar-management" [ref=e279]:
+            - generic [ref=e280]: arup-group/oasys-sonar-management
+          - cell "PullRequest" [ref=e281]
+          - cell "review_requested" [ref=e282]
+          - cell "60.7" [ref=e283]
+          - cell "9h ago" [ref=e284]
+          - cell "Dismiss Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to 2026.6.0" [ref=e285]:
+            - ? button "Dismiss Bump arup-group/oasys-pre-commit-hooks/.github/workflows/pre-commit.yml from 2025.4.0 to
+                2026.6.0" [ref=e286] [cursor=pointer]
+              : ✕
+        - row "arup-group/oasys-sonar-management-terraform (4)" [ref=e287]:
+          - cell "arup-group/oasys-sonar-management-terraform (4)" [ref=e288]:
+            - text: arup-group/oasys-sonar-management-terraform
+            - generic [ref=e289]: (4)
+        - ? row "Bump the all group across 1 directory with 6 updates arup-group/oasys-sonar-management-terraform PullRequest
+            review_requested 60.1 11h ago Dismiss Bump the all group across 1 directory with 6 updates" [ref=e290]
+          :
+          - cell [ref=e291]
+          - cell "Bump the all group across 1 directory with 6 updates" [ref=e293]:
+            - link "Bump the all group across 1 directory with 6 updates" [ref=e294] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-sonar-management-terraform/pull/53
+          - cell "arup-group/oasys-sonar-management-terraform" [ref=e295]:
+            - generic [ref=e296]: arup-group/oasys-sonar-management-terraform
+          - cell "PullRequest" [ref=e297]
+          - cell "review_requested" [ref=e298]
+          - cell "60.1" [ref=e299]
+          - cell "11h ago" [ref=e300]
+          - cell "Dismiss Bump the all group across 1 directory with 6 updates" [ref=e301]:
+            - button "Dismiss Bump the all group across 1 directory with 6 updates" [ref=e302] [cursor=pointer]: ✕
+        - ? row "Bump the all group across 1 directory with 4 updates arup-group/oasys-sonar-management-terraform PullRequest
+            review_requested 60.1 11h ago Dismiss Bump the all group across 1 directory with 4 updates" [ref=e303]
+          :
+          - cell [ref=e304]
+          - cell "Bump the all group across 1 directory with 4 updates" [ref=e306]:
+            - link "Bump the all group across 1 directory with 4 updates" [ref=e307] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-sonar-management-terraform/pull/51
+          - cell "arup-group/oasys-sonar-management-terraform" [ref=e308]:
+            - generic [ref=e309]: arup-group/oasys-sonar-management-terraform
+          - cell "PullRequest" [ref=e310]
+          - cell "review_requested" [ref=e311]
+          - cell "60.1" [ref=e312]
+          - cell "11h ago" [ref=e313]
+          - cell "Dismiss Bump the all group across 1 directory with 4 updates" [ref=e314]:
+            - button "Dismiss Bump the all group across 1 directory with 4 updates" [ref=e315] [cursor=pointer]: ✕
+        - ? row "Bump the all group across 1 directory with 5 updates arup-group/oasys-sonar-management-terraform PullRequest
+            review_requested 60.1 11h ago Dismiss Bump the all group across 1 directory with 5 updates" [ref=e316]
+          :
+          - cell [ref=e317]
+          - cell "Bump the all group across 1 directory with 5 updates" [ref=e319]:
+            - link "Bump the all group across 1 directory with 5 updates" [ref=e320] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-sonar-management-terraform/pull/52
+          - cell "arup-group/oasys-sonar-management-terraform" [ref=e321]:
+            - generic [ref=e322]: arup-group/oasys-sonar-management-terraform
+          - cell "PullRequest" [ref=e323]
+          - cell "review_requested" [ref=e324]
+          - cell "60.1" [ref=e325]
+          - cell "11h ago" [ref=e326]
+          - cell "Dismiss Bump the all group across 1 directory with 5 updates" [ref=e327]:
+            - button "Dismiss Bump the all group across 1 directory with 5 updates" [ref=e328] [cursor=pointer]: ✕
+        - ? row "Bump the all group across 1 directory with 4 updates arup-group/oasys-sonar-management-terraform PullRequest
+            review_requested 60.1 11h ago Dismiss Bump the all group across 1 directory with 4 updates" [ref=e329]
+          :
+          - cell [ref=e330]
+          - cell "Bump the all group across 1 directory with 4 updates" [ref=e332]:
+            - link "Bump the all group across 1 directory with 4 updates" [ref=e333] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-sonar-management-terraform/pull/50
+          - cell "arup-group/oasys-sonar-management-terraform" [ref=e334]:
+            - generic [ref=e335]: arup-group/oasys-sonar-management-terraform
+          - cell "PullRequest" [ref=e336]
+          - cell "review_requested" [ref=e337]
+          - cell "60.1" [ref=e338]
+          - cell "11h ago" [ref=e339]
+          - cell "Dismiss Bump the all group across 1 directory with 4 updates" [ref=e340]:
+            - button "Dismiss Bump the all group across 1 directory with 4 updates" [ref=e341] [cursor=pointer]: ✕
+        - row "arup-group/oasys-core (1)" [ref=e342]:
+          - cell "arup-group/oasys-core (1)" [ref=e343]:
+            - text: arup-group/oasys-core
+            - generic [ref=e344]: (1)
+        - ? row "Bump the all group across 1 directory with 13 updates arup-group/oasys-core PullRequest review_requested
+            59.7 13h ago Dismiss Bump the all group across 1 directory with 13 updates" [ref=e345]
+          :
+          - cell [ref=e346]
+          - cell "Bump the all group across 1 directory with 13 updates" [ref=e348]:
+            - link "Bump the all group across 1 directory with 13 updates" [ref=e349] [cursor=pointer]:
+              - /url: https://github.com/arup-group/oasys-core/pull/868
+          - cell "arup-group/oasys-core" [ref=e350]:
+            - generic [ref=e351]: arup-group/oasys-core
+          - cell "PullRequest" [ref=e352]
+          - cell "review_requested" [ref=e353]
+          - cell "59.7" [ref=e354]
+          - cell "13h ago" [ref=e355]
+          - cell "Dismiss Bump the all group across 1 directory with 13 updates" [ref=e356]:
+            - button "Dismiss Bump the all group across 1 directory with 13 updates" [ref=e357] [cursor=pointer]: ✕
+        - row "renefritze/server-ms (1)" [ref=e358]:
+          - cell "renefritze/server-ms (1)" [ref=e359]:
+            - text: renefritze/server-ms
+            - generic [ref=e360]: (1)
+        - row "Test failure renefritze/server-ms Issue assign 49.1 3h ago Dismiss Test failure" [ref=e361]:
+          - cell [ref=e362]
+          - cell "Test failure" [ref=e364]:
+            - link "Test failure" [ref=e365] [cursor=pointer]:
+              - /url: https://github.com/renefritze/server-ms/issues/135
+          - cell "renefritze/server-ms" [ref=e366]:
+            - generic [ref=e367]: renefritze/server-ms
+          - cell "Issue" [ref=e368]
+          - cell "assign" [ref=e369]
+          - cell "49.1" [ref=e370]
+          - cell "3h ago" [ref=e371]
+          - cell "Dismiss Test failure" [ref=e372]:
+            - button "Dismiss Test failure" [ref=e373] [cursor=pointer]: ✕

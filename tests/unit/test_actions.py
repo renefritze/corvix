@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from corvix.actions import DismissGateway, MarkReadGateway, execute_actions
+from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
 from corvix.web.app import INDEX_HTML
@@ -26,7 +26,7 @@ def _make_record(notification: Notification, dismissed: bool = False) -> Notific
     return NotificationRecord(notification=notification, score=10.0, excluded=False, dismissed=dismissed)
 
 
-class FakeMarkRead:
+class FakeMarkRead(MarkReadGateway):
     def __init__(self) -> None:
         self.marked: list[str] = []
 
@@ -34,7 +34,7 @@ class FakeMarkRead:
         self.marked.append(thread_id)
 
 
-class FakeDismiss:
+class FakeDismiss(DismissGateway):
     def __init__(self) -> None:
         self.dismissed: list[str] = []
 
@@ -48,12 +48,12 @@ class FakeFullClient(FakeMarkRead, FakeDismiss):
         self.dismissed: list[str] = []
 
 
-class FailMarkRead:
+class FailMarkRead(MarkReadGateway):
     def mark_thread_read(self, thread_id: str) -> None:
         raise RuntimeError("API error")
 
 
-class FailDismiss:
+class FailDismiss(DismissGateway):
     def dismiss_thread(self, thread_id: str) -> None:
         raise RuntimeError("dismiss error")
 
@@ -62,12 +62,12 @@ class FailDismiss:
 
 
 def test_fake_mark_read_implements_protocol() -> None:
-    gw: MarkReadGateway = FakeMarkRead()  # type: ignore[assignment]
+    gw: MarkReadGateway = FakeMarkRead()
     gw.mark_thread_read("x")
 
 
 def test_fake_dismiss_implements_protocol() -> None:
-    gw: DismissGateway = FakeDismiss()  # type: ignore[assignment]
+    gw: DismissGateway = FakeDismiss()
     gw.dismiss_thread("x")
 
 
@@ -79,8 +79,7 @@ def test_mark_read_action_in_dry_run() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="mark_read")],
-        gateway=FakeMarkRead(),
-        apply_actions=False,
+        context=ActionExecutionContext(gateway=FakeMarkRead(), apply_actions=False),
     )
     assert result.actions_taken == ["dry-run:mark_read"]
     assert notification.unread is True
@@ -92,8 +91,7 @@ def test_mark_read_action_applies() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="mark_read")],
-        gateway=gw,
-        apply_actions=True,
+        context=ActionExecutionContext(gateway=gw, apply_actions=True),
     )
     assert result.actions_taken == ["mark_read"]
     assert notification.unread is False
@@ -105,8 +103,7 @@ def test_mark_read_skipped_if_already_read() -> None:
     result = execute_actions(
         notification=_make_notification(unread=False),
         actions=[RuleAction(action_type="mark_read")],
-        gateway=gw,
-        apply_actions=True,
+        context=ActionExecutionContext(gateway=gw, apply_actions=True),
     )
     assert result.actions_taken == []
     assert gw.marked == []
@@ -116,8 +113,10 @@ def test_mark_read_exception_records_error() -> None:
     result = execute_actions(
         notification=_make_notification(),
         actions=[RuleAction(action_type="mark_read")],
-        gateway=FailMarkRead(),  # type: ignore[arg-type]
-        apply_actions=True,
+        context=ActionExecutionContext(
+            gateway=FailMarkRead(),
+            apply_actions=True,
+        ),
     )
     assert result.actions_taken == []
     assert any("mark_read failed" in err for err in result.errors)
@@ -133,10 +132,12 @@ def test_dismiss_action_in_dry_run() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="dismiss")],
-        gateway=client,
-        apply_actions=False,
-        record=record,
-        dismiss_gateway=client,
+        context=ActionExecutionContext(
+            gateway=client,
+            apply_actions=False,
+            dismiss_gateway=client,
+            record=record,
+        ),
     )
     assert result.actions_taken == ["dry-run:dismiss"]
     assert client.dismissed == []
@@ -150,10 +151,12 @@ def test_dismiss_action_applies() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="dismiss")],
-        gateway=client,
-        apply_actions=True,
-        record=record,
-        dismiss_gateway=client,
+        context=ActionExecutionContext(
+            gateway=client,
+            apply_actions=True,
+            dismiss_gateway=client,
+            record=record,
+        ),
     )
     assert result.actions_taken == ["dismiss"]
     assert client.dismissed == ["1"]
@@ -167,10 +170,12 @@ def test_dismiss_skipped_if_already_dismissed() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="dismiss")],
-        gateway=client,
-        apply_actions=True,
-        record=record,
-        dismiss_gateway=client,
+        context=ActionExecutionContext(
+            gateway=client,
+            apply_actions=True,
+            dismiss_gateway=client,
+            record=record,
+        ),
     )
     assert result.actions_taken == []
     assert client.dismissed == []
@@ -180,8 +185,7 @@ def test_dismiss_without_gateway_records_error() -> None:
     result = execute_actions(
         notification=_make_notification(),
         actions=[RuleAction(action_type="dismiss")],
-        gateway=FakeMarkRead(),
-        apply_actions=True,
+        context=ActionExecutionContext(gateway=FakeMarkRead(), apply_actions=True),
     )
     assert any("no dismiss_gateway" in err for err in result.errors)
 
@@ -192,10 +196,12 @@ def test_dismiss_exception_records_error() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="dismiss")],
-        gateway=FakeMarkRead(),
-        apply_actions=True,
-        record=record,
-        dismiss_gateway=FailDismiss(),  # type: ignore[arg-type]
+        context=ActionExecutionContext(
+            gateway=FakeMarkRead(),
+            apply_actions=True,
+            dismiss_gateway=FailDismiss(),
+            record=record,
+        ),
     )
     assert result.actions_taken == []
     assert any("dismiss failed" in err for err in result.errors)
@@ -205,8 +211,7 @@ def test_unknown_action_records_error() -> None:
     result = execute_actions(
         notification=_make_notification(),
         actions=[RuleAction(action_type="unknown_action")],
-        gateway=FakeMarkRead(),
-        apply_actions=True,
+        context=ActionExecutionContext(gateway=FakeMarkRead(), apply_actions=True),
     )
     assert any("Unsupported action" in err for err in result.errors)
 
@@ -217,8 +222,7 @@ def test_deduplicates_duplicate_actions() -> None:
     result = execute_actions(
         notification=notification,
         actions=[RuleAction(action_type="mark_read"), RuleAction(action_type="mark_read")],
-        gateway=gw,
-        apply_actions=True,
+        context=ActionExecutionContext(gateway=gw, apply_actions=True),
     )
     assert result.actions_taken == ["mark_read"]
     assert len(gw.marked) == 1

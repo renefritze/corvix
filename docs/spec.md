@@ -30,7 +30,8 @@ Normalized view of one GitHub notification thread. Constructed via `Notification
 | `unread` | `bool` | `unread` |
 | `updated_at` | `datetime` (UTC) | `updated_at` (ISO 8601) |
 | `thread_url` | `str \| None` | `url` |
-| `web_url` | `str \| None` | derived human-facing GitHub URL (fallback repo URL) |
+| `subject_url` | `str \| None` | `subject.url` (GitHub API URL for the subject resource) |
+| `web_url` | `str \| None` | derived human-facing GitHub URL; `None` if unresolvable (see §2.4) |
 
 ### 2.2 `NotificationRecord` (processed)
 
@@ -44,6 +45,7 @@ Wraps a `Notification` with the output of scoring and rule evaluation. This is w
 | `matched_rules` | `list[str]` | Names of rules that matched |
 | `actions_taken` | `list[str]` | Actions executed (e.g. `mark_read`, `dismiss`, dry-run variants) |
 | `dismissed` | `bool` | Local dismissed flag used to hide/remove records |
+| `context` | `dict[str, object]` | Enrichment payload map used by context-aware rules |
 
 ### 2.3 Cache file schema
 
@@ -62,18 +64,51 @@ JSON file at the path configured in `state.cache_file`:
       "unread": true,
       "updated_at": "2024-01-01T00:00:00Z",
       "thread_url": "https://api.github.com/notifications/threads/1",
+      "subject_url": "https://api.github.com/repos/owner/repo/pulls/1",
       "web_url": "https://github.com/owner/repo/pull/1",
       "score": 1.0,
       "excluded": false,
-      "matched_rules": ["high-priority"],
-      "actions_taken": ["mark_read"],
-      "dismissed": false
-    }
-  ]
+       "matched_rules": ["high-priority"],
+       "actions_taken": ["mark_read"],
+       "dismissed": false,
+       "context": {
+         "github": {
+           "latest_comment": {
+             "author": {"login": "codecov[bot]"}
+           }
+         }
+       }
+     }
+   ]
 }
 ```
 
 Canonical persisted schema is the flattened record returned by `NotificationRecord.to_dict()`.
+
+### 2.4 URL resolution
+
+`web_url` is derived in two stages during each poll cycle (`run_poll_cycle`).
+
+**Fast path** — pure string mapping in `_map_subject_api_url_to_web`, no API calls:
+
+| Subject type | API path pattern | Web URL |
+|---|---|---|
+| `PullRequest` | `.../pulls/{id}` | `.../pull/{id}` |
+| `Issue` | `.../issues/{id}` | `.../issues/{id}` |
+| `Commit` | `.../commits/{sha}` | `.../commit/{sha}` |
+| `Release` (tagged) | `.../releases/tags/{tag}` | `.../releases/tag/{tag}` |
+| `Discussion` | `.../discussions/{id}` | `.../discussions/{id}` |
+| `WorkflowRun` | `.../actions/runs/{id}` | `.../actions/runs/{id}` |
+
+**Enrichment path** — `resolve_web_urls()` makes a targeted GitHub API call for notification types where no 1:1 URL mapping exists. Only runs when `web_url` is still `None` after the fast path and `subject_url` is available.
+
+| Subject type | API call | Resolved to |
+|---|---|---|
+| `CheckSuite` | `GET /repos/{owner}/{repo}/check-suites/{id}/check-runs?per_page=1` | `html_url` of first check-run |
+
+If enrichment fails (API error, empty response, unknown type), `web_url` stays `None` and the UI renders the title as plain text rather than a link.
+
+The enricher is injected via the `WebUrlEnricher` Protocol. `GitHubNotificationsClient` implements it, and `run_poll_cycle` calls `resolve_web_urls(notifications, enricher=input.client)` before scoring/rules. If no enricher is provided (or resolution fails), fast-path behavior still applies and unresolved `web_url` values remain `None`.
 
 ---
 
@@ -127,7 +162,22 @@ scoring:
     urgent: 15
 ```
 
-### 3.5 `rules`
+### 3.5 `enrichment`
+
+```yaml
+enrichment:
+  enabled: false
+  max_requests_per_cycle: 25
+  github_latest_comment:
+    enabled: false
+    timeout_seconds: 10
+```
+
+When enabled, Corvix runs provider-based enrichment before scoring/rules. Current provider:
+
+- `github_latest_comment`: fetches latest comment metadata for `reason == comment` notifications.
+
+### 3.6 `rules`
 
 Rules are evaluated in order: global rules first, then per-repository rules for the notification's repo. All matching rules contribute — there is no short-circuit.
 
@@ -157,6 +207,7 @@ All fields are optional. Unset fields are treated as "match anything".
 | Field | Type | Semantics |
 |---|---|---|
 | `repository_in` | `list[str]` | Exact match against `repository` |
+| `repository_glob` | `list[str]` | Glob match (`fnmatchcase`) against `repository` |
 | `reason_in` | `list[str]` | Exact match against `reason` |
 | `subject_type_in` | `list[str]` | Exact match against `subject_type` |
 | `title_contains_any` | `list[str]` | Case-insensitive substring OR |
@@ -164,6 +215,16 @@ All fields are optional. Unset fields are treated as "match anything".
 | `unread` | `bool` | Exact match |
 | `min_score` | `float` | Score must be ≥ this value |
 | `max_age_hours` | `float` | Notification must be newer than this |
+| `context` | `list[ContextPredicate]` | Predicates over enriched context paths |
+
+`ContextPredicate` fields:
+
+| Field | Type | Semantics |
+|---|---|---|
+| `path` | `str` | Dot path within `NotificationRecord.context` |
+| `op` | `str` | One of `equals`, `not_equals`, `contains`, `regex`, `in`, `exists` |
+| `value` | `object` | Operator value (optional for `exists`) |
+| `case_insensitive` | `bool` | Case-fold string comparisons for supported operators |
 
 All active criteria must match (AND logic). `title_contains_any` is OR within itself.
 
@@ -176,7 +237,7 @@ Currently implemented action types:
 | `mark_read` | Calls `PATCH /notifications/threads/{id}`. Skips if already read. No-op in dry-run mode (records `dry-run:mark_read` instead). |
 | `dismiss` | Calls `DELETE /notifications/threads/{id}`. No-op in dry-run mode (records `dry-run:dismiss` instead). |
 
-### 3.6 `dashboards`
+### 3.7 `dashboards`
 
 ```yaml
 dashboards:
@@ -192,7 +253,7 @@ dashboards:
 
 Excluded records are never shown in any dashboard regardless of `match`.
 
-### 3.7 `auth`
+### 3.8 `auth`
 
 ```yaml
 auth:
@@ -200,7 +261,7 @@ auth:
   session_secret: ""
 ```
 
-### 3.8 `database`
+### 3.9 `database`
 
 ```yaml
 database:
@@ -215,12 +276,14 @@ One poll cycle executes the following steps in sequence, per notification:
 
 ```text
 fetch_notifications()
+  └─ enrich_notifications()  # provider-based, fail-open
   └─ for each Notification:
-       score  = score_notification(notification, scoring_config)
-       eval   = evaluate_rules(notification, score, rule_set)
-       result = execute_actions(notification, eval.actions, client, apply_actions)
-       → NotificationRecord(notification, score, eval.excluded,
-                            eval.matched_rules, result.actions_taken)
+        score  = score_notification(notification, scoring_config)
+        eval   = evaluate_rules(notification, score, rule_set, context)
+        result = execute_actions(notification, eval.actions, client, apply_actions)
+        → NotificationRecord(notification, score, eval.excluded,
+                             eval.matched_rules, result.actions_taken,
+                             context)
   └─ cache.save(records)
 ```
 
@@ -237,11 +300,15 @@ score = unread_bonus (if unread)
 
 `age_hours` is computed relative to an injectable `now` (defaults to `datetime.now(UTC)`). The score can be negative.
 
-### 4.2 Rule evaluation
+### 4.2 Enrichment
+
+Enrichment providers run before scoring/rules and attach namespaced payloads to `NotificationRecord.context`. Failures are fail-open: poll cycles continue, and errors are reported in the polling summary.
+
+### 4.3 Rule evaluation
 
 `evaluate_rules()` iterates `global_rules + per_repository[notification.repository]`. For each rule whose `MatchCriteria` passes, it accumulates: matched rule name, its actions, and sets `excluded = True` if `exclude_from_dashboards` is set. All matching rules contribute; there is no early exit.
 
-### 4.3 Action execution
+### 4.4 Action execution
 
 `execute_actions()` deduplicates actions by type before executing. Supported actions:
 

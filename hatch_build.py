@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
 from subprocess import CalledProcessError, run
+from typing import TYPE_CHECKING
 
-from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+if TYPE_CHECKING:
+
+    class BuildHookInterface:
+        root: str
+
+        def initialize(self, version: str, build_data: dict[str, object]) -> None: ...
+
+else:
+    try:
+        BuildHookInterface = import_module(
+            "hatchling.builders.hooks.plugin.interface",
+        ).BuildHookInterface
+    except ModuleNotFoundError:
+
+        class BuildHookInterface:
+            root: str
+
 
 PLUGIN_NAME = "custom"
 

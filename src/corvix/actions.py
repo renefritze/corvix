@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
 
+if TYPE_CHECKING:
+    pass
 
+
+@runtime_checkable
 class MarkReadGateway(Protocol):
     """Gateway interface for marking notification threads as read."""
 
@@ -16,6 +20,7 @@ class MarkReadGateway(Protocol):
         """Mark a thread as read."""
 
 
+@runtime_checkable
 class DismissGateway(Protocol):
     """Gateway interface for dismissing (deleting) notification threads."""
 
@@ -31,24 +36,113 @@ class ActionExecutionResult:
     errors: list[str] = field(default_factory=list)
 
 
-def execute_actions(  # noqa: PLR0912, PLR0913
+@dataclass(slots=True)
+class ActionExecutionContext:
+    """Bundles all execution dependencies for :func:`execute_actions`.
+
+    Attributes:
+        gateway: Must implement :class:`MarkReadGateway`.
+        apply_actions: If ``False`` actions are recorded as dry-run only.
+        dismiss_gateway: Must implement :class:`DismissGateway`; required for dismiss actions.
+        record: The associated :class:`~corvix.domain.NotificationRecord` used for dismiss state tracking.
+    """
+
+    gateway: MarkReadGateway
+    apply_actions: bool = False
+    dismiss_gateway: DismissGateway | None = None
+    record: NotificationRecord | None = None
+
+
+# ---------------------------------------------------------------------------
+# Internal action handlers (Strategy Pattern)
+# ---------------------------------------------------------------------------
+
+
+class _ActionHandler(Protocol):
+    """Strategy interface for a single action type."""
+
+    def execute(
+        self,
+        notification: Notification,
+        result: ActionExecutionResult,
+    ) -> None:
+        """Execute the action, mutating *result* in place."""
+
+
+class _MarkReadHandler:
+    """Handles the ``mark_read`` action."""
+
+    def __init__(self, gateway: MarkReadGateway, apply_actions: bool) -> None:
+        self._gateway = gateway
+        self._apply_actions = apply_actions
+
+    def execute(self, notification: Notification, result: ActionExecutionResult) -> None:
+        if not notification.unread:
+            return
+        if not self._apply_actions:
+            result.actions_taken.append("dry-run:mark_read")
+            return
+        try:
+            self._gateway.mark_thread_read(notification.thread_id)
+            notification.unread = False
+            result.actions_taken.append("mark_read")
+        except Exception as error:
+            result.errors.append(f"mark_read failed for {notification.thread_id}: {error}")
+
+
+class _DismissHandler:
+    """Handles the ``dismiss`` action."""
+
+    def __init__(
+        self,
+        gateway: DismissGateway | None,
+        apply_actions: bool,
+        record: NotificationRecord | None,
+    ) -> None:
+        self._gateway = gateway
+        self._apply_actions = apply_actions
+        self._record = record
+
+    def execute(self, notification: Notification, result: ActionExecutionResult) -> None:
+        if self._record is not None and self._record.dismissed:
+            return
+        if not self._apply_actions:
+            result.actions_taken.append("dry-run:dismiss")
+            return
+        if self._gateway is None:
+            result.errors.append(f"dismiss action for {notification.thread_id}: no dismiss_gateway provided.")
+            return
+        try:
+            self._gateway.dismiss_thread(notification.thread_id)
+            if self._record is not None:
+                self._record.dismissed = True
+            result.actions_taken.append("dismiss")
+        except Exception as error:
+            result.errors.append(f"dismiss failed for {notification.thread_id}: {error}")
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def execute_actions(
     notification: Notification,
     actions: list[RuleAction],
-    gateway: MarkReadGateway,
-    apply_actions: bool,
-    record: NotificationRecord | None = None,
-    dismiss_gateway: DismissGateway | None = None,
+    context: ActionExecutionContext,
 ) -> ActionExecutionResult:
     """Execute configured actions against a notification.
 
     Args:
         notification: The notification to act on.
         actions: The list of rule actions to execute.
-        gateway: Must implement MarkReadGateway (mark_thread_read).
-        apply_actions: If False, actions are recorded as dry-run only.
-        record: The associated NotificationRecord (for dismiss state tracking).
-        dismiss_gateway: Must implement DismissGateway; required for dismiss actions.
+        context: Execution context carrying gateways and flags.
     """
+    handlers: dict[str, _MarkReadHandler | _DismissHandler] = {
+        "mark_read": _MarkReadHandler(context.gateway, context.apply_actions),
+        "dismiss": _DismissHandler(context.dismiss_gateway, context.apply_actions, context.record),
+    }
+
     result = ActionExecutionResult()
     seen_actions: set[str] = set()
     for action in actions:
@@ -57,37 +151,11 @@ def execute_actions(  # noqa: PLR0912, PLR0913
             continue
         seen_actions.add(action_type)
 
-        if action_type == "mark_read":
-            if not notification.unread:
-                continue
-            if not apply_actions:
-                result.actions_taken.append("dry-run:mark_read")
-                continue
-            try:
-                gateway.mark_thread_read(notification.thread_id)
-                notification.unread = False
-                result.actions_taken.append("mark_read")
-            except Exception as error:
-                result.errors.append(f"mark_read failed for {notification.thread_id}: {error}")
-
-        elif action_type == "dismiss":
-            if record is not None and record.dismissed:
-                continue
-            if not apply_actions:
-                result.actions_taken.append("dry-run:dismiss")
-                continue
-            if dismiss_gateway is None:
-                result.errors.append(f"dismiss action for {notification.thread_id}: no dismiss_gateway provided.")
-                continue
-            try:
-                dismiss_gateway.dismiss_thread(notification.thread_id)
-                if record is not None:
-                    record.dismissed = True
-                result.actions_taken.append("dismiss")
-            except Exception as error:
-                result.errors.append(f"dismiss failed for {notification.thread_id}: {error}")
-
-        else:
+        handler = handlers.get(action_type)
+        if handler is None:
             result.errors.append(f"Unsupported action '{action.action_type}'.")
+            continue
+
+        handler.execute(notification, result)
 
     return result

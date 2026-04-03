@@ -98,6 +98,7 @@ def _record(thread_id: str, score: float) -> NotificationRecord:
         excluded=False,
         matched_rules=["rule-a"],
         actions_taken=[],
+        context={"github": {"latest_comment": {"is_ci_only": False}}},
     )
 
 
@@ -116,6 +117,7 @@ def test_save_and_load_records(migrated_postgres_url: str, storage: PostgresStor
     by_id = {r.notification.thread_id: r for r in loaded}
     assert by_id["t1"].score == SCORE_HIGH
     assert by_id["t2"].score == SCORE_LOW
+    assert by_id["t1"].context == {"github": {"latest_comment": {"is_ci_only": False}}}
 
 
 @pytest.mark.integration
@@ -177,6 +179,24 @@ def test_get_dismissed_thread_ids(migrated_postgres_url: str, storage: PostgresS
     dismissed_ids = storage.get_dismissed_thread_ids(user_id=user_id)
 
     assert set(dismissed_ids) == {"t1", "t3"}
+
+
+@pytest.mark.integration
+def test_mark_record_read_updates_unread_flag(migrated_postgres_url: str, storage: PostgresStorage) -> None:
+    user_id = uuid4()
+    _create_user(migrated_postgres_url, user_id)
+    storage.save_records(
+        user_id=user_id,
+        records=[_record("t1", 2.0), _record("t2", 3.0)],
+        generated_at=datetime.now(tz=UTC),
+    )
+
+    storage.mark_record_read(user_id=user_id, thread_id="t2")
+    _, loaded = storage.load_records(user_id=user_id)
+    by_id = {record.notification.thread_id: record for record in loaded}
+
+    assert by_id["t1"].notification.unread is True
+    assert by_id["t2"].notification.unread is False
 
 
 @pytest.mark.integration
