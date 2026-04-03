@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 from urllib import parse, request
 from urllib.parse import urlparse
 
@@ -43,6 +43,7 @@ def _coerce_json_value(value: object) -> JsonValue:
     raise ValueError(msg)
 
 
+@runtime_checkable
 class WebUrlEnricher(Protocol):
     """Resolve web URLs for notifications where the fast path returned None."""
 

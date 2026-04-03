@@ -56,6 +56,26 @@ repos:
     alias: ruff-format-presets
     files: .CMakePresets.json.in
     types_or: [file]
+- repo: https://github.com/astral-sh/uv-pre-commit
+  rev: 0.10.11
+  hooks:
+  - id: uv-lock
+- repo: https://github.com/allganize/ty-pre-commit
+  rev: v0.0.26
+  hooks:
+  - id: ty-check
+    args: [src/corvix/]
+    pass_filenames: false
+    additional_dependencies:
+    - rich
+    - packaging
+    - typer
+    - PyYAML
+    - litestar
+    - uvicorn
+    - asyncpg>=0.31.0
+    - psycopg[binary]>=3.3.3
+    - alembic>=1.18.4
 - repo: https://github.com/DavidAnson/markdownlint-cli2
   # Ensure to update the schema version above to match this version here!
   rev: 5387279b3b4c24822c0f86d4df4f28b37e3e8992  # frozen: v0.21.0

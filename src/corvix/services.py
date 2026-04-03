@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Protocol, cast
 
 from rich.console import Console
 
@@ -16,7 +16,7 @@ from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
-from corvix.ingestion import resolve_web_urls
+from corvix.ingestion import WebUrlEnricher, resolve_web_urls
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
 from corvix.notifications.models import DispatchResult
@@ -84,9 +84,12 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         _, previous_records = input.cache.load()
 
     notifications = input.client.fetch_notifications(input.config.polling)
+    web_url_enricher: WebUrlEnricher | None = None
+    if isinstance(input.client, WebUrlEnricher):
+        web_url_enricher = cast(WebUrlEnricher, input.client)
     resolve_web_urls(
         notifications,
-        enricher=input.client if hasattr(input.client, "enrich_web_url") else None,
+        enricher=web_url_enricher,
     )
     enrichment_engine = EnrichmentEngine(
         config=input.config.enrichment,
