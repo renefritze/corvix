@@ -1,3 +1,4 @@
+import { useColumnResize } from "../hooks/useColumnResize";
 import type {
 	DashboardGroup,
 	DashboardItem,
@@ -46,6 +47,8 @@ export function NotificationTable({
 	pendingDismissals,
 }: NotificationTableProps) {
 	const COLS = 8;
+	const { widths, startResize, resetColumnWidth } = useColumnResize();
+
 	return (
 		<table class="notification-table" aria-label="Notifications">
 			<caption class="table-shortcut-hint">
@@ -55,6 +58,9 @@ export function NotificationTable({
 				sortColumn={sortColumn}
 				sortDirection={sortDirection}
 				onSort={onSort}
+				columnWidths={widths}
+				onResizeStart={startResize}
+				onResetColumnWidth={resetColumnWidth}
 			/>
 			<tbody>
 				{groups.map((group) => {

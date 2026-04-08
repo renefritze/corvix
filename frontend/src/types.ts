@@ -54,6 +54,8 @@ export type SortColumn =
 	| "score"
 	| "updated_at";
 export type SortDirection = "asc" | "desc";
+export type ResizableSortColumn = Exclude<SortColumn, "subject_title">;
+export type ColumnWidths = Record<ResizableSortColumn, number>;
 
 export interface FilterState {
 	unread: "all" | "unread" | "read";

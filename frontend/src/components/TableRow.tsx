@@ -23,6 +23,9 @@ export function TableRow({
 	onOpenTarget,
 	isPendingDismissal,
 }: TableRowProps) {
+	const scoreLabel = item.score.toFixed(1);
+	const updatedLabel = relativeTime(item.updated_at);
+
 	function handleOpenTarget() {
 		if (!item.unread) return;
 		onOpenTarget(item.thread_id);
@@ -67,6 +70,9 @@ export function TableRow({
 				) : (
 					<span class="title-link">{item.subject_title}</span>
 				)}
+				<div class="title-meta">
+					{`${scoreLabel} · ${updatedLabel} · ${item.subject_type} · ${item.reason}`}
+				</div>
 			</td>
 			<td class="col-repository" data-label="Repository">
 				<span class="repo-label">{item.repository}</span>
@@ -78,10 +84,10 @@ export function TableRow({
 				{item.reason}
 			</td>
 			<td class="col-score" data-label="Score">
-				<span class="score-value">{item.score.toFixed(1)}</span>
+				<span class="score-value">{scoreLabel}</span>
 			</td>
 			<td class="col-updated" data-label="Updated">
-				<span title={item.updated_at}>{relativeTime(item.updated_at)}</span>
+				<span title={item.updated_at}>{updatedLabel}</span>
 			</td>
 			<td class="col-actions">
 				<button
