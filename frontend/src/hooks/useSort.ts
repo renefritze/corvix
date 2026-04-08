@@ -1,4 +1,4 @@
-import { useCallback, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 import type { SortColumn, SortDirection } from "../types";
 
 export function useSort(
@@ -7,6 +7,11 @@ export function useSort(
 ) {
 	const [sortColumn, setSortColumn] = useState<SortColumn>(initialColumn);
 	const [sortDirection, setSortDirection] = useState<SortDirection>(initialDir);
+
+	useEffect(() => {
+		setSortColumn(initialColumn);
+		setSortDirection(initialDir);
+	}, [initialColumn, initialDir]);
 
 	const handleSort = useCallback(
 		(col: SortColumn) => {

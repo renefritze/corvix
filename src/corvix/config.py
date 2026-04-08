@@ -75,6 +75,7 @@ class DashboardSpec:
     include_read: bool = False
     max_items: int = 100
     match: MatchCriteria = field(default_factory=MatchCriteria)
+    ignore_rules: list[MatchCriteria] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -288,6 +289,12 @@ dashboards:
     max_items: 100
     match:
       reason_in: ["mention", "review_requested", "assign"]
+    ignore_rules:
+      - reason_in: ["comment"]
+        context:
+          - path: github.latest_comment.is_ci_only
+            op: equals
+            value: true
 """
 
 
@@ -502,9 +509,15 @@ def _parse_dashboards(value: object) -> list[DashboardSpec]:
                 include_read=_get_bool(dashboard, "include_read", False, "dashboards[].include_read"),
                 max_items=_get_int(dashboard, "max_items", 100, "dashboards[].max_items"),
                 match=_parse_match(dashboard.get("match", {})),
+                ignore_rules=_parse_dashboard_ignore_rules(dashboard.get("ignore_rules", [])),
             ),
         )
     return parsed
+
+
+def _parse_dashboard_ignore_rules(value: object) -> list[MatchCriteria]:
+    rules = _ensure_list(value, "dashboards[].ignore_rules")
+    return [_parse_match(item) for item in rules]
 
 
 def _parse_scoring(value: object) -> ScoringConfig:

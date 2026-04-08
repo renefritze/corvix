@@ -59,6 +59,8 @@ class DashboardData:
     """Full dashboard payload for web and CLI presentation."""
 
     name: str
+    sort_by: str
+    descending: bool
     generated_at: str | None
     groups: list[DashboardGroup]
     total_items: int
@@ -104,6 +106,8 @@ def build_dashboard_data(
     ]
     return DashboardData(
         name=dashboard.name,
+        sort_by=dashboard.sort_by,
+        descending=dashboard.descending,
         generated_at=generated_at.isoformat() if generated_at is not None else None,
         groups=groups,
         total_items=sum(len(group.items) for group in groups),
@@ -122,12 +126,23 @@ def _included_by_dashboard(
         return False
     if not dashboard.include_read and not record.notification.unread:
         return False
-    return matches_criteria(
+    if not matches_criteria(
         criteria=dashboard.match,
         notification=record.notification,
         score=record.score,
         now=now,
         context=record.context,
+    ):
+        return False
+    return not any(
+        matches_criteria(
+            criteria=ignore_rule,
+            notification=record.notification,
+            score=record.score,
+            now=now,
+            context=record.context,
+        )
+        for ignore_rule in dashboard.ignore_rules
     )
 
 

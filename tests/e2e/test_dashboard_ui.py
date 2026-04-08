@@ -60,6 +60,15 @@ def test_dashboard_selector_lists_and_switches(app_page: PageLike) -> None:
 
 
 @pytest.mark.e2e
+def test_dashboard_suburl_loads_selected_dashboard(page: PageLike, corvix_server: str) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    page.goto(f"{corvix_server}/dashboards/triage")
+    expect(page.get_by_label("Select dashboard")).to_have_value("triage")
+    expect(page.locator("tr.notification-row")).to_have_count(2)
+
+
+@pytest.mark.e2e
 def test_empty_dashboard_shows_empty_state(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 

@@ -58,6 +58,13 @@ def index() -> Response[str]:
     return Response(content=INDEX_HTML, media_type="text/html")
 
 
+@get("/dashboards/{dashboard_name:str}", sync_to_thread=False)
+def dashboard_index(dashboard_name: str) -> Response[str]:
+    """Serve the dashboard SPA for bookmarkable dashboard URLs."""
+    del dashboard_name
+    return Response(content=INDEX_HTML, media_type="text/html")
+
+
 @get("/api/health", sync_to_thread=False)
 def health() -> dict[str, str]:
     """Health endpoint for container checks."""
@@ -190,6 +197,7 @@ def _dashboard_names(dashboards: list[DashboardSpec]) -> list[str]:
 app = Litestar(
     route_handlers=[
         index,
+        dashboard_index,
         health,
         api_themes,
         dashboards,

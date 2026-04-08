@@ -38,6 +38,8 @@ export interface NotificationsConfig {
 
 export interface SnapshotPayload {
 	name: string;
+	sort_by: string;
+	descending: boolean;
 	generated_at: string | null;
 	groups: DashboardGroup[];
 	total_items: number;

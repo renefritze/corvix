@@ -163,6 +163,13 @@ def test_index_html(client: TestClient) -> None:
     assert "Corvix" in response.text
 
 
+def test_dashboard_path_serves_spa_shell(client: TestClient) -> None:
+    response = client.get("/dashboards/triage")
+    assert response.status_code == HTTPStatus.OK
+    assert "text/html" in response.headers["content-type"]
+    assert "Corvix" in response.text
+
+
 def test_index_html_is_spa_shell() -> None:
     assert '<div id="app">' in INDEX_HTML
     assert "Corvix" in INDEX_HTML
@@ -193,6 +200,8 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
+    assert payload["sort_by"] == "score"
+    assert payload["descending"] is True
     assert "groups" in payload
     assert "total_items" in payload
     assert "dashboard_names" in payload

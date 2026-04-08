@@ -39,6 +39,8 @@ dashboards:
     descending: true
     match:
       reason_in: ["mention"]
+    ignore_rules:
+      - reason_in: ["subscribed"]
 """.strip(),
         encoding="utf-8",
     )
@@ -50,6 +52,8 @@ dashboards:
     assert "org/repo" in config.rules.per_repository
     assert config.dashboards[0].name == "triage"
     assert config.dashboards[0].match.reason_in == ["mention"]
+    assert len(config.dashboards[0].ignore_rules) == 1
+    assert config.dashboards[0].ignore_rules[0].reason_in == ["subscribed"]
 
 
 def test_config_parses_auth_and_database_sections(tmp_path: Path) -> None:

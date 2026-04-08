@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "preact/hooks";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "preact/hooks";
 import { markNotificationRead } from "./api";
 import { EmptyState } from "./components/EmptyState";
 import { FilterBar } from "./components/FilterBar";
@@ -12,10 +18,44 @@ import { useFilters } from "./hooks/useFilters";
 import { useKeyboard } from "./hooks/useKeyboard";
 import { useSnapshot } from "./hooks/useSnapshot";
 import { useSort } from "./hooks/useSort";
-import type { DashboardItem, FilterState } from "./types";
+import type { DashboardItem, SortColumn } from "./types";
+
+const DASHBOARD_PATH_PREFIX = "/dashboards/";
+
+function mapDashboardSortToColumn(sortBy: string): SortColumn {
+	if (sortBy === "title") return "subject_title";
+	if (sortBy === "repository") return "repository";
+	if (sortBy === "subject_type") return "subject_type";
+	if (sortBy === "reason") return "reason";
+	if (sortBy === "updated_at") return "updated_at";
+	return "score";
+}
+
+function parseDashboardFromPath(pathname: string): string | undefined {
+	if (!pathname.startsWith(DASHBOARD_PATH_PREFIX)) {
+		return undefined;
+	}
+	const rawName = pathname.slice(DASHBOARD_PATH_PREFIX.length);
+	if (!rawName) {
+		return undefined;
+	}
+	return decodeURIComponent(rawName);
+}
+
+function dashboardPath(name: string | undefined): string {
+	if (!name) {
+		return "/";
+	}
+	return `${DASHBOARD_PATH_PREFIX}${encodeURIComponent(name)}`;
+}
 
 export function App() {
-	const [dashboard, setDashboard] = useState<string | undefined>(undefined);
+	const [dashboard, setDashboard] = useState<string | undefined>(() => {
+		if (typeof window === "undefined") {
+			return undefined;
+		}
+		return parseDashboardFromPath(window.location.pathname);
+	});
 	const [toastError, setToastError] = useState<string | null>(null);
 	const [showShortcuts, setShowShortcuts] = useState(false);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
@@ -23,7 +63,16 @@ export function App() {
 	const { snapshot, loading, refreshing, error, refresh } =
 		useSnapshot(dashboard);
 	const { filters, setFilter, clearFilters } = useFilters();
-	const { sortColumn, sortDirection, handleSort } = useSort("score", "desc");
+	const configuredSortColumn = useMemo(
+		() => mapDashboardSortToColumn(snapshot?.sort_by ?? "score"),
+		[snapshot?.sort_by],
+	);
+	const configuredSortDirection =
+		snapshot?.descending === false ? "asc" : "desc";
+	const { sortColumn, sortDirection, handleSort } = useSort(
+		configuredSortColumn,
+		configuredSortDirection,
+	);
 
 	const allItems = useMemo<DashboardItem[]>(() => {
 		if (!snapshot) return [];
@@ -110,13 +159,56 @@ export function App() {
 	const dashboardNames = snapshot?.dashboard_names ?? [];
 	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
 
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const handlePopState = () => {
+			const fromPath = parseDashboardFromPath(window.location.pathname);
+			if (!fromPath) {
+				setDashboard(undefined);
+				return;
+			}
+			if (dashboardNames.length > 0 && !dashboardNames.includes(fromPath)) {
+				setDashboard(undefined);
+				return;
+			}
+			setDashboard(fromPath);
+		};
+		window.addEventListener("popstate", handlePopState);
+		return () => window.removeEventListener("popstate", handlePopState);
+	}, [dashboardNames]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		if (dashboardNames.length === 0) {
+			return;
+		}
+		if (dashboard && !dashboardNames.includes(dashboard)) {
+			setDashboard(undefined);
+		}
+	}, [dashboard, dashboardNames]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const targetPath = dashboardPath(currentDashboard ?? undefined);
+		if (window.location.pathname === targetPath) {
+			return;
+		}
+		window.history.pushState({}, "", targetPath);
+	}, [currentDashboard]);
+
 	return (
 		<div class="shell">
 			{refreshing && <div class="refresh-bar" aria-hidden="true" />}
 			<Toolbar
 				dashboardNames={dashboardNames}
 				currentDashboard={currentDashboard}
-				onDashboardChange={setDashboard}
+				onDashboardChange={(name) => setDashboard(name)}
 				onRefresh={refresh}
 				refreshing={refreshing}
 				summary={snapshot?.summary ?? null}

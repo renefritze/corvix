@@ -99,5 +99,6 @@ This starts:
 - `GET /api/health`
 - `GET /api/themes`
 - `GET /api/dashboards`
+- `GET /dashboards/<name>`
 - `GET /api/snapshot?dashboard=<name>`
 - `POST /api/notifications/{thread_id}/dismiss`

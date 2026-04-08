@@ -125,6 +125,12 @@ dashboards:
   max_items: 120
   match:
     reason_in: ["mention", "review_requested", "assign"]
+  ignore_rules:
+  - reason_in: ["comment"]
+    context:
+    - path: github.latest_comment.is_ci_only
+      op: equals
+      value: true
 - name: overview
   group_by: reason
   sort_by: updated_at
