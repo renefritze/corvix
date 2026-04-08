@@ -103,7 +103,7 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     return payload
 
 
-@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=False)
+@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=True)
 def dismiss_notification(thread_id: str) -> Response[None]:
     """Dismiss a notification thread (removes it from the GitHub inbox).
 
@@ -122,6 +122,7 @@ def dismiss_notification(thread_id: str) -> Response[None]:
     try:
         client.dismiss_thread(thread_id)
     except Exception as error:
+        logger.exception("Failed to dismiss thread", extra={"thread_id": thread_id})
         msg = f"Failed to dismiss thread {thread_id}: {error}"
         raise HTTPException(status_code=502, detail=msg) from error
 

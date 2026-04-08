@@ -10,10 +10,16 @@ export function useSnapshot(dashboard: string | undefined) {
 	const [refreshing, setRefreshing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const inFlight = useRef(false);
+	const needsReload = useRef(false);
+	const queuedBackground = useRef(false);
 
 	const load = useCallback(
 		async (isBackground = false) => {
-			if (inFlight.current) return;
+			if (inFlight.current) {
+				needsReload.current = true;
+				queuedBackground.current = queuedBackground.current || isBackground;
+				return;
+			}
 			inFlight.current = true;
 			if (isBackground) setRefreshing(true);
 			try {
@@ -26,6 +32,12 @@ export function useSnapshot(dashboard: string | undefined) {
 				inFlight.current = false;
 				if (isBackground) setRefreshing(false);
 				else setLoading(false);
+				if (needsReload.current) {
+					const nextIsBackground = queuedBackground.current;
+					needsReload.current = false;
+					queuedBackground.current = false;
+					void load(nextIsBackground);
+				}
 			}
 		},
 		[dashboard],

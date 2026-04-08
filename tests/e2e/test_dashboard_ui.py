@@ -142,6 +142,34 @@ def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: PageLike) -> N
 
 
 @pytest.mark.e2e
+def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    def delayed_snapshot(route: RouteLike) -> None:
+        route.fetch(timeout=5_000)
+        app_page.wait_for_timeout(2_000)
+        route.continue_()
+
+    app_page.route("**/api/snapshot*", delayed_snapshot)
+
+    rows = app_page.locator("tr.notification-row")
+    expect(rows).to_have_count(3)
+
+    app_page.get_by_label("Dismiss Review API changes").click()
+    app_page.get_by_label("Dismiss Dependency update").click()
+
+    expect(rows).to_have_count(1)
+
+    app_page.wait_for_timeout(3_400)
+    expect(rows).to_have_count(1)
+
+    expect(app_page.locator(".undo-toast")).to_have_count(0, timeout=8_000)
+    expect(rows).to_have_count(1)
+
+    app_page.unroute("**/api/snapshot*", delayed_snapshot)
+
+
+@pytest.mark.e2e
 def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 

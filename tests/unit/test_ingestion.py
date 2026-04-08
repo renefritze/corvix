@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 from datetime import UTC, datetime
 from unittest.mock import patch
+from urllib import error as url_error
 
 import pytest
 
@@ -97,13 +99,48 @@ def test_mark_thread_read_calls_patch() -> None:
 
 def test_dismiss_thread_calls_delete() -> None:
     client = _client()
-    with patch.object(GitHubNotificationsClient, "_request_no_content") as mock_req:
+    with patch.object(GitHubNotificationsClient, "_request_no_content_with_backoff") as mock_req:
         client.dismiss_thread("789")
     mock_req.assert_called_once()
     url = mock_req.call_args[0][0]
     method = mock_req.call_args.kwargs["method"]
     assert "threads/789" in url
     assert method == "DELETE"
+
+
+def test_dismiss_thread_retries_on_rate_limit() -> None:
+    client = _client()
+    err = url_error.HTTPError(
+        url="https://api.example.com/notifications/threads/789",
+        code=429,
+        msg="Too Many Requests",
+        hdrs={"Retry-After": "0"},
+        fp=io.BytesIO(b'{"message":"secondary rate limit"}'),
+    )
+    with (
+        patch.object(GitHubNotificationsClient, "_request_no_content", side_effect=[err, None]) as mock_req,
+        patch("corvix.ingestion.time.sleep") as mock_sleep,
+    ):
+        client.dismiss_thread("789")
+    assert mock_req.call_count == 2
+    mock_sleep.assert_called_once()
+
+
+def test_dismiss_thread_surfaces_error_message() -> None:
+    client = _client()
+    err = url_error.HTTPError(
+        url="https://api.example.com/notifications/threads/789",
+        code=403,
+        msg="Forbidden",
+        hdrs={},
+        fp=io.BytesIO(b'{"message":"You have exceeded a secondary rate limit."}'),
+    )
+    with (
+        patch.object(GitHubNotificationsClient, "_request_no_content", side_effect=err),
+        patch("corvix.ingestion.time.sleep"),
+    ):
+        with pytest.raises(RuntimeError, match="secondary rate limit"):
+            client.dismiss_thread("789")
 
 
 def test_build_url_with_query() -> None:

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+from urllib import error as url_error
 from urllib import parse, request
 from urllib.parse import urlparse
 
@@ -114,7 +116,7 @@ class GitHubNotificationsClient:
     def dismiss_thread(self, thread_id: str) -> None:
         """Dismiss a notification thread (removes it from inbox permanently)."""
         url = self._build_url(f"/notifications/threads/{thread_id}", {})
-        self._request_no_content(url, method="DELETE")
+        self._request_no_content_with_backoff(url, method="DELETE")
 
     def enrich_web_url(self, notification: Notification) -> str | None:
         """Resolve a browser URL via API for notification types the fast path cannot handle."""
@@ -178,9 +180,55 @@ class GitHubNotificationsClient:
         with request.urlopen(req, timeout=30):
             return
 
+    def _request_no_content_with_backoff(self, url: str, method: str, max_attempts: int = 4) -> None:
+        """Perform no-content request with retries for GitHub throttling responses."""
+        attempt = 1
+        while attempt <= max_attempts:
+            try:
+                self._request_no_content(url, method)
+                return
+            except url_error.HTTPError as error:
+                retryable = error.code in {403, 429}
+                if not retryable or attempt >= max_attempts:
+                    detail = _http_error_detail(error)
+                    msg = f"GitHub API request failed with status {error.code}: {detail}"
+                    raise RuntimeError(msg) from error
+                delay_seconds = _retry_delay_seconds(error=error, attempt=attempt)
+                logger.warning(
+                    "GitHub API throttled dismiss request; retrying",
+                    extra={"attempt": attempt, "max_attempts": max_attempts, "delay_seconds": delay_seconds},
+                )
+                time.sleep(delay_seconds)
+                attempt += 1
+
     def _validate_api_host(self, url: str) -> None:
         expected = parse.urlparse(self.api_base_url).hostname
         actual = parse.urlparse(url).hostname
         if not expected or not actual or actual.casefold() != expected.casefold():
             msg = "URL host must match configured GitHub API base host."
             raise ValueError(msg)
+
+
+def _http_error_detail(error: url_error.HTTPError) -> str:
+    try:
+        payload = json.loads(error.read().decode("utf-8"))
+    except Exception:
+        return error.reason if isinstance(error.reason, str) else "request failed"
+    if not isinstance(payload, dict):
+        return error.reason if isinstance(error.reason, str) else "request failed"
+    message = payload.get("message")
+    if not isinstance(message, str) or not message:
+        return error.reason if isinstance(error.reason, str) else "request failed"
+    return message
+
+
+def _retry_delay_seconds(error: url_error.HTTPError, attempt: int) -> float:
+    retry_after_raw = error.headers.get("Retry-After") if error.headers is not None else None
+    if isinstance(retry_after_raw, str):
+        try:
+            retry_after_seconds = float(retry_after_raw)
+        except ValueError:
+            retry_after_seconds = 0.0
+        if retry_after_seconds > 0:
+            return min(retry_after_seconds, 10.0)
+    return min(0.5 * (2 ** (attempt - 1)), 5.0)

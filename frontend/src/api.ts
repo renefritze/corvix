@@ -16,7 +16,19 @@ export async function dismissNotification(threadId: string): Promise<void> {
 		`/api/notifications/${encodeURIComponent(threadId)}/dismiss`,
 		{ method: "POST" },
 	);
-	if (!res.ok) throw new Error(`Dismiss failed: ${res.status}`);
+	if (!res.ok) {
+		let detail = "";
+		try {
+			const payload = (await res.json()) as { detail?: unknown };
+			if (typeof payload.detail === "string") {
+				detail = payload.detail;
+			}
+		} catch {
+			// Non-JSON response; fall back to status code.
+		}
+		const suffix = detail ? `: ${detail}` : "";
+		throw new Error(`Dismiss failed (${res.status})${suffix}`);
+	}
 }
 
 export async function markNotificationRead(threadId: string): Promise<void> {

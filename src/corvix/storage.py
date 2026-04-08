@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,8 +54,39 @@ class NotificationCache:
     def save(self, records: list[NotificationRecord], generated_at: datetime | None = None) -> None:
         """Persist records to disk."""
         timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+        with self._exclusive_lock():
+            _, existing_records = self._load_unlocked()
+            dismissed_ids = {record.notification.thread_id for record in existing_records if record.dismissed}
+            if dismissed_ids:
+                for record in records:
+                    if record.notification.thread_id in dismissed_ids:
+                        record.dismissed = True
+            self._save_unlocked(records=records, generated_at=timestamp)
+
+    def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
+        """Load snapshot from disk if available."""
+        return self._load_unlocked()
+
+    def _load_unlocked(self) -> tuple[datetime | None, list[NotificationRecord]]:
+        """Load snapshot from disk without acquiring a file lock."""
+        if not self.path.exists():
+            return None, []
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            msg = "Invalid cache file format."
+            raise ValueError(msg)
+        generated_raw = payload.get("generated_at")
+        generated_at = parse_timestamp(generated_raw) if isinstance(generated_raw, str) else None
+        raw_notifications = payload.get("notifications", [])
+        if not isinstance(raw_notifications, list):
+            msg = "Invalid cache file format: 'notifications' must be a list."
+            raise ValueError(msg)
+        records = [NotificationRecord.from_dict(item) for item in raw_notifications if isinstance(item, dict)]
+        return generated_at, records
+
+    def _save_unlocked(self, records: list[NotificationRecord], generated_at: datetime) -> None:
         payload = {
-            "generated_at": format_timestamp(timestamp),
+            "generated_at": format_timestamp(generated_at),
             "notifications": [record.to_dict() for record in records],
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,22 +111,16 @@ class NotificationCache:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink()
 
-    def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
-        """Load snapshot from disk if available."""
-        if not self.path.exists():
-            return None, []
-        payload = json.loads(self.path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            msg = "Invalid cache file format."
-            raise ValueError(msg)
-        generated_raw = payload.get("generated_at")
-        generated_at = parse_timestamp(generated_raw) if isinstance(generated_raw, str) else None
-        raw_notifications = payload.get("notifications", [])
-        if not isinstance(raw_notifications, list):
-            msg = "Invalid cache file format: 'notifications' must be a list."
-            raise ValueError(msg)
-        records = [NotificationRecord.from_dict(item) for item in raw_notifications if isinstance(item, dict)]
-        return generated_at, records
+    @contextmanager
+    def _exclusive_lock(self) -> Iterator[None]:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.parent / f".{self.path.name}.lock"
+        with lock_path.open("a", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     # --- StorageBackend protocol methods ---
 
@@ -111,25 +139,29 @@ class NotificationCache:
 
     def dismiss_record(self, user_id: UserId, thread_id: str) -> None:
         """Mark a record as dismissed by thread_id in the JSON file."""
-        generated_at, records = self.load()
-        updated = False
-        for record in records:
-            if record.notification.thread_id == thread_id:
-                record.dismissed = True
-                updated = True
-        if updated:
-            self.save(records, generated_at)
+        with self._exclusive_lock():
+            generated_at, records = self._load_unlocked()
+            updated = False
+            for record in records:
+                if record.notification.thread_id == thread_id:
+                    record.dismissed = True
+                    updated = True
+            if updated:
+                timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+                self._save_unlocked(records=records, generated_at=timestamp)
 
     def mark_record_read(self, user_id: UserId, thread_id: str) -> None:
         """Mark a record as read by thread_id in the JSON file."""
-        generated_at, records = self.load()
-        updated = False
-        for record in records:
-            if record.notification.thread_id == thread_id and record.notification.unread:
-                record.notification.unread = False
-                updated = True
-        if updated:
-            self.save(records, generated_at)
+        with self._exclusive_lock():
+            generated_at, records = self._load_unlocked()
+            updated = False
+            for record in records:
+                if record.notification.thread_id == thread_id and record.notification.unread:
+                    record.notification.unread = False
+                    updated = True
+            if updated:
+                timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+                self._save_unlocked(records=records, generated_at=timestamp)
 
     def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]:
         """Return thread_ids of dismissed records."""

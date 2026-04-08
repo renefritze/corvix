@@ -24,12 +24,24 @@ export function App() {
 		useSnapshot(dashboard);
 	const { filters, setFilter, clearFilters } = useFilters();
 	const { sortColumn, sortDirection, handleSort } = useSort("score", "desc");
-	const { pending, dismiss, undoAll } = useDismiss(refresh, setToastError);
 
 	const allItems = useMemo<DashboardItem[]>(() => {
 		if (!snapshot) return [];
 		return snapshot.groups.flatMap((g) => g.items);
 	}, [snapshot]);
+
+	const currentThreadIds = useMemo(
+		() => new Set(allItems.map((item) => item.thread_id)),
+		[allItems],
+	);
+
+	const { pending, dismiss, undoAll, hiddenThreadIds } = useDismiss(
+		refresh,
+		setToastError,
+		currentThreadIds,
+	);
+
+	const hiddenIds = hiddenThreadIds;
 
 	const notifConfig = snapshot?.notifications_config?.browser_tab ?? null;
 	const {
@@ -49,7 +61,7 @@ export function App() {
 			.map((group) => ({
 				...group,
 				items: group.items.filter((item) => {
-					if (pending.has(item.thread_id)) return false;
+					if (hiddenIds.has(item.thread_id)) return false;
 					if (filters.unread !== "all") {
 						if (filters.unread === "unread" && !item.unread) return false;
 						if (filters.unread === "read" && item.unread) return false;
@@ -61,7 +73,7 @@ export function App() {
 				}),
 			}))
 			.filter((g) => g.items.length > 0);
-	}, [snapshot, filters, pending]);
+	}, [snapshot, filters, hiddenIds]);
 
 	const hasFilters =
 		filters.unread !== "all" ||
