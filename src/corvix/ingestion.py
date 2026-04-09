@@ -17,8 +17,9 @@ from corvix.types import JsonObject, JsonValue
 
 logger = logging.getLogger(__name__)
 
-_ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite"})
+_ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite", "Release"})
 _CHECK_SUITE_PATH_SEGMENTS = 5
+_RELEASE_PATH_SEGMENTS = 5
 
 
 def _as_json_object(value: JsonValue) -> JsonObject | None:
@@ -122,6 +123,8 @@ class GitHubNotificationsClient:
         """Resolve a browser URL via API for notification types the fast path cannot handle."""
         if notification.subject_type == "CheckSuite" and notification.subject_url:
             return self._resolve_check_suite(notification.subject_url, notification.repository)
+        if notification.subject_type == "Release" and notification.subject_url:
+            return self._resolve_release(notification.subject_url)
         return None
 
     def _resolve_check_suite(self, subject_url: str, repository: str) -> str | None:
@@ -147,6 +150,26 @@ class GitHubNotificationsClient:
                 html_url = first.get("html_url")
                 if isinstance(html_url, str):
                     return html_url
+        return None
+
+    def _resolve_release(self, subject_url: str) -> str | None:
+        parsed = urlparse(subject_url)
+        segments = [s for s in parsed.path.split("/") if s]
+        # Expected: ["repos", owner, repo, "releases", id]
+        if len(segments) < _RELEASE_PATH_SEGMENTS or segments[3] != "releases":
+            return None
+        try:
+            self._validate_api_host(subject_url)
+            payload = self._request_json(subject_url, method="GET")
+        except Exception:
+            logger.debug("Failed to fetch release metadata from %s", subject_url)
+            return None
+        payload_object = _as_json_object(payload)
+        if payload_object is None:
+            return None
+        html_url = payload_object.get("html_url")
+        if isinstance(html_url, str):
+            return html_url
         return None
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:

@@ -237,6 +237,18 @@ def test_resolve_web_urls_enriches_check_suite() -> None:
     assert n.web_url == "https://github.com/org/repo/actions/runs/777"
 
 
+def test_resolve_web_urls_enriches_release() -> None:
+    enricher = FakeEnricher(url="https://github.com/org/repo/releases/tag/v2.0.0")
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    resolve_web_urls([n], enricher=enricher)
+    assert len(enricher.calls) == 1
+    assert n.web_url == "https://github.com/org/repo/releases/tag/v2.0.0"
+
+
 # --- enrich_web_url on GitHubNotificationsClient ---
 
 
@@ -285,6 +297,45 @@ def test_enrich_check_suite_api_error_returns_none() -> None:
 def test_enrich_non_check_suite_returns_none() -> None:
     client = _client()
     n = _make_notification(subject_type="Issue", web_url=None)
+    result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_release_returns_html_url() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    with patch.object(
+        GitHubNotificationsClient,
+        "_request_json",
+        return_value={"html_url": "https://github.com/org/repo/releases/tag/v2.0.0"},
+    ):
+        result = client.enrich_web_url(n)
+    assert result == "https://github.com/org/repo/releases/tag/v2.0.0"
+
+
+def test_enrich_release_missing_html_url_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value={"id": 12345}):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_release_malformed_subject_url_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases",
+        web_url=None,
+    )
     result = client.enrich_web_url(n)
     assert result is None
 
