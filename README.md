@@ -34,6 +34,18 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
     make frontend-build
     ```
 
+6. Run native frontend tests:
+
+    ```bash
+    npm --prefix frontend run test -- --run
+    ```
+
+7. Check frontend coverage (enforced at >=80% lines/functions/branches/statements):
+
+    ```bash
+    npm --prefix frontend run test:coverage
+    ```
+
 ## Frontend Build Contract
 
 - Frontend source-of-truth lives in `frontend/` (`frontend/src/**`).
@@ -41,6 +53,8 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Build output is generated into `src/corvix/web/static/assets/`.
 - Generated bundles are not committed to git.
 - `src/corvix/web/static/index.html` is source-maintained and references `/assets/app.js` and `/assets/index.css`.
+- Native frontend tests run with Vitest (`npm --prefix frontend run test -- --run`).
+- Coverage is enforced at >=80% lines/functions/branches/statements (`npm --prefix frontend run test:coverage`).
 
 ## Features
 

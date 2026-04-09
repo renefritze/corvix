@@ -72,6 +72,10 @@ jobs:
         fi
         git diff --exit-code
 
+    - name: Test frontend unit suite with coverage gate
+      run: |
+        npm --prefix frontend run test:coverage
+
     - name: Lint with ruff
       run: |
         uv run --frozen ruff check .
@@ -132,6 +136,11 @@ jobs:
           exit 1
         fi
         git diff --exit-code
+
+    - name: Test frontend unit suite with coverage gate
+      run: |
+        npm --prefix frontend run test:coverage
+
     - name: Test integration suite
       run: |
         uv run --frozen pytest -m "integration"
@@ -173,6 +182,11 @@ jobs:
           exit 1
         fi
         git diff --exit-code
+
+    - name: Test frontend unit suite with coverage gate
+      run: |
+        npm --prefix frontend run test:coverage
+
     - name: Install Playwright browser
       run: |
         uv run playwright install --with-deps chromium

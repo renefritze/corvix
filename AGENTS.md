@@ -14,6 +14,8 @@ uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run ty check src/corvix/                          # type check
 make frontend-build                                  # build frontend assets
+npm --prefix frontend run test -- --run              # run native frontend tests
+npm --prefix frontend run test:coverage              # frontend coverage (>=80%)
 
 docker compose up                                    # full stack (web + poller + db)
 docker compose up web                                # web only
