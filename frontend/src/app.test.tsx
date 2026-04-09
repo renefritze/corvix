@@ -216,6 +216,8 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(screen.getByLabelText("Select dashboard")).toHaveValue("overview");
 		});
-		expect(window.location.pathname).toBe("/dashboards/overview");
+		await waitFor(() => {
+			expect(window.location.pathname).toBe("/dashboards/overview");
+		});
 	});
 });
