@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/preact";
+import { render, screen, waitFor, within } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { App } from "./app";
 import { makeItem, makeSnapshot } from "./test/fixtures";
@@ -219,5 +219,58 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(window.location.pathname).toBe("/dashboards/overview");
 		});
+	});
+
+	it("locks unread filter to unread-only when dashboard excludes read", async () => {
+		window.history.pushState({}, "", "/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					include_read: false,
+					groups: [
+						{
+							name: "group-a",
+							items: [
+								makeItem({
+									thread_id: "1",
+									subject_title: "Unread",
+									unread: true,
+								}),
+								makeItem({
+									thread_id: "2",
+									subject_title: "Read",
+									unread: false,
+								}),
+							],
+						},
+					],
+					summary: {
+						unread_items: 1,
+						read_items: 1,
+						group_count: 1,
+						repository_count: 1,
+						reason_count: 1,
+					},
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "Unread" })).toBeInTheDocument();
+		});
+		expect(
+			screen.queryByRole("link", { name: "Read" }),
+		).not.toBeInTheDocument();
+
+		const unreadFilter = screen.getByLabelText("Unread state filter");
+		expect(unreadFilter).toHaveValue("unread");
+		expect(
+			within(unreadFilter).getByRole("option", { name: /All/ }),
+		).toBeDisabled();
+		expect(
+			within(unreadFilter).getByRole("option", { name: /Read only/ }),
+		).toBeDisabled();
 	});
 });

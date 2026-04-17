@@ -38,6 +38,7 @@ export interface NotificationsConfig {
 
 export interface SnapshotPayload {
 	name: string;
+	include_read: boolean;
 	sort_by: string;
 	descending: boolean;
 	generated_at: string | null;

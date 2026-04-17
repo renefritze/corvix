@@ -60,6 +60,7 @@ def test_build_dashboard_data_filters_and_groups() -> None:
     data = build_dashboard_data(records=records, dashboard=dashboard, generated_at=NOW)
 
     assert data.name == "triage"
+    assert data.include_read is False
     assert data.total_items == 1
     assert len(data.groups) == 1
     assert data.groups[0].name == "org/a"

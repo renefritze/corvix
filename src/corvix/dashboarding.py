@@ -59,6 +59,7 @@ class DashboardData:
     """Full dashboard payload for web and CLI presentation."""
 
     name: str
+    include_read: bool
     sort_by: str
     descending: bool
     generated_at: str | None
@@ -106,6 +107,7 @@ def build_dashboard_data(
     ]
     return DashboardData(
         name=dashboard.name,
+        include_read=dashboard.include_read,
         sort_by=dashboard.sort_by,
         descending=dashboard.descending,
         generated_at=generated_at.isoformat() if generated_at is not None else None,

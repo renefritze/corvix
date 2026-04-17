@@ -25,6 +25,7 @@ export function makeSnapshot(
 	const items = [makeItem()];
 	return {
 		name: "overview",
+		include_read: true,
 		sort_by: "score",
 		descending: true,
 		generated_at: "2026-04-09T10:00:00Z",

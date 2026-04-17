@@ -2,6 +2,7 @@ import type { DashboardItem, FilterState } from "../types";
 
 interface FilterBarProps {
 	filters: FilterState;
+	includeRead: boolean;
 	items: DashboardItem[];
 	onFilterChange: <K extends keyof FilterState>(
 		key: K,
@@ -14,6 +15,7 @@ interface FilterBarProps {
 
 export function FilterBar({
 	filters,
+	includeRead,
 	items,
 	onFilterChange,
 	onClearFilters,
@@ -38,9 +40,13 @@ export function FilterBar({
 				}
 				aria-label="Unread state filter"
 			>
-				<option value="all">All</option>
+				<option value="all" disabled={!includeRead}>
+					{includeRead ? "All" : "🔒 All (disabled by dashboard)"}
+				</option>
 				<option value="unread">Unread only</option>
-				<option value="read">Read only</option>
+				<option value="read" disabled={!includeRead}>
+					{includeRead ? "Read only" : "🔒 Read only (disabled by dashboard)"}
+				</option>
 			</select>
 			<select
 				value={filters.reason}

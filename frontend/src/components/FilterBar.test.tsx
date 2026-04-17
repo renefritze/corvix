@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/preact";
+import { render, screen, within } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { makeItem } from "../test/fixtures";
 import { FilterBar } from "./FilterBar";
@@ -12,6 +12,7 @@ describe("FilterBar", () => {
 		render(
 			<FilterBar
 				filters={{ unread: "all", reason: "", repository: "" }}
+				includeRead={true}
 				items={[
 					makeItem({ reason: "mention", repository: "org/a" }),
 					makeItem({
@@ -33,5 +34,29 @@ describe("FilterBar", () => {
 		await user.click(screen.getByRole("button", { name: "Clear" }));
 		expect(onClearFilters).toHaveBeenCalledTimes(1);
 		expect(screen.getByText(/snapshot:/i)).toBeInTheDocument();
+	});
+
+	it("disables read-state options when dashboard excludes read items", () => {
+		render(
+			<FilterBar
+				filters={{ unread: "unread", reason: "", repository: "" }}
+				includeRead={false}
+				items={[makeItem()]}
+				onFilterChange={vi.fn()}
+				onClearFilters={vi.fn()}
+				generatedAt={null}
+			/>,
+		);
+
+		const unreadFilter = screen.getByLabelText("Unread state filter");
+		expect(
+			within(unreadFilter).getByRole("option", { name: /All/ }),
+		).toBeDisabled();
+		expect(
+			within(unreadFilter).getByRole("option", { name: /Read only/ }),
+		).toBeDisabled();
+		expect(
+			within(unreadFilter).getByRole("option", { name: "Unread only" }),
+		).not.toBeDisabled();
 	});
 });

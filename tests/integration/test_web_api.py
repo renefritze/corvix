@@ -200,6 +200,7 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
+    assert payload["include_read"] is False
     assert payload["sort_by"] == "score"
     assert payload["descending"] is True
     assert "groups" in payload
@@ -211,7 +212,9 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
 def test_snapshot_selects_by_name(configured_client: TestClient) -> None:
     response = configured_client.get("/api/snapshot?dashboard=triage")
     assert response.status_code == HTTPStatus.OK
-    assert response.json()["name"] == "triage"
+    payload = response.json()
+    assert payload["name"] == "triage"
+    assert payload["include_read"] is False
 
 
 def test_snapshot_unknown_dashboard_returns_404(configured_client: TestClient) -> None:
@@ -231,6 +234,7 @@ def test_snapshot_with_notifications(populated_client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "overview"
+    assert payload["include_read"] is True
     assert payload["total_items"] == EXPECTED_POPULATED_TOTAL_ITEMS
     assert len(payload["groups"]) == EXPECTED_POPULATED_GROUPS
     assert sum(len(group["items"]) for group in payload["groups"]) == EXPECTED_POPULATED_TOTAL_ITEMS
@@ -249,6 +253,7 @@ def test_snapshot_respects_dashboard_filters(populated_client: TestClient) -> No
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
+    assert payload["include_read"] is True
     reasons = [item["reason"] for group in payload["groups"] for item in group["items"]]
     assert reasons
     assert set(reasons) == {"mention"}
