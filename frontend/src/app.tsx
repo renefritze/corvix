@@ -60,7 +60,7 @@ export function App() {
 	const [showShortcuts, setShowShortcuts] = useState(false);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
 
-	const { snapshot, loading, refreshing, error, refresh } =
+	const { snapshot, loading, refreshing, manualRefreshing, error, refresh } =
 		useSnapshot(dashboard);
 	const { filters, setFilter, clearFilters } = useFilters();
 	const configuredSortColumn = useMemo(
@@ -91,6 +91,11 @@ export function App() {
 	);
 
 	const hiddenIds = hiddenThreadIds;
+	const dashboardAllowsRead = snapshot?.include_read ?? true;
+	const effectiveUnreadFilter =
+		dashboardAllowsRead || filters.unread === "unread"
+			? filters.unread
+			: "unread";
 
 	const notifConfig = snapshot?.notifications_config?.browser_tab ?? null;
 	const {
@@ -111,9 +116,10 @@ export function App() {
 				...group,
 				items: group.items.filter((item) => {
 					if (hiddenIds.has(item.thread_id)) return false;
-					if (filters.unread !== "all") {
-						if (filters.unread === "unread" && !item.unread) return false;
-						if (filters.unread === "read" && item.unread) return false;
+					if (effectiveUnreadFilter !== "all") {
+						if (effectiveUnreadFilter === "unread" && !item.unread)
+							return false;
+						if (effectiveUnreadFilter === "read" && item.unread) return false;
 					}
 					if (filters.reason && item.reason !== filters.reason) return false;
 					if (filters.repository && item.repository !== filters.repository)
@@ -122,10 +128,10 @@ export function App() {
 				}),
 			}))
 			.filter((g) => g.items.length > 0);
-	}, [snapshot, filters, hiddenIds]);
+	}, [snapshot, filters, hiddenIds, effectiveUnreadFilter]);
 
 	const hasFilters =
-		filters.unread !== "all" ||
+		effectiveUnreadFilter !== "all" ||
 		filters.reason !== "" ||
 		filters.repository !== "";
 
@@ -210,7 +216,7 @@ export function App() {
 				currentDashboard={currentDashboard}
 				onDashboardChange={(name) => setDashboard(name)}
 				onRefresh={refresh}
-				refreshing={refreshing}
+				refreshing={manualRefreshing}
 				summary={snapshot?.summary ?? null}
 				shortcutsOpen={showShortcuts}
 				onToggleShortcuts={() => setShowShortcuts((prev) => !prev)}
@@ -237,9 +243,20 @@ export function App() {
 			)}
 			{snapshot && (
 				<FilterBar
-					filters={filters}
+					filters={{ ...filters, unread: effectiveUnreadFilter }}
+					includeRead={dashboardAllowsRead}
 					items={allItems}
-					onFilterChange={setFilter}
+					onFilterChange={(key, value) => {
+						if (
+							key === "unread" &&
+							!dashboardAllowsRead &&
+							value !== "unread"
+						) {
+							setFilter("unread", "unread");
+							return;
+						}
+						setFilter(key, value);
+					}}
 					onClearFilters={clearFilters}
 					generatedAt={snapshot.generated_at}
 					filterBarRef={filterBarRef}

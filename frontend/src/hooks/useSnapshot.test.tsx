@@ -9,12 +9,13 @@ vi.mock("../api", () => ({
 }));
 
 function Harness({ dashboard }: { dashboard?: string }) {
-	const { snapshot, loading, refreshing, error, refresh } =
+	const { snapshot, loading, refreshing, manualRefreshing, error, refresh } =
 		useSnapshot(dashboard);
 	return (
 		<div>
 			<div data-testid="loading">{String(loading)}</div>
 			<div data-testid="refreshing">{String(refreshing)}</div>
+			<div data-testid="manual-refreshing">{String(manualRefreshing)}</div>
 			<div data-testid="name">{snapshot?.name ?? "none"}</div>
 			<div data-testid="error">{error ?? "none"}</div>
 			<button type="button" onClick={() => void refresh()}>
@@ -77,5 +78,41 @@ describe("useSnapshot", () => {
 		await waitFor(() => {
 			expect(mockedFetch).toHaveBeenCalledTimes(2);
 		});
+	});
+
+	it("does not mark manual refresh state during auto-refresh", async () => {
+		vi.useFakeTimers();
+		const mockedFetch = vi.mocked(fetchSnapshot);
+		let autoResolver:
+			| ((value: ReturnType<typeof makeSnapshot>) => void)
+			| null = null;
+		mockedFetch
+			.mockResolvedValueOnce(makeSnapshot({ name: "overview" }))
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						autoResolver = resolve;
+					}),
+			);
+
+		render(<Harness dashboard="overview" />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("name")).toHaveTextContent("overview");
+		});
+
+		await vi.advanceTimersByTimeAsync(15_000);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("refreshing")).toHaveTextContent("true");
+		});
+		expect(screen.getByTestId("manual-refreshing")).toHaveTextContent("false");
+
+		autoResolver?.(makeSnapshot({ name: "overview" }));
+		await waitFor(() => {
+			expect(screen.getByTestId("refreshing")).toHaveTextContent("false");
+		});
+
+		vi.useRealTimers();
 	});
 });
