@@ -25,17 +25,28 @@ interface DragState {
 	startWidth: number;
 }
 
+function normalizeStoredWidth(
+	column: ResizableSortColumn,
+	value: unknown,
+): number {
+	const numericValue = Number(value);
+	if (!Number.isFinite(numericValue)) {
+		return DEFAULT_COLUMN_WIDTHS[column];
+	}
+
+	return Math.max(MIN_COLUMN_WIDTHS[column], numericValue);
+}
+
 function parseSavedWidths(raw: string | null): ColumnWidths {
 	if (!raw) return DEFAULT_COLUMN_WIDTHS;
 	try {
 		const parsed = JSON.parse(raw) as Partial<ColumnWidths>;
 		return {
-			repository: Number(parsed.repository) || DEFAULT_COLUMN_WIDTHS.repository,
-			subject_type:
-				Number(parsed.subject_type) || DEFAULT_COLUMN_WIDTHS.subject_type,
-			reason: Number(parsed.reason) || DEFAULT_COLUMN_WIDTHS.reason,
-			score: Number(parsed.score) || DEFAULT_COLUMN_WIDTHS.score,
-			updated_at: Number(parsed.updated_at) || DEFAULT_COLUMN_WIDTHS.updated_at,
+			repository: normalizeStoredWidth("repository", parsed.repository),
+			subject_type: normalizeStoredWidth("subject_type", parsed.subject_type),
+			reason: normalizeStoredWidth("reason", parsed.reason),
+			score: normalizeStoredWidth("score", parsed.score),
+			updated_at: normalizeStoredWidth("updated_at", parsed.updated_at),
 		};
 	} catch {
 		return DEFAULT_COLUMN_WIDTHS;
@@ -72,6 +83,7 @@ export function useColumnResize() {
 
 	const startResize = useCallback(
 		(column: ResizableSortColumn, startX: number) => {
+			stopResize();
 			dragRef.current = {
 				column,
 				startX,

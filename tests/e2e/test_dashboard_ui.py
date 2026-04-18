@@ -155,7 +155,6 @@ def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(ap
     expect = pytest.importorskip("playwright.sync_api").expect
 
     def delayed_snapshot(route: RouteLike) -> None:
-        route.fetch(timeout=5_000)
         app_page.wait_for_timeout(2_000)
         route.continue_()
 
@@ -183,7 +182,6 @@ def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str
     expect = pytest.importorskip("playwright.sync_api").expect
 
     def delayed_snapshot(route: RouteLike) -> None:
-        route.fetch(timeout=5_000)
         page.wait_for_timeout(500)
         route.continue_()
 

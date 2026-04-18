@@ -425,58 +425,58 @@ def _to_str_list(value: object) -> list[str]:
     return output
 
 
-def _parse_match(value: object) -> MatchCriteria:
-    match = _ensure_map(value, "match")
+def _parse_match(value: object, *, section: str = "match") -> MatchCriteria:
+    match = _ensure_map(value, section)
     return MatchCriteria(
         repository_in=_to_str_list(match.get("repository_in")),
         repository_glob=_to_str_list(match.get("repository_glob")),
         reason_in=_to_str_list(match.get("reason_in")),
         subject_type_in=_to_str_list(match.get("subject_type_in")),
         title_contains_any=_to_str_list(match.get("title_contains_any")),
-        title_regex=_get_optional_str(match, "title_regex", "match.title_regex"),
-        unread=_get_optional_bool(match, "unread", "match.unread"),
-        min_score=_get_optional_float(match, "min_score", "match.min_score"),
-        max_age_hours=_get_optional_float(match, "max_age_hours", "match.max_age_hours"),
-        context=_parse_context_predicates(match.get("context", [])),
+        title_regex=_get_optional_str(match, "title_regex", f"{section}.title_regex"),
+        unread=_get_optional_bool(match, "unread", f"{section}.unread"),
+        min_score=_get_optional_float(match, "min_score", f"{section}.min_score"),
+        max_age_hours=_get_optional_float(match, "max_age_hours", f"{section}.max_age_hours"),
+        context=_parse_context_predicates(match.get("context", []), section=f"{section}.context"),
     )
 
 
-def _parse_context_predicates(value: object) -> list[ContextPredicate]:
-    predicates = _ensure_list(value, "match.context")
-    return [_parse_context_predicate(item) for item in predicates]
+def _parse_context_predicates(value: object, *, section: str = "match.context") -> list[ContextPredicate]:
+    predicates = _ensure_list(value, section)
+    return [_parse_context_predicate(item, section=f"{section}[]") for item in predicates]
 
 
-def _parse_context_predicate(value: object) -> ContextPredicate:
-    predicate = _ensure_map(value, "match.context predicate")
+def _parse_context_predicate(value: object, *, section: str = "match.context[]") -> ContextPredicate:
+    predicate = _ensure_map(value, f"{section} predicate")
     path_raw = predicate.get("path")
     if not isinstance(path_raw, str) or not path_raw.strip():
-        msg = "Config field 'match.context[].path' is required."
+        msg = f"Config field '{section}.path' is required."
         raise ValueError(msg)
     op_raw = predicate.get("op")
     if not isinstance(op_raw, str):
         supported = ", ".join(sorted(_CONTEXT_OPERATORS))
-        msg = f"Config field 'match.context[].op' must be one of: {supported}."
+        msg = f"Config field '{section}.op' must be one of: {supported}."
         raise ValueError(msg)
     op = op_raw.strip()
     if op not in _CONTEXT_OPERATORS:
         supported = ", ".join(sorted(_CONTEXT_OPERATORS))
-        msg = f"Config field 'match.context[].op' must be one of: {supported}."
+        msg = f"Config field '{section}.op' must be one of: {supported}."
         raise ValueError(msg)
     predicate_value = predicate.get("value")
     if op == "regex":
         if not isinstance(predicate_value, str):
-            msg = "Config field 'match.context[].value' must be a string when op is 'regex'."
+            msg = f"Config field '{section}.value' must be a string when op is 'regex'."
             raise ValueError(msg)
         try:
             re.compile(predicate_value)
         except re.error as error:
-            msg = f"Config field 'match.context[].value' contains an invalid regex: {error}."
+            msg = f"Config field '{section}.value' contains an invalid regex: {error}."
             raise ValueError(msg) from error
     return ContextPredicate(
         path=path_raw.strip(),
         op=op,
         value=predicate_value,
-        case_insensitive=_get_bool(predicate, "case_insensitive", False, "match.context[].case_insensitive"),
+        case_insensitive=_get_bool(predicate, "case_insensitive", False, f"{section}.case_insensitive"),
     )
 
 
@@ -539,7 +539,7 @@ def _parse_dashboards(value: object) -> list[DashboardSpec]:
 
 def _parse_dashboard_ignore_rules(value: object) -> list[MatchCriteria]:
     rules = _ensure_list(value, "dashboards[].ignore_rules")
-    return [_parse_match(item) for item in rules]
+    return [_parse_match(item, section="dashboards[].ignore_rules[]") for item in rules]
 
 
 def _parse_scoring(value: object) -> ScoringConfig:

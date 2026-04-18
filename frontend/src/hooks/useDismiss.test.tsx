@@ -26,7 +26,7 @@ function Harness({
 		<div>
 			<div data-testid="pending-size">{pending.size}</div>
 			<div data-testid="hidden-size">{hiddenThreadIds.size}</div>
-			<button type="button" onClick={() => dismiss("thread-1")}>
+			<button type="button" onClick={() => dismiss("primary", "thread-1")}>
 				dismiss
 			</button>
 			<button type="button" onClick={undoAll}>
@@ -46,7 +46,7 @@ describe("useDismiss", () => {
 
 		render(
 			<Harness
-				currentThreadIds={new Set(["thread-1"])}
+				currentThreadIds={new Set(["primary:thread-1"])}
 				onRefresh={onRefresh}
 				onError={onError}
 			/>,
@@ -72,7 +72,7 @@ describe("useDismiss", () => {
 
 		render(
 			<Harness
-				currentThreadIds={new Set(["thread-1"])}
+				currentThreadIds={new Set(["primary:thread-1"])}
 				onRefresh={onRefresh}
 				onError={onError}
 			/>,
@@ -98,7 +98,7 @@ describe("useDismiss", () => {
 
 		render(
 			<Harness
-				currentThreadIds={new Set(["thread-1"])}
+				currentThreadIds={new Set(["primary:thread-1"])}
 				onRefresh={onRefresh}
 				onError={onError}
 			/>,

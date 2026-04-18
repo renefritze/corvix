@@ -1,4 +1,8 @@
-"""Local persistence for polled notifications."""
+"""Local persistence for polled notifications.
+
+The JSON cache uses ``fcntl`` advisory locks and is therefore supported on
+Linux/POSIX platforms only.
+"""
 
 from __future__ import annotations
 
@@ -58,13 +62,24 @@ class NotificationCache:
         """Persist records to disk."""
         timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
         with self._exclusive_lock():
-            _, existing_records = self._load_unlocked()
+            try:
+                _, existing_records = self._load_unlocked()
+            except ValueError:
+                existing_records = []
             dismissed_ids = {notification_key(record.notification) for record in existing_records if record.dismissed}
-            if dismissed_ids:
-                for record in records:
-                    if notification_key(record.notification) in dismissed_ids:
-                        record.dismissed = True
-            self._save_unlocked(records=records, generated_at=timestamp)
+            records_to_save = [
+                NotificationRecord(
+                    notification=record.notification,
+                    score=record.score,
+                    excluded=record.excluded,
+                    matched_rules=list(record.matched_rules),
+                    actions_taken=list(record.actions_taken),
+                    dismissed=record.dismissed or notification_key(record.notification) in dismissed_ids,
+                    context=record.context,
+                )
+                for record in records
+            ]
+            self._save_unlocked(records=records_to_save, generated_at=timestamp)
 
     def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
         """Load snapshot from disk if available."""

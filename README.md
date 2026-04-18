@@ -63,6 +63,11 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Coverage is enforced at >=80% lines/functions/branches/statements (`npm --prefix frontend run test:coverage`).
 - Lighthouse audits are run via Docker Compose override (`make lighthouse`).
 
+## Platform Support
+
+- Corvix currently targets Linux/POSIX environments.
+- The JSON cache uses `fcntl` advisory file locks, so the local file-backed storage path is not supported on Windows.
+
 ## Features
 
 - Local GitHub notification ingestion with configurable polling (`poll` and `watch`)

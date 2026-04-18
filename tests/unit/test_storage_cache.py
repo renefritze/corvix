@@ -192,6 +192,31 @@ def test_save_preserves_existing_dismissed_flags(tmp_path: Path) -> None:
     assert by_id["2"].dismissed is False
 
 
+def test_save_does_not_mutate_input_records_when_preserving_dismissed_flags(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    now = datetime.now(tz=UTC)
+    cache.save_records(user_id="u", records=[_make_record("1")], generated_at=now)
+    cache.dismiss_record(user_id="u", thread_id="1")
+
+    records = [_make_record("1")]
+
+    cache.save(records=records, generated_at=now)
+
+    assert records[0].dismissed is False
+
+
+def test_save_recovers_from_invalid_existing_cache(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    cache.path.parent.mkdir(parents=True, exist_ok=True)
+    cache.path.write_text('{"notifications": invalid', encoding="utf-8")
+
+    cache.save(records=[_make_record("1")], generated_at=datetime.now(tz=UTC))
+
+    generated_at, loaded = cache.load()
+    assert generated_at is not None
+    assert [record.notification.thread_id for record in loaded] == ["1"]
+
+
 def test_mark_record_read_sets_unread_false(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     records = [_make_record("1"), _make_record("2")]

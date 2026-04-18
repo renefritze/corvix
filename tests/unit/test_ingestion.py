@@ -51,6 +51,15 @@ def test_fetch_notifications_single_page() -> None:
     assert notifications[1].thread_id == "2"
 
 
+def test_fetch_notifications_use_primary_account_defaults() -> None:
+    client = _client()
+    with patch.object(GitHubNotificationsClient, "_request_json", side_effect=[[_notification_payload("1")], []]):
+        notifications = client.fetch_notifications(_polling())
+
+    assert notifications[0].account_id == "primary"
+    assert notifications[0].account_label == "Primary"
+
+
 def test_fetch_notifications_pagination() -> None:
     client = _client()
     page1 = [_notification_payload("1")]

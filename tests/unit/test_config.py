@@ -288,6 +288,22 @@ rules:
         load_config(config_file)
 
 
+def test_dashboard_ignore_rules_errors_reference_ignore_rules_section(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+dashboards:
+  - name: triage
+    ignore_rules:
+      - min_score: nope
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"dashboards\[\]\.ignore_rules\[\]\.min_score"):
+        load_config(config_file)
+
+
 def test_load_config_non_dict_top_level(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text("hello\n", encoding="utf-8")

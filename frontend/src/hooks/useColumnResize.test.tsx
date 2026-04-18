@@ -50,4 +50,15 @@ describe("useColumnResize", () => {
 			expect(screen.getByTestId("repo-width")).toHaveTextContent("120");
 		});
 	});
+
+	it("clamps too-small stored widths from localStorage", () => {
+		localStorage.setItem(
+			"corvix.table.columnWidths",
+			JSON.stringify({ repository: 10 }),
+		);
+
+		render(<Harness />);
+
+		expect(screen.getByTestId("repo-width")).toHaveTextContent("120");
+	});
 });
