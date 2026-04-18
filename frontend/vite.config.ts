@@ -7,6 +7,21 @@ export default defineConfig(({ mode }) => ({
     outDir: "../src/corvix/web/static/assets",
     emptyOutDir: true,
     cssCodeSplit: false,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        module: true,
+        toplevel: true,
+        passes: 2,
+      },
+      mangle: {
+        module: true,
+        toplevel: true,
+      },
+      format: {
+        comments: false,
+      },
+    },
     lib: {
       entry: "src/main.tsx",
       formats: ["es"],

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import asdict
 from importlib.resources import files
@@ -10,6 +11,8 @@ from pathlib import Path
 
 import uvicorn
 from litestar import Litestar, Response, get, post
+from litestar.config.compression import CompressionConfig
+from litestar.datastructures.headers import CacheControlHeader
 from litestar.exceptions import HTTPException
 from litestar.static_files import create_static_files_router
 
@@ -48,8 +51,27 @@ THEMES: dict[str, dict[str, str]] = {
 
 _STATIC_ROOT = files("corvix.web").joinpath("static")
 _STATIC_ASSETS_DIR = str(_STATIC_ROOT.joinpath("assets"))
+_ASSET_FILENAMES = ("app.js", "index.css", "favicon.svg")
+_ASSET_CACHE_CONTROL = CacheControlHeader(public=True, max_age=31536000, immutable=True)
 
-INDEX_HTML = _STATIC_ROOT.joinpath("index.html").read_text(encoding="utf-8")
+
+def _asset_version_token() -> str:
+    digest = hashlib.sha256()
+    found_asset = False
+    for asset_name in _ASSET_FILENAMES:
+        asset_file = _STATIC_ROOT.joinpath("assets", asset_name)
+        if not asset_file.is_file():
+            continue
+        found_asset = True
+        digest.update(asset_name.encode("utf-8"))
+        digest.update(asset_file.read_bytes())
+    if not found_asset:
+        return "dev"
+    return digest.hexdigest()[:12]
+
+
+_INDEX_HTML_TEMPLATE = _STATIC_ROOT.joinpath("index.html").read_text(encoding="utf-8")
+INDEX_HTML = _INDEX_HTML_TEMPLATE.replace("__ASSET_VERSION__", _asset_version_token())
 
 
 @get("/", sync_to_thread=False)
@@ -245,8 +267,13 @@ app = Litestar(
         dismiss_notification_default_account,
         mark_notification_read,
         mark_notification_read_default_account,
-        create_static_files_router(path="/assets", directories=[_STATIC_ASSETS_DIR]),
+        create_static_files_router(
+            path="/assets",
+            directories=[_STATIC_ASSETS_DIR],
+            cache_control=_ASSET_CACHE_CONTROL,
+        ),
     ],
+    compression_config=CompressionConfig(backend="gzip", minimum_size=500),
 )
 
 

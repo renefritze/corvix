@@ -163,11 +163,34 @@ def test_index_html(client: TestClient) -> None:
     assert "Corvix" in response.text
 
 
+def test_index_html_references_versioned_assets(client: TestClient) -> None:
+    response = client.get("/")
+    assert "/assets/app.js?v=" in response.text
+    assert "/assets/index.css?v=" in response.text
+    assert "/assets/favicon.svg?v=" in response.text
+    assert "__ASSET_VERSION__" not in response.text
+
+
 def test_dashboard_path_serves_spa_shell(client: TestClient) -> None:
     response = client.get("/dashboards/triage")
     assert response.status_code == HTTPStatus.OK
     assert "text/html" in response.headers["content-type"]
     assert "Corvix" in response.text
+
+
+def test_assets_are_served_with_long_lived_cache_control(client: TestClient) -> None:
+    response = client.get("/assets/app.js")
+    assert response.status_code == HTTPStatus.OK
+    cache_control = response.headers.get("cache-control", "")
+    assert "public" in cache_control
+    assert "max-age=31536000" in cache_control
+    assert "immutable" in cache_control
+
+
+def test_assets_are_served_with_gzip_compression(client: TestClient) -> None:
+    response = client.get("/assets/app.js", headers={"Accept-Encoding": "gzip"})
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers.get("content-encoding") == "gzip"
 
 
 def test_index_html_is_spa_shell() -> None:
