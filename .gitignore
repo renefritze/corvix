@@ -54,6 +54,7 @@ frontend/coverage/
 .coverage
 .coverage.*
 .cache
+.lighthouseci/
 nosetests.xml
 coverage.xml
 *.cover

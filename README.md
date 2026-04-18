@@ -46,6 +46,12 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
     npm --prefix frontend run test:coverage
     ```
 
+8. Run blocking Lighthouse audits (Docker only; no local npm/node required):
+
+    ```bash
+    make lighthouse
+    ```
+
 ## Frontend Build Contract
 
 - Frontend source-of-truth lives in `frontend/` (`frontend/src/**`).
@@ -55,6 +61,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - `src/corvix/web/static/index.html` is source-maintained and references `/assets/app.js` and `/assets/index.css`.
 - Native frontend tests run with Vitest (`npm --prefix frontend run test -- --run`).
 - Coverage is enforced at >=80% lines/functions/branches/statements (`npm --prefix frontend run test:coverage`).
+- Lighthouse audits are run via Docker Compose override (`make lighthouse`).
 
 ## Features
 

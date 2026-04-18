@@ -194,6 +194,23 @@ jobs:
       run: |-
         uv run --frozen pytest -m "e2e"
 
+  lighthouse-tests:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name
+      == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - name: Run Lighthouse checks with Docker Compose override
+      run: |
+        docker compose -f docker-compose.yml -f docker-compose.lighthouse.yml up --build --abort-on-container-exit --exit-code-from lighthouse lighthouse
+    - name: Upload Lighthouse report artifacts
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+      with:
+        name: lighthouse-reports
+        path: .lighthouseci/
+        if-no-files-found: ignore
+
   tests-status:
     name: tests-status
     if: ${{ always() }}
@@ -202,6 +219,7 @@ jobs:
     - fast-tests
     - integration-tests
     - e2e-tests
+    - lighthouse-tests
     runs-on: ubuntu-24.04
     steps:
     - name: Fail if any required test job failed
@@ -210,17 +228,20 @@ jobs:
         FAST_TESTS_RESULT: ${{ needs.fast-tests.result }}
         INTEGRATION_TESTS_RESULT: ${{ needs.integration-tests.result }}
         E2E_TESTS_RESULT: ${{ needs.e2e-tests.result }}
+        LIGHTHOUSE_TESTS_RESULT: ${{ needs.lighthouse-tests.result }}
       run: |-
         echo "docker-compose-build: ${DOCKER_COMPOSE_BUILD_RESULT}"
         echo "fast-tests: ${FAST_TESTS_RESULT}"
         echo "integration-tests: ${INTEGRATION_TESTS_RESULT}"
         echo "e2e-tests: ${E2E_TESTS_RESULT}"
+        echo "lighthouse-tests: ${LIGHTHOUSE_TESTS_RESULT}"
 
         for result in \
           "${DOCKER_COMPOSE_BUILD_RESULT}" \
           "${FAST_TESTS_RESULT}" \
           "${INTEGRATION_TESTS_RESULT}" \
-          "${E2E_TESTS_RESULT}"; do
+          "${E2E_TESTS_RESULT}" \
+          "${LIGHTHOUSE_TESTS_RESULT}"; do
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
             echo "Detected failing upstream test job result: ${result}"
             exit 1
