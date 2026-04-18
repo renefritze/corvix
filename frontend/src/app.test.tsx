@@ -273,4 +273,89 @@ describe("App", () => {
 			within(unreadFilter).getByRole("option", { name: /Read only/ }),
 		).toBeDisabled();
 	});
+
+	it("shows explicit repo empty state after reading the last unread item", async () => {
+		window.history.pushState({}, "", "/");
+		const firstSnapshot = makeSnapshot({
+			include_read: false,
+			groups: [
+				{
+					name: "org/repo-a",
+					items: [
+						makeItem({
+							thread_id: "1",
+							subject_title: "Last unread",
+							repository: "org/repo-a",
+							unread: true,
+						}),
+					],
+				},
+			],
+			total_items: 1,
+			summary: {
+				unread_items: 1,
+				read_items: 0,
+				group_count: 1,
+				repository_count: 1,
+				reason_count: 1,
+			},
+			dashboard_names: ["overview"],
+		});
+		const secondSnapshot = makeSnapshot({
+			include_read: false,
+			groups: [],
+			total_items: 0,
+			summary: {
+				unread_items: 0,
+				read_items: 0,
+				group_count: 0,
+				repository_count: 0,
+				reason_count: 0,
+			},
+			dashboard_names: ["overview"],
+		});
+
+		let getCount = 0;
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: string | URL | Request, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				getCount += 1;
+				return {
+					ok: true,
+					json: async () => (getCount === 1 ? firstSnapshot : secondSnapshot),
+				} as Response;
+			},
+		);
+
+		const user = userEvent.setup();
+		render(<App />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Last unread" }),
+			).toBeInTheDocument();
+		});
+
+		await user.selectOptions(
+			screen.getByLabelText("Repository filter"),
+			"org/repo-a",
+		);
+		await user.click(screen.getByRole("link", { name: "Last unread" }));
+
+		await waitFor(() => {
+			expect(
+				screen.getByText("No unread notifications in org/repo-a"),
+			).toBeInTheDocument();
+		});
+
+		const repositoryFilter = screen.getByLabelText("Repository filter");
+		expect(repositoryFilter).toHaveValue("org/repo-a");
+		expect(
+			within(repositoryFilter).getByRole("option", {
+				name: "org/repo-a (no unread notifications)",
+			}),
+		).toBeInTheDocument();
+	});
 });

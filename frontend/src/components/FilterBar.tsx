@@ -26,6 +26,12 @@ export function FilterBar({
 	const repositories = Array.from(
 		new Set(items.map((i) => i.repository)),
 	).sort();
+	const selectedRepositoryMissing =
+		filters.repository !== "" && !repositories.includes(filters.repository);
+	const selectedRepositoryLabel =
+		filters.unread === "unread"
+			? `${filters.repository} (no unread notifications)`
+			: `${filters.repository} (no matching notifications)`;
 
 	return (
 		<div class="filter-row">
@@ -70,6 +76,9 @@ export function FilterBar({
 				aria-label="Repository filter"
 			>
 				<option value="">All repositories</option>
+				{selectedRepositoryMissing && (
+					<option value={filters.repository}>{selectedRepositoryLabel}</option>
+				)}
 				{repositories.map((r) => (
 					<option key={r} value={r}>
 						{r}

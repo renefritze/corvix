@@ -281,6 +281,11 @@ export function App() {
 						totalItems={snapshot?.total_items ?? 0}
 						onClearFilters={clearFilters}
 						onRetry={refresh}
+						filterContext={{
+							unread: effectiveUnreadFilter,
+							reason: filters.reason,
+							repository: filters.repository,
+						}}
 					/>
 				) : (
 					<NotificationTable

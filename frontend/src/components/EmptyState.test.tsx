@@ -36,4 +36,30 @@ describe("EmptyState", () => {
 		await user.click(screen.getByRole("button", { name: "Clear filters" }));
 		expect(onClearFilters).toHaveBeenCalledTimes(1);
 	});
+
+	it("renders explicit repository unread empty message", () => {
+		render(
+			<EmptyState
+				hasFilters={true}
+				totalItems={0}
+				onClearFilters={vi.fn()}
+				onRetry={vi.fn()}
+				filterContext={{
+					unread: "unread",
+					reason: "",
+					repository: "org/repo-a",
+				}}
+			/>,
+		);
+
+		expect(
+			screen.getByText("No unread notifications in org/repo-a"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("You're all caught up for this repository."),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Clear filters" }),
+		).toBeInTheDocument();
+	});
 });

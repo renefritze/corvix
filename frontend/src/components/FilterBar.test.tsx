@@ -59,4 +59,25 @@ describe("FilterBar", () => {
 			within(unreadFilter).getByRole("option", { name: "Unread only" }),
 		).not.toBeDisabled();
 	});
+
+	it("keeps selected repository visible when it no longer has unread items", () => {
+		render(
+			<FilterBar
+				filters={{ unread: "unread", reason: "", repository: "org/a" }}
+				includeRead={false}
+				items={[]}
+				onFilterChange={vi.fn()}
+				onClearFilters={vi.fn()}
+				generatedAt={null}
+			/>,
+		);
+
+		const repositoryFilter = screen.getByLabelText("Repository filter");
+		expect(repositoryFilter).toHaveValue("org/a");
+		expect(
+			within(repositoryFilter).getByRole("option", {
+				name: "org/a (no unread notifications)",
+			}),
+		).toBeInTheDocument();
+	});
 });
