@@ -26,10 +26,10 @@ describe("TableRow", () => {
 		expect(screen.getByText("org/repo-a")).toBeInTheDocument();
 
 		await user.click(screen.getByRole("link", { name: "My title" }));
-		expect(onOpenTarget).toHaveBeenCalledWith("t-1");
+		expect(onOpenTarget).toHaveBeenCalledWith("primary", "t-1");
 
 		await user.click(screen.getByRole("button", { name: "Dismiss My title" }));
-		expect(onDismiss).toHaveBeenCalledWith("t-1");
+		expect(onDismiss).toHaveBeenCalledWith("primary", "t-1");
 	});
 
 	it("does not mark already read items as opened", async () => {

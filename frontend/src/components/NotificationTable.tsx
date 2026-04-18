@@ -5,6 +5,7 @@ import type {
 	SortColumn,
 	SortDirection,
 } from "../types";
+import { notificationKey } from "../types";
 import { TableHeader } from "./TableHeader";
 import { TableRow } from "./TableRow";
 
@@ -32,8 +33,8 @@ interface NotificationTableProps {
 	sortColumn: SortColumn;
 	sortDirection: SortDirection;
 	onSort: (col: SortColumn) => void;
-	onDismiss: (threadId: string) => void;
-	onOpenTarget: (threadId: string) => void;
+	onDismiss: (accountId: string, threadId: string) => void;
+	onOpenTarget: (accountId: string, threadId: string) => void;
 	pendingDismissals: Set<string>;
 }
 
@@ -74,11 +75,13 @@ export function NotificationTable({
 						</tr>,
 						...sorted.map((item) => (
 							<TableRow
-								key={item.thread_id}
+								key={notificationKey(item)}
 								item={item}
 								onDismiss={onDismiss}
 								onOpenTarget={onOpenTarget}
-								isPendingDismissal={pendingDismissals.has(item.thread_id)}
+								isPendingDismissal={pendingDismissals.has(
+									notificationKey(item),
+								)}
 							/>
 						)),
 					];

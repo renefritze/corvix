@@ -15,6 +15,8 @@ from corvix.rules import matches_criteria
 class DashboardItem:
     """JSON-friendly notification item for UI rendering."""
 
+    account_id: str
+    account_label: str
     thread_id: str
     repository: str
     reason: str
@@ -32,6 +34,8 @@ class DashboardItem:
         """Create a UI item from a stored notification record."""
         notification = record.notification
         return cls(
+            account_id=notification.account_id,
+            account_label=notification.account_label,
             thread_id=notification.thread_id,
             repository=notification.repository,
             reason=notification.reason,

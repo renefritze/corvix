@@ -4,6 +4,8 @@ export function makeItem(
 	overrides: Partial<DashboardItem> = {},
 ): DashboardItem {
 	return {
+		account_id: "primary",
+		account_label: "Primary",
 		thread_id: "thread-1",
 		repository: "org/repo-a",
 		reason: "mention",

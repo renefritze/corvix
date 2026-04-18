@@ -11,7 +11,7 @@ from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import AppConfig, DashboardSpec, PollingConfig
-from corvix.domain import Notification, NotificationRecord
+from corvix.domain import Notification, NotificationRecord, notification_key
 from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
@@ -52,7 +52,7 @@ class PollCycleInput:
 
     Attributes:
         config: Application configuration.
-        client: GitHub notifications client.
+        clients: GitHub notifications clients.
         cache: Persistent notification cache.
         apply_actions: If ``False``, actions are recorded as dry-run only.
         now: Override the current time (useful for testing).
@@ -60,14 +60,15 @@ class PollCycleInput:
     """
 
     config: AppConfig
-    client: NotificationsClient
     cache: NotificationCache
+    clients: tuple[NotificationsClient, ...] = field(default_factory=tuple)
+    client: NotificationsClient | None = None
     apply_actions: bool = False
     now: datetime | None = None
     notification_targets: list[NotificationTarget] | None = None
 
 
-def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
+def run_poll_cycle(input: PollCycleInput) -> PollingSummary:  # noqa: PLR0915
     """Fetch notifications, score/evaluate, optionally execute actions, and persist cache.
 
     If ``input.notification_targets`` is provided (and
@@ -76,6 +77,10 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     target after saving the snapshot.
     """
     current_time = input.now if input.now is not None else datetime.now(tz=UTC)
+    active_clients = input.clients or ((input.client,) if input.client is not None else ())
+    if not active_clients:
+        msg = "At least one notifications client is required for polling."
+        raise ValueError(msg)
 
     # Load previous snapshot for newness detection before overwriting.
     notif_cfg = input.config.notifications
@@ -83,26 +88,39 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     if notif_cfg.enabled and input.notification_targets:
         _, previous_records = input.cache.load()
 
-    notifications = input.client.fetch_notifications(input.config.polling)
-    web_url_enricher: WebUrlEnricher | None = None
-    if isinstance(input.client, WebUrlEnricher):
-        web_url_enricher = cast(WebUrlEnricher, input.client)
-    resolve_web_urls(
-        notifications,
-        enricher=web_url_enricher,
-    )
+    notifications: list[Notification] = []
+    clients_by_account: dict[str, NotificationsClient] = {}
+    for client in active_clients:
+        fetched = client.fetch_notifications(input.config.polling)
+        notifications.extend(fetched)
+        if fetched:
+            clients_by_account[fetched[0].account_id] = client
+    enrichers_by_account: dict[str, WebUrlEnricher] = {}
+    for client in active_clients:
+        if isinstance(client, WebUrlEnricher):
+            account_id = getattr(client, "account_id", "primary")
+            if isinstance(account_id, str) and account_id:
+                enrichers_by_account[account_id] = cast(WebUrlEnricher, client)
+    for notification in notifications:
+        resolve_web_urls([notification], enricher=enrichers_by_account.get(notification.account_id))
     enrichment_engine = EnrichmentEngine(
         config=input.config.enrichment,
         providers=_build_enrichment_providers(input.config),
     )
-    enrichment_result = enrichment_engine.run(notifications=notifications, client=input.client)
+    enrichment_client = active_clients[0]
+    enrichment_clients: dict[str, JsonFetchClient] = {key: value for key, value in clients_by_account.items()}
+    enrichment_result = enrichment_engine.run(
+        notifications=notifications,
+        client=enrichment_client,
+        clients_by_account=enrichment_clients,
+    )
 
     records: list[NotificationRecord] = []
     excluded = 0
     action_count = 0
     errors: list[str] = []
     for notification in notifications:
-        record_context = enrichment_result.contexts_by_thread_id.get(notification.thread_id, {})
+        record_context = enrichment_result.contexts_by_notification_key.get(notification_key(notification), {})
         score = score_notification(notification=notification, config=input.config.scoring, now=current_time)
         evaluation = evaluate_rules(
             notification=notification,
@@ -118,13 +136,17 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
             matched_rules=evaluation.matched_rules,
             context=record_context,
         )
+        gateway_client = clients_by_account.get(notification.account_id)
+        if gateway_client is None:
+            errors.append(f"No client found for account '{notification.account_id}'.")
+            continue
         action_result = execute_actions(
             notification=notification,
             actions=evaluation.actions,
             context=ActionExecutionContext(
-                gateway=input.client,
+                gateway=gateway_client,
                 apply_actions=input.apply_actions,
-                dismiss_gateway=input.client if isinstance(input.client, DismissGateway) else None,
+                dismiss_gateway=gateway_client if isinstance(gateway_client, DismissGateway) else None,
                 record=record,
             ),
         )
@@ -159,22 +181,24 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     )
 
 
-def run_watch_loop(
+def run_watch_loop(  # noqa: PLR0913
     config: AppConfig,
-    client: NotificationsClient,
     cache: NotificationCache,
     apply_actions: bool,
+    clients: tuple[NotificationsClient, ...] | None = None,
+    client: NotificationsClient | None = None,
     iterations: int | None = None,
 ) -> list[PollingSummary]:
     """Run polling loop suitable for local daemon usage."""
     runs: list[PollingSummary] = []
+    active_clients = clients or ((client,) if client is not None else ())
     iteration = 0
     while iterations is None or iteration < iterations:
         runs.append(
             run_poll_cycle(
                 PollCycleInput(
                     config=config,
-                    client=client,
+                    clients=active_clients,
                     cache=cache,
                     apply_actions=apply_actions,
                 )

@@ -16,7 +16,31 @@ Create a local config file first:
 cp config/corvix.example.yaml config/corvix.yaml
 ```
 
-Set your GitHub token (or provide `GITHUB_TOKEN_FILE`):
+Configure one or more GitHub accounts under `github.accounts`:
+
+```yaml
+github:
+  accounts:
+    - id: work
+      label: Work
+      token_env: GITHUB_TOKEN_WORK
+      api_base_url: https://api.github.com
+    - id: personal
+      label: Personal
+      token_env: GITHUB_TOKEN_PERSONAL
+      api_base_url: https://api.github.com
+```
+
+Set token env vars (or `*_FILE` variants) for each configured account:
+
+```bash
+export GITHUB_TOKEN_WORK=ghp_work_token
+export GITHUB_TOKEN_PERSONAL=ghp_personal_token
+```
+
+Single-account setups are still valid by configuring one account (for example `id: primary`). Corvix merges notifications from all configured accounts into one dashboard/feed.
+
+Legacy top-level fallback keys remain accepted for compatibility:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token
@@ -101,4 +125,10 @@ This starts:
 - `GET /api/dashboards`
 - `GET /dashboards/<name>`
 - `GET /api/snapshot?dashboard=<name>`
+- `POST /api/notifications/{account_id}/{thread_id}/dismiss`
+- `POST /api/notifications/{account_id}/{thread_id}/mark-read`
+
+Compatibility routes for default account are also available:
+
 - `POST /api/notifications/{thread_id}/dismiss`
+- `POST /api/notifications/{thread_id}/mark-read`

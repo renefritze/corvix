@@ -65,8 +65,35 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Optional enrichment pipeline with context-based rule matching (e.g., latest-comment suppressions)
 - Custom scoring model for ranking notifications
 - YAML configuration with example committed and local override ignored by git
+- Multi-account GitHub support with one merged dashboard/feed
 - Litestar website dashboard with periodic auto-refresh
 - Docker Compose setup for `web`, `poller`, and `db`
+
+## Multi-Account Config
+
+Corvix can ingest notifications from multiple GitHub accounts and merge them into one dashboard.
+
+```yaml
+github:
+  accounts:
+    - id: work
+      label: Work
+      token_env: GITHUB_TOKEN_WORK
+      api_base_url: https://api.github.com
+    - id: personal
+      label: Personal
+      token_env: GITHUB_TOKEN_PERSONAL
+      api_base_url: https://api.github.com
+```
+
+Set each token env var (or `<VAR>_FILE`):
+
+```bash
+export GITHUB_TOKEN_WORK=ghp_work_token
+export GITHUB_TOKEN_PERSONAL=ghp_personal_token
+```
+
+Rows remain account-scoped internally, but the UI stays merged (no account-separated dashboards).
 
 ## Quickstart (Docker-only)
 

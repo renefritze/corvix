@@ -9,11 +9,17 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-from corvix.config import AppConfig, load_config, write_default_config
+from corvix.config import AppConfig, GitHubAccountConfig, load_config, write_default_config
 from corvix.db import get_database_url
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
-from corvix.services import PollCycleInput, render_cached_dashboards, run_poll_cycle, run_watch_loop
+from corvix.services import (
+    NotificationsClient,
+    PollCycleInput,
+    render_cached_dashboards,
+    run_poll_cycle,
+    run_watch_loop,
+)
 from corvix.storage import NotificationCache, PostgresStorage
 from corvix.web.app import run as run_web
 
@@ -64,13 +70,12 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
     """Run one poll cycle and persist processed notifications to cache."""
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
-    token = _resolve_token(app_config.github.token_env)
-    client = GitHubNotificationsClient(token=token, api_base_url=app_config.github.api_base_url)
+    clients = _build_clients(app_config.github.accounts)
     cache = NotificationCache(path=app_config.resolve_cache_file())
     summary = run_poll_cycle(
         PollCycleInput(
             config=app_config,
-            client=client,
+            clients=clients,
             cache=cache,
             apply_actions=apply_actions,
         )
@@ -101,12 +106,11 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
     """Run periodic poll cycles, suitable for cron-like local daemon behavior."""
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
-    token = _resolve_token(app_config.github.token_env)
-    client = GitHubNotificationsClient(token=token, api_base_url=app_config.github.api_base_url)
+    clients = _build_clients(app_config.github.accounts)
     cache = NotificationCache(path=app_config.resolve_cache_file())
     summaries = run_watch_loop(
         config=app_config,
-        client=client,
+        clients=clients,
         cache=cache,
         apply_actions=apply_actions,
         iterations=iterations,
@@ -210,6 +214,21 @@ def _resolve_token(token_env: str) -> str:
         return token
     msg = f"Environment variable '{token_env}' (or '{token_env}_FILE') is required for polling GitHub notifications."
     raise click.ClickException(msg)
+
+
+def _build_clients(accounts: list[GitHubAccountConfig]) -> tuple[NotificationsClient, ...]:
+    clients: list[NotificationsClient] = []
+    for account in accounts:
+        token = _resolve_token(account.token_env)
+        clients.append(
+            GitHubNotificationsClient(
+                token=token,
+                api_base_url=account.api_base_url,
+                account_id=account.id,
+                account_label=account.label,
+            )
+        )
+    return tuple(clients)
 
 
 def _config_path_from_context(ctx: click.Context) -> Path:

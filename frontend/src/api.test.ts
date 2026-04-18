@@ -33,7 +33,7 @@ describe("api", () => {
 			json: async () => ({ detail: "cannot dismiss" }),
 		} as Response);
 
-		await expect(dismissNotification("thread 1")).rejects.toThrow(
+		await expect(dismissNotification("primary", "thread 1")).rejects.toThrow(
 			"Dismiss failed (422): cannot dismiss",
 		);
 	});
@@ -47,7 +47,7 @@ describe("api", () => {
 			},
 		} as Response);
 
-		await expect(dismissNotification("thread-2")).rejects.toThrow(
+		await expect(dismissNotification("primary", "thread-2")).rejects.toThrow(
 			"Dismiss failed (400)",
 		);
 	});
@@ -57,9 +57,11 @@ describe("api", () => {
 			ok: true,
 		} as Response);
 
-		await expect(markNotificationRead("thread/3")).resolves.toBeUndefined();
+		await expect(
+			markNotificationRead("primary", "thread/3"),
+		).resolves.toBeUndefined();
 		expect(fetchMock).toHaveBeenCalledWith(
-			"/api/notifications/thread%2F3/mark-read",
+			"/api/notifications/primary/thread%2F3/mark-read",
 			{
 				method: "POST",
 				keepalive: true,

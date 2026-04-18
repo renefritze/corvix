@@ -120,9 +120,17 @@ class Notification:
     thread_url: str | None = None
     subject_url: str | None = None
     web_url: str | None = None
+    account_id: str = "primary"
+    account_label: str = "Primary"
 
     @classmethod
-    def from_api_payload(cls, payload: Mapping[str, object]) -> Notification:
+    def from_api_payload(
+        cls,
+        payload: Mapping[str, object],
+        *,
+        account_id: str = "primary",
+        account_label: str = "Primary",
+    ) -> Notification:
         """Build a notification from a GitHub API response payload."""
         subject = _as_object_map(payload.get("subject"))
         repository = _as_object_map(payload.get("repository"))
@@ -172,6 +180,8 @@ class Notification:
         web_url = _derive_web_url(payload)
 
         return cls(
+            account_id=account_id,
+            account_label=account_label,
             thread_id=thread_id,
             repository=repo_name,
             reason=reason,
@@ -200,6 +210,8 @@ class NotificationRecord:
     def to_dict(self) -> dict[str, object]:
         """Convert to a JSON-serializable dictionary."""
         return {
+            "account_id": self.notification.account_id,
+            "account_label": self.notification.account_label,
             "thread_id": self.notification.thread_id,
             "repository": self.notification.repository,
             "reason": self.notification.reason,
@@ -223,6 +235,8 @@ class NotificationRecord:
         """Parse a stored record."""
         updated_at = _require_non_empty_str(payload, "updated_at", "stored record")
         notification = Notification(
+            account_id=_get_non_empty_str_or_default(payload, "account_id", "primary"),
+            account_label=_get_non_empty_str_or_default(payload, "account_label", "Primary"),
             thread_id=_require_non_empty_str(payload, "thread_id", "stored record"),
             repository=_require_non_empty_str(payload, "repository", "stored record"),
             reason=_require_non_empty_str(payload, "reason", "stored record"),
@@ -243,6 +257,18 @@ class NotificationRecord:
             dismissed=_optional_bool(payload, "dismissed", False, "stored record"),
             context=_optional_context(payload, "context"),
         )
+
+
+def notification_key(notification: Notification) -> str:
+    """Return a stable account-scoped key for a notification."""
+    return f"{notification.account_id}:{notification.thread_id}"
+
+
+def _get_non_empty_str_or_default(payload: Mapping[str, object], key: str, default: str) -> str:
+    value = payload.get(key)
+    if isinstance(value, str) and value:
+        return value
+    return default
 
 
 def _derive_web_url(payload: Mapping[str, object]) -> str | None:

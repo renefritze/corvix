@@ -18,6 +18,7 @@ import { useFilters } from "./hooks/useFilters";
 import { useKeyboard } from "./hooks/useKeyboard";
 import { useSnapshot } from "./hooks/useSnapshot";
 import { useSort } from "./hooks/useSort";
+import { notificationKey } from "./types";
 import type { DashboardItem, SortColumn } from "./types";
 
 const DASHBOARD_PATH_PREFIX = "/dashboards/";
@@ -80,7 +81,7 @@ export function App() {
 	}, [snapshot]);
 
 	const currentThreadIds = useMemo(
-		() => new Set(allItems.map((item) => item.thread_id)),
+		() => new Set(allItems.map((item) => notificationKey(item))),
 		[allItems],
 	);
 
@@ -115,7 +116,7 @@ export function App() {
 			.map((group) => ({
 				...group,
 				items: group.items.filter((item) => {
-					if (hiddenIds.has(item.thread_id)) return false;
+					if (hiddenIds.has(notificationKey(item))) return false;
 					if (effectiveUnreadFilter !== "all") {
 						if (effectiveUnreadFilter === "unread" && !item.unread)
 							return false;
@@ -138,13 +139,14 @@ export function App() {
 	const handleDismissFocused = useCallback(() => {
 		const focused = document.activeElement as HTMLElement | null;
 		const row = focused?.closest<HTMLTableRowElement>("tr[data-thread-id]");
+		const accountId = row?.dataset.accountId;
 		const threadId = row?.dataset.threadId;
-		if (threadId) dismiss(threadId);
+		if (accountId && threadId) dismiss(accountId, threadId);
 	}, [dismiss]);
 
 	const handleOpenTarget = useCallback(
-		(threadId: string) => {
-			void markNotificationRead(threadId)
+		(accountId: string, threadId: string) => {
+			void markNotificationRead(accountId, threadId)
 				.then(() => refresh())
 				.catch((err: unknown) => {
 					setToastError(

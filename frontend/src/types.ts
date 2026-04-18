@@ -1,4 +1,6 @@
 export interface DashboardItem {
+	account_id: string;
+	account_label: string;
 	thread_id: string;
 	repository: string;
 	reason: string;
@@ -64,4 +66,10 @@ export interface FilterState {
 	unread: "all" | "unread" | "read";
 	reason: string;
 	repository: string;
+}
+
+export function notificationKey(
+	item: Pick<DashboardItem, "account_id" | "thread_id">,
+): string {
+	return `${item.account_id}:${item.thread_id}`;
 }

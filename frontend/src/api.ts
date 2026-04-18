@@ -11,9 +11,12 @@ export async function fetchSnapshot(
 	return res.json() as Promise<SnapshotPayload>;
 }
 
-export async function dismissNotification(threadId: string): Promise<void> {
+export async function dismissNotification(
+	accountId: string,
+	threadId: string,
+): Promise<void> {
 	const res = await fetch(
-		`/api/notifications/${encodeURIComponent(threadId)}/dismiss`,
+		`/api/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/dismiss`,
 		{ method: "POST" },
 	);
 	if (!res.ok) {
@@ -31,9 +34,12 @@ export async function dismissNotification(threadId: string): Promise<void> {
 	}
 }
 
-export async function markNotificationRead(threadId: string): Promise<void> {
+export async function markNotificationRead(
+	accountId: string,
+	threadId: string,
+): Promise<void> {
 	const res = await fetch(
-		`/api/notifications/${encodeURIComponent(threadId)}/mark-read`,
+		`/api/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/mark-read`,
 		{ method: "POST", keepalive: true },
 	);
 	if (!res.ok) throw new Error(`Mark read failed: ${res.status}`);

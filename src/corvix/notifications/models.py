@@ -16,7 +16,7 @@ class NotificationEvent:
     """
 
     event_id: str
-    """Stable identifier: ``{thread_id}``. Unique per GitHub thread."""
+    """Stable identifier: ``{account_id}:{thread_id}``."""
 
     thread_id: str
     repository: str
@@ -27,6 +27,7 @@ class NotificationEvent:
     updated_at: datetime
     score: float
     unread: bool
+    account_id: str = "primary"
 
 
 @dataclass(slots=True)

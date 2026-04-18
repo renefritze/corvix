@@ -77,6 +77,8 @@ class GitHubNotificationsClient:
 
     token: str
     api_base_url: str = "https://api.github.com"
+    account_id: str = "default"
+    account_label: str = "default"
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
         """Fetch notifications with pagination."""
@@ -86,7 +88,14 @@ class GitHubNotificationsClient:
             raw = self._fetch_page(polling=polling, page=page)
             if not raw:
                 break
-            notifications.extend(Notification.from_api_payload(payload) for payload in raw)
+            notifications.extend(
+                Notification.from_api_payload(
+                    payload,
+                    account_id=self.account_id,
+                    account_label=self.account_label,
+                )
+                for payload in raw
+            )
             page += 1
         return notifications
 

@@ -12,8 +12,8 @@ function relativeTime(iso: string): string {
 
 interface TableRowProps {
 	item: DashboardItem;
-	onDismiss: (threadId: string) => void;
-	onOpenTarget: (threadId: string) => void;
+	onDismiss: (accountId: string, threadId: string) => void;
+	onOpenTarget: (accountId: string, threadId: string) => void;
 	isPendingDismissal: boolean;
 }
 
@@ -28,7 +28,7 @@ export function TableRow({
 
 	function handleOpenTarget() {
 		if (!item.unread) return;
-		onOpenTarget(item.thread_id);
+		onOpenTarget(item.account_id, item.thread_id);
 	}
 
 	function handleTitleClick() {
@@ -42,6 +42,7 @@ export function TableRow({
 
 	return (
 		<tr
+			data-account-id={item.account_id}
 			data-thread-id={item.thread_id}
 			tabIndex={0}
 			class={[
@@ -71,7 +72,7 @@ export function TableRow({
 					<span class="title-link">{item.subject_title}</span>
 				)}
 				<div class="title-meta">
-					{`${scoreLabel} · ${updatedLabel} · ${item.subject_type} · ${item.reason}`}
+					{`${item.account_label} · ${scoreLabel} · ${updatedLabel} · ${item.subject_type} · ${item.reason}`}
 				</div>
 			</td>
 			<td class="col-repository" data-label="Repository">
@@ -94,7 +95,7 @@ export function TableRow({
 					type="button"
 					class="dismiss-btn"
 					aria-label={`Dismiss ${item.subject_title}`}
-					onClick={() => onDismiss(item.thread_id)}
+					onClick={() => onDismiss(item.account_id, item.thread_id)}
 				>
 					✕
 				</button>

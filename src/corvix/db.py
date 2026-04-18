@@ -39,10 +39,12 @@ class NotificationRecordRow(Base):
     """Persisted notification record scoped to a user."""
 
     __tablename__ = "notification_records"
-    __table_args__ = (UniqueConstraint("user_id", "thread_id"),)
+    __table_args__ = (UniqueConstraint("user_id", "account_id", "thread_id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    account_label: Mapped[str] = mapped_column(Text, nullable=False)
     thread_id: Mapped[str] = mapped_column(Text, nullable=False)
     repository: Mapped[str] = mapped_column(Text, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
