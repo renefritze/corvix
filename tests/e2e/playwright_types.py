@@ -20,6 +20,13 @@ class LocatorLike(Protocol):
 
     def select_option(self, value: str) -> None: ...
 
+    def screenshot(
+        self,
+        *,
+        path: str | None = None,
+        animations: Literal["disabled", "allow"] | None = None,
+    ) -> bytes: ...
+
 
 class KeyboardLike(Protocol):
     def press(self, key: str) -> None: ...
@@ -41,7 +48,14 @@ class RouteLike(Protocol):
 class PageLike(Protocol):
     keyboard: KeyboardLike
 
-    def goto(self, url: str) -> None: ...
+    def add_init_script(self, script: str) -> None: ...
+
+    def goto(
+        self,
+        url: str,
+        *,
+        wait_until: Literal["commit", "domcontentloaded", "load", "networkidle"] | None = None,
+    ) -> None: ...
 
     def wait_for_selector(self, selector: str) -> LocatorLike: ...
 
@@ -71,5 +85,9 @@ class PageLike(Protocol):
     def wait_for_timeout(self, timeout: float) -> None: ...
 
     def set_viewport_size(self, viewport: dict[str, int]) -> None: ...
+
+    def wait_for_function(self, expression: str) -> object: ...
+
+    def add_style_tag(self, *, content: str) -> None: ...
 
     def reload(self) -> None: ...
