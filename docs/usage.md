@@ -1,22 +1,35 @@
 # Usage
 
-```{toctree}
----
-hidden: true
-maxdepth: 1
----
-examples/basic
-```
+Corvix is run with Docker Compose only for local runtime and end-to-end testing.
 
-## Configuration
+## Start the stack
 
-Create a local config file first:
+Create config and secrets:
 
 ```bash
 cp config/corvix.example.yaml config/corvix.yaml
+cp secrets/github_token.txt.example secrets/github_token.txt
+cp secrets/postgres_password.txt.example secrets/postgres_password.txt
+cp secrets/database_url.txt.example secrets/database_url.txt
 ```
 
-Configure one or more GitHub accounts under `github.accounts`:
+Fill in these files before starting services:
+
+- `secrets/github_token.txt` - GitHub PAT with notifications access
+- `secrets/postgres_password.txt` - PostgreSQL password
+- `secrets/database_url.txt` - SQLAlchemy PostgreSQL URL matching the password
+
+Start all services:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:8000`.
+
+## Core configuration
+
+Configure one or more GitHub accounts in `config/corvix.yaml`:
 
 ```yaml
 github:
@@ -31,31 +44,22 @@ github:
       api_base_url: https://api.github.com
 ```
 
-Set token env vars (or `*_FILE` variants) for each configured account:
+Single-account setups are valid by keeping a single account entry.
 
-```bash
-export GITHUB_TOKEN_WORK=ghp_work_token
-export GITHUB_TOKEN_PERSONAL=ghp_personal_token
-```
+### Enrichment
 
-Single-account setups are still valid by configuring one account (for example `id: primary`). Corvix merges notifications from all configured accounts into one dashboard/feed.
-
-Legacy top-level fallback keys remain accepted for compatibility:
-
-```bash
-export GITHUB_TOKEN=ghp_your_token
-```
-
-Enable comment enrichment if you want context-based suppression rules:
+Enable enrichment before rule evaluation:
 
 ```yaml
 enrichment:
   enabled: true
   github_latest_comment:
     enabled: true
+  github_pr_state:
+    enabled: true
 ```
 
-Example context-based rule:
+Example context-based suppression rule:
 
 ```yaml
 rules:
@@ -72,63 +76,35 @@ rules:
       exclude_from_dashboards: true
 ```
 
-## CLI
+### Notifications dispatch
 
-Run one poll cycle (dry-run actions by default):
+Notification event detection and delivery targets are configured under `notifications`:
 
-```bash
-uv run corvix --config config/corvix.yaml poll
+```yaml
+notifications:
+  enabled: true
+  detect:
+    include_read: false
+    min_score: 0.0
+  browser_tab:
+    enabled: true
+    max_per_cycle: 5
+    cooldown_seconds: 10
+  web_push:
+    enabled: false
+    vapid_public_key_env: CORVIX_VAPID_PUBLIC_KEY
+    vapid_private_key_env: CORVIX_VAPID_PRIVATE_KEY
+    subject: ""
 ```
-
-Run the watch loop:
-
-```bash
-uv run corvix --config config/corvix.yaml watch
-```
-
-Render cached dashboards in the terminal:
-
-```bash
-uv run corvix --config config/corvix.yaml dashboard
-```
-
-Serve the web UI:
-
-```bash
-uv run corvix --config config/corvix.yaml serve --reload
-```
-
-Import JSON cache records into PostgreSQL:
-
-```bash
-uv run corvix --config config/corvix.yaml migrate-cache --user-id YOUR_UUID
-```
-
-## Docker Compose (local end-to-end)
-
-For local end-to-end testing, use Docker Compose:
-
-```bash
-docker compose up --build
-```
-
-This starts:
-
-- `web` on `http://localhost:8000`
-- `poller` running `corvix watch`
-- `db` (PostgreSQL 16)
 
 ## Web API
 
 - `GET /api/health`
 - `GET /api/themes`
 - `GET /api/dashboards`
-- `GET /dashboards/<name>`
+- `GET /dashboards/{dashboard_name}`
 - `GET /api/snapshot?dashboard=<name>`
 - `POST /api/notifications/{account_id}/{thread_id}/dismiss`
-- `POST /api/notifications/{account_id}/{thread_id}/mark-read`
-
-Compatibility routes for default account are also available:
-
 - `POST /api/notifications/{thread_id}/dismiss`
+- `POST /api/notifications/{account_id}/{thread_id}/mark-read`
 - `POST /api/notifications/{thread_id}/mark-read`

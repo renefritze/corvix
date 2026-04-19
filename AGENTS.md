@@ -54,17 +54,19 @@ Corvix fetches GitHub notifications, scores and filters them via configurable ru
 ### Core modules
 
 - **`domain.py`** — `Notification` (raw API data) and `NotificationRecord` (scored + rule-evaluated wrapper). The central data structures passed through all layers.
-- **`config.py`** — YAML-based configuration parsed into dataclasses. `AppConfig` is the root; it holds `GitHubConfig`, `PollingConfig`, `ScoringConfig`, `RuleSet`, `DashboardSpec[]`, and `StateConfig`.
-- **`ingestion.py`** — `GitHubNotificationsClient`: paginated GitHub API fetch and `mark_thread_read()`.
+- **`config.py`** — YAML-based configuration parsed into dataclasses. `AppConfig` is the root; it holds `GitHubConfig`, `PollingConfig`, `ScoringConfig`, `RuleSet`, `DashboardSpec[]`, `StateConfig`, and `NotificationsConfig`.
+- **`ingestion.py`** — `GitHubNotificationsClient`: paginated GitHub API fetch, `mark_thread_read()`, and `dismiss_thread()`.
 - **`scoring.py`** — Pure function `score_notification()`. Weights for unread bonus, reason, repo, subject type, title keywords, and age decay.
 - **`rules.py`** — Pure function `evaluate_rules()`. Matches notifications against `MatchCriteria` (repo, reason, subject_type, title regex, unread, score, age). Rules can exclude from dashboards or trigger actions.
-- **`actions.py`** — `execute_actions()` runs rule-specified actions (`mark_read`). Uses `MarkReadGateway` protocol for testability. Default mode is dry-run; pass `apply_actions=True` to actually modify GitHub state.
+- **`actions.py`** — `execute_actions()` runs rule-specified actions (`mark_read`, `dismiss`). Uses `MarkReadGateway`/`DismissGateway` protocols for testability. Default mode is dry-run; pass `apply_actions=True` to actually modify GitHub state.
 - **`storage.py`** — `NotificationCache`: reads/writes `list[NotificationRecord]` as JSON to `~/.cache/corvix/notifications.json`.
-- **`services.py`** — Orchestration: `run_poll_cycle()` wires fetch→score→rules→actions→persist; `run_watch_loop()` adds periodic scheduling; `render_cached_dashboards()` loads cache and renders without polling.
+- **`services.py`** — Orchestration: `run_poll_cycle()` wires fetch→enrichment→score→rules→actions→persist and optional notification dispatch; `run_watch_loop()` adds periodic scheduling; `render_cached_dashboards()` loads cache and renders without polling.
+- **`notifications/`** — Event detection and dispatch pipeline (`detector.py`, `dispatcher.py`, `models.py`, `targets/base.py`) for newly-unread notifications.
+- **`enrichment/`** — Enrichment engine and providers (`github_latest_comment`, `github_pr_state`) for context-aware rule matching.
 - **`dashboarding.py`** — `build_dashboard_data()` filters, sorts, groups, and limits records per `DashboardSpec`. Used by both CLI and web.
 - **`presentation.py`** — Rich-based terminal rendering of dashboard groups.
-- **`web/app.py`** — Litestar app. Routes: `GET /` (SPA), `GET /api/health`, `GET /api/dashboards`, `GET /api/snapshot?dashboard=<name>`. UI auto-refreshes every 15s.
-- **`cli.py`** — Typer/Click CLI: `init-config`, `poll`, `watch`, `dashboard`, `serve`.
+- **`web/app.py`** — Litestar app. Routes include `GET /`, `GET /dashboards/{dashboard_name}`, `GET /api/health`, `GET /api/themes`, `GET /api/dashboards`, `GET /api/snapshot`, and dismiss/mark-read POST endpoints. UI auto-refreshes every 15s.
+- **`cli.py`** — Click CLI: `init-config`, `poll`, `watch`, `dashboard`, `serve`, `migrate-cache`.
 
 ### Docker Compose
 
@@ -76,4 +78,4 @@ Three services share a `corvix_state` volume (`/data/notifications.json`):
 
 ### Configuration
 
-Copy `config/corvix.example.yaml` to `config/corvix.yaml` (gitignored). GitHub token is read from the env var named in `github.token_env` (default `GITHUB_TOKEN`). Run `corvix init-config` to generate a starter file.
+Copy `config/corvix.example.yaml` to `config/corvix.yaml` (gitignored). Configure one or more GitHub accounts under `github.accounts`; each account reads its token from the configured `token_env` (or `token_env_FILE`). Run `corvix init-config` to generate a starter file.

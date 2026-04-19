@@ -4,53 +4,53 @@
 
 Github notifications dashboards
 
-## Installation and Development
+## Run with Docker Compose
 
-This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Python package management. To get started:
+Corvix local runtime and end-to-end testing are Docker Compose only.
 
-1. Install uv.
-
-2. Install the package with development dependencies:
+1. Create local config and secret files:
 
     ```bash
-    uv sync
+    cp config/corvix.example.yaml config/corvix.yaml
+    cp secrets/github_token.txt.example secrets/github_token.txt
+    cp secrets/postgres_password.txt.example secrets/postgres_password.txt
+    cp secrets/database_url.txt.example secrets/database_url.txt
     ```
 
-3. Run tests:
+2. Edit secret files:
+
+- `secrets/github_token.txt`: your GitHub PAT.
+- `secrets/postgres_password.txt`: strong DB password.
+- `secrets/database_url.txt`: full SQLAlchemy/PostgreSQL URL (must match DB credentials).
+
+1. Start services:
 
     ```bash
-    uv run pytest
+    docker compose up --build
     ```
 
-4. Run linting:
+2. Open `http://localhost:8000`.
 
-    ```bash
-    uv run ruff check .
-    ```
+Notes:
 
-5. Build frontend assets (required before running tests locally):
+- Frontend assets are built as part of Docker image build.
+- Rebuild images after frontend source changes.
+- `poller` updates the shared `/data/notifications.json` cache.
+- `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
 
-    ```bash
-    make frontend-build
-    ```
+## Contributor Tooling
 
-6. Run native frontend tests:
+This project uses [uv](https://github.com/astral-sh/uv) for development workflows:
 
-    ```bash
-    npm --prefix frontend run test -- --run
-    ```
-
-7. Check frontend coverage (enforced at >=80% lines/functions/branches/statements):
-
-    ```bash
-    npm --prefix frontend run test:coverage
-    ```
-
-8. Run blocking Lighthouse audits (Docker only; no local npm/node required):
-
-    ```bash
-    make lighthouse
-    ```
+```bash
+uv sync
+uv run pytest
+uv run ruff check .
+make frontend-build
+npm --prefix frontend run test -- --run
+npm --prefix frontend run test:coverage
+make lighthouse
+```
 
 ## Frontend Build Contract
 
@@ -107,48 +107,7 @@ export GITHUB_TOKEN_PERSONAL=ghp_personal_token
 
 Rows remain account-scoped internally, but the UI stays merged (no account-separated dashboards).
 
-## Quickstart (Docker-only)
-
-> Full details: [docs/quickstart.md](docs/quickstart.md)
-
-1. Create local config from the committed example:
-
-    ```bash
-    cp config/corvix.example.yaml config/corvix.yaml
-    ```
-
-## Docker Compose
-
-1. Copy config and Docker secret templates:
-
-    ```bash
-    cp config/corvix.example.yaml config/corvix.yaml
-    cp secrets/github_token.txt.example secrets/github_token.txt
-    cp secrets/postgres_password.txt.example secrets/postgres_password.txt
-    cp secrets/database_url.txt.example secrets/database_url.txt
-    ```
-
-2. Edit secret files:
-
-- `secrets/github_token.txt`: your GitHub PAT.
-- `secrets/postgres_password.txt`: strong DB password.
-- `secrets/database_url.txt`: full SQLAlchemy/PostgreSQL URL (must match DB credentials).
-
-1. Start services:
-
-    ```bash
-    docker compose up --build
-    ```
-
-2. Open `http://localhost:8000`.
-
-Notes:
-
-- Local runtime/testing is Docker Compose only.
-- Frontend assets are built as part of the Docker image build (`docker compose up --build`).
-- Frontend source changes require rebuilding images (`docker compose up --build`) to refresh generated bundles.
-- `poller` runs the notification watch loop and updates the shared `/data/notifications.json`.
-- `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
+See [docs/quickstart.md](docs/quickstart.md) and [docs/usage.md](docs/usage.md) for complete runtime documentation.
 
 ## Dashboards
 

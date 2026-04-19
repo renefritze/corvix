@@ -7,7 +7,6 @@ caption: 'Contents:'
 ---
 readme
 quickstart
-installation
 usage
 new_notification_target
 spec

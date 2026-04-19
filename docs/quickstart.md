@@ -2,33 +2,10 @@
 
 ## Prerequisites
 
-- Python 3.13+
-- [uv](https://github.com/astral-sh/uv) for package management
 - A GitHub Personal Access Token (PAT) with `notifications` scope
+- Docker and Docker Compose
 
-## Local setup (tooling only)
-
-1. Clone the repository and install dependencies:
-
-    ```bash
-    git clone https://github.com/renefritze/corvix.git
-    cd corvix
-    uv sync
-    ```
-
-   Build frontend assets:
-
-    ```bash
-    make frontend-build
-    ```
-
-2. Create your local config from the committed example:
-
-    ```bash
-    cp config/corvix.example.yaml config/corvix.yaml
-    ```
-
-## Docker Compose setup (required for local runtime/testing)
+## Docker Compose setup
 
 1. Copy config and secret templates:
 
@@ -57,4 +34,4 @@
 
 - Tune rules and scoring in `config/corvix.yaml`
 - See [Dashboards](https://github.com/renefritze/corvix#dashboards) for the built-in dashboard descriptions
-- Run `uv run corvix --help` to explore all CLI commands
+- Use `docker compose logs -f web` and `docker compose logs -f poller` when troubleshooting
