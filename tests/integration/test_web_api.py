@@ -163,6 +163,36 @@ def test_index_html(client: TestClient) -> None:
     assert "Corvix" in response.text
 
 
+def test_index_html_references_versioned_assets(client: TestClient) -> None:
+    response = client.get("/")
+    assert "/assets/app.js?v=" in response.text
+    assert "/assets/index.css?v=" in response.text
+    assert "/assets/favicon.svg?v=" in response.text
+    assert "__ASSET_VERSION__" not in response.text
+
+
+def test_dashboard_path_serves_spa_shell(client: TestClient) -> None:
+    response = client.get("/dashboards/triage")
+    assert response.status_code == HTTPStatus.OK
+    assert "text/html" in response.headers["content-type"]
+    assert "Corvix" in response.text
+
+
+def test_assets_are_served_with_long_lived_cache_control(client: TestClient) -> None:
+    response = client.get("/assets/app.js")
+    assert response.status_code == HTTPStatus.OK
+    cache_control = response.headers.get("cache-control", "")
+    assert "public" in cache_control
+    assert "max-age=31536000" in cache_control
+    assert "immutable" in cache_control
+
+
+def test_assets_are_served_with_gzip_compression(client: TestClient) -> None:
+    response = client.get("/assets/app.js", headers={"Accept-Encoding": "gzip"})
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers.get("content-encoding") == "gzip"
+
+
 def test_index_html_is_spa_shell() -> None:
     assert '<div id="app">' in INDEX_HTML
     assert "Corvix" in INDEX_HTML
@@ -193,6 +223,9 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
+    assert payload["include_read"] is False
+    assert payload["sort_by"] == "score"
+    assert payload["descending"] is True
     assert "groups" in payload
     assert "total_items" in payload
     assert "dashboard_names" in payload
@@ -202,7 +235,9 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
 def test_snapshot_selects_by_name(configured_client: TestClient) -> None:
     response = configured_client.get("/api/snapshot?dashboard=triage")
     assert response.status_code == HTTPStatus.OK
-    assert response.json()["name"] == "triage"
+    payload = response.json()
+    assert payload["name"] == "triage"
+    assert payload["include_read"] is False
 
 
 def test_snapshot_unknown_dashboard_returns_404(configured_client: TestClient) -> None:
@@ -222,6 +257,7 @@ def test_snapshot_with_notifications(populated_client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "overview"
+    assert payload["include_read"] is True
     assert payload["total_items"] == EXPECTED_POPULATED_TOTAL_ITEMS
     assert len(payload["groups"]) == EXPECTED_POPULATED_GROUPS
     assert sum(len(group["items"]) for group in payload["groups"]) == EXPECTED_POPULATED_TOTAL_ITEMS
@@ -240,6 +276,7 @@ def test_snapshot_respects_dashboard_filters(populated_client: TestClient) -> No
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
+    assert payload["include_read"] is True
     reasons = [item["reason"] for group in payload["groups"] for item in group["items"]]
     assert reasons
     assert set(reasons) == {"mention"}

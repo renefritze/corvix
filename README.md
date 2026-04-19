@@ -34,6 +34,24 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
     make frontend-build
     ```
 
+6. Run native frontend tests:
+
+    ```bash
+    npm --prefix frontend run test -- --run
+    ```
+
+7. Check frontend coverage (enforced at >=80% lines/functions/branches/statements):
+
+    ```bash
+    npm --prefix frontend run test:coverage
+    ```
+
+8. Run blocking Lighthouse audits (Docker only; no local npm/node required):
+
+    ```bash
+    make lighthouse
+    ```
+
 ## Frontend Build Contract
 
 - Frontend source-of-truth lives in `frontend/` (`frontend/src/**`).
@@ -41,6 +59,14 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Build output is generated into `src/corvix/web/static/assets/`.
 - Generated bundles are not committed to git.
 - `src/corvix/web/static/index.html` is source-maintained and references `/assets/app.js` and `/assets/index.css`.
+- Native frontend tests run with Vitest (`npm --prefix frontend run test -- --run`).
+- Coverage is enforced at >=80% lines/functions/branches/statements (`npm --prefix frontend run test:coverage`).
+- Lighthouse audits are run via Docker Compose override (`make lighthouse`).
+
+## Platform Support
+
+- Corvix currently targets Linux/POSIX environments.
+- The JSON cache uses `fcntl` advisory file locks, so the local file-backed storage path is not supported on Windows.
 
 ## Features
 
@@ -51,8 +77,35 @@ This project uses [uv](https://github.com/astral-sh/uv) for fast, reliable Pytho
 - Optional enrichment pipeline with context-based rule matching (e.g., latest-comment suppressions)
 - Custom scoring model for ranking notifications
 - YAML configuration with example committed and local override ignored by git
+- Multi-account GitHub support with one merged dashboard/feed
 - Litestar website dashboard with periodic auto-refresh
 - Docker Compose setup for `web`, `poller`, and `db`
+
+## Multi-Account Config
+
+Corvix can ingest notifications from multiple GitHub accounts and merge them into one dashboard.
+
+```yaml
+github:
+  accounts:
+    - id: work
+      label: Work
+      token_env: GITHUB_TOKEN_WORK
+      api_base_url: https://api.github.com
+    - id: personal
+      label: Personal
+      token_env: GITHUB_TOKEN_PERSONAL
+      api_base_url: https://api.github.com
+```
+
+Set each token env var (or `<VAR>_FILE`):
+
+```bash
+export GITHUB_TOKEN_WORK=ghp_work_token
+export GITHUB_TOKEN_PERSONAL=ghp_personal_token
+```
+
+Rows remain account-scoped internally, but the UI stays merged (no account-separated dashboards).
 
 ## Quickstart (Docker-only)
 

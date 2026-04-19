@@ -1,9 +1,18 @@
+import type { FilterState } from "../types";
+
+interface EmptyStateFilterContext {
+	unread: FilterState["unread"];
+	reason: string;
+	repository: string;
+}
+
 interface EmptyStateProps {
 	hasFilters: boolean;
 	totalItems: number;
 	onClearFilters: () => void;
 	onRetry: () => void;
 	error?: string | null;
+	filterContext?: EmptyStateFilterContext;
 }
 
 export function EmptyState({
@@ -12,6 +21,7 @@ export function EmptyState({
 	onClearFilters,
 	onRetry,
 	error,
+	filterContext,
 }: EmptyStateProps) {
 	if (error) {
 		return (
@@ -24,6 +34,33 @@ export function EmptyState({
 			</div>
 		);
 	}
+
+	if (hasFilters) {
+		let title = "No results";
+		let body = "No notifications match the current filters.";
+
+		if (filterContext?.unread === "unread" && filterContext.repository !== "") {
+			title = `No unread notifications in ${filterContext.repository}`;
+			body = "You're all caught up for this repository.";
+		} else if (filterContext?.repository) {
+			title = `No notifications in ${filterContext.repository}`;
+			body = "No notifications in this repository match your filters.";
+		} else if (filterContext?.unread === "unread") {
+			title = "No unread notifications";
+			body = "You're all caught up for the current filters.";
+		}
+
+		return (
+			<div class="empty-state">
+				<p class="empty-title">{title}</p>
+				<p class="empty-body">{body}</p>
+				<button type="button" onClick={onClearFilters}>
+					Clear filters
+				</button>
+			</div>
+		);
+	}
+
 	if (totalItems === 0) {
 		return (
 			<div class="empty-state">
@@ -36,11 +73,6 @@ export function EmptyState({
 		<div class="empty-state">
 			<p class="empty-title">No results</p>
 			<p class="empty-body">No notifications match the current filters.</p>
-			{hasFilters && (
-				<button type="button" onClick={onClearFilters}>
-					Clear filters
-				</button>
-			)}
 		</div>
 	);
 }

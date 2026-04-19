@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 from datetime import UTC, datetime
 from unittest.mock import patch
+from urllib import error as url_error
 
 import pytest
 
@@ -47,6 +49,15 @@ def test_fetch_notifications_single_page() -> None:
     assert len(notifications) == 2
     assert notifications[0].thread_id == "1"
     assert notifications[1].thread_id == "2"
+
+
+def test_fetch_notifications_use_primary_account_defaults() -> None:
+    client = _client()
+    with patch.object(GitHubNotificationsClient, "_request_json", side_effect=[[_notification_payload("1")], []]):
+        notifications = client.fetch_notifications(_polling())
+
+    assert notifications[0].account_id == "primary"
+    assert notifications[0].account_label == "Primary"
 
 
 def test_fetch_notifications_pagination() -> None:
@@ -97,13 +108,48 @@ def test_mark_thread_read_calls_patch() -> None:
 
 def test_dismiss_thread_calls_delete() -> None:
     client = _client()
-    with patch.object(GitHubNotificationsClient, "_request_no_content") as mock_req:
+    with patch.object(GitHubNotificationsClient, "_request_no_content_with_backoff") as mock_req:
         client.dismiss_thread("789")
     mock_req.assert_called_once()
     url = mock_req.call_args[0][0]
     method = mock_req.call_args.kwargs["method"]
     assert "threads/789" in url
     assert method == "DELETE"
+
+
+def test_dismiss_thread_retries_on_rate_limit() -> None:
+    client = _client()
+    err = url_error.HTTPError(
+        url="https://api.example.com/notifications/threads/789",
+        code=429,
+        msg="Too Many Requests",
+        hdrs={"Retry-After": "0"},
+        fp=io.BytesIO(b'{"message":"secondary rate limit"}'),
+    )
+    with (
+        patch.object(GitHubNotificationsClient, "_request_no_content", side_effect=[err, None]) as mock_req,
+        patch("corvix.ingestion.time.sleep") as mock_sleep,
+    ):
+        client.dismiss_thread("789")
+    assert mock_req.call_count == 2
+    mock_sleep.assert_called_once()
+
+
+def test_dismiss_thread_surfaces_error_message() -> None:
+    client = _client()
+    err = url_error.HTTPError(
+        url="https://api.example.com/notifications/threads/789",
+        code=403,
+        msg="Forbidden",
+        hdrs={},
+        fp=io.BytesIO(b'{"message":"You have exceeded a secondary rate limit."}'),
+    )
+    with (
+        patch.object(GitHubNotificationsClient, "_request_no_content", side_effect=err),
+        patch("corvix.ingestion.time.sleep"),
+    ):
+        with pytest.raises(RuntimeError, match="secondary rate limit"):
+            client.dismiss_thread("789")
 
 
 def test_build_url_with_query() -> None:
@@ -200,6 +246,18 @@ def test_resolve_web_urls_enriches_check_suite() -> None:
     assert n.web_url == "https://github.com/org/repo/actions/runs/777"
 
 
+def test_resolve_web_urls_enriches_release() -> None:
+    enricher = FakeEnricher(url="https://github.com/org/repo/releases/tag/v2.0.0")
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    resolve_web_urls([n], enricher=enricher)
+    assert len(enricher.calls) == 1
+    assert n.web_url == "https://github.com/org/repo/releases/tag/v2.0.0"
+
+
 # --- enrich_web_url on GitHubNotificationsClient ---
 
 
@@ -248,6 +306,45 @@ def test_enrich_check_suite_api_error_returns_none() -> None:
 def test_enrich_non_check_suite_returns_none() -> None:
     client = _client()
     n = _make_notification(subject_type="Issue", web_url=None)
+    result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_release_returns_html_url() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    with patch.object(
+        GitHubNotificationsClient,
+        "_request_json",
+        return_value={"html_url": "https://github.com/org/repo/releases/tag/v2.0.0"},
+    ):
+        result = client.enrich_web_url(n)
+    assert result == "https://github.com/org/repo/releases/tag/v2.0.0"
+
+
+def test_enrich_release_missing_html_url_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value={"id": 12345}):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_release_malformed_subject_url_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases",
+        web_url=None,
+    )
     result = client.enrich_web_url(n)
     assert result is None
 

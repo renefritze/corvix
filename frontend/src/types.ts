@@ -1,4 +1,6 @@
 export interface DashboardItem {
+	account_id: string;
+	account_label: string;
 	thread_id: string;
 	repository: string;
 	reason: string;
@@ -38,6 +40,9 @@ export interface NotificationsConfig {
 
 export interface SnapshotPayload {
 	name: string;
+	include_read: boolean;
+	sort_by: string;
+	descending: boolean;
 	generated_at: string | null;
 	groups: DashboardGroup[];
 	total_items: number;
@@ -54,9 +59,17 @@ export type SortColumn =
 	| "score"
 	| "updated_at";
 export type SortDirection = "asc" | "desc";
+export type ResizableSortColumn = Exclude<SortColumn, "subject_title">;
+export type ColumnWidths = Record<ResizableSortColumn, number>;
 
 export interface FilterState {
 	unread: "all" | "unread" | "read";
 	reason: string;
 	repository: string;
+}
+
+export function notificationKey(
+	item: Pick<DashboardItem, "account_id" | "thread_id">,
+): string {
+	return `${item.account_id}:${item.thread_id}`;
 }

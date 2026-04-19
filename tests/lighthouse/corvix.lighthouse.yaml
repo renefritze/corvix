@@ -1,0 +1,26 @@
+---
+github:
+  accounts:
+  - id: primary
+    label: Primary
+    token_env: GITHUB_TOKEN
+    api_base_url: https://api.github.com
+
+state:
+  cache_file: /fixtures/notifications.json
+
+dashboards:
+- name: triage
+  group_by: repository
+  sort_by: score
+  descending: true
+  include_read: false
+  max_items: 120
+  match:
+    reason_in: ["mention", "review_requested", "assign"]
+- name: overview
+  group_by: reason
+  sort_by: updated_at
+  descending: true
+  include_read: true
+  max_items: 300

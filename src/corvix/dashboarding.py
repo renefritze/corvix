@@ -15,6 +15,8 @@ from corvix.rules import matches_criteria
 class DashboardItem:
     """JSON-friendly notification item for UI rendering."""
 
+    account_id: str
+    account_label: str
     thread_id: str
     repository: str
     reason: str
@@ -32,6 +34,8 @@ class DashboardItem:
         """Create a UI item from a stored notification record."""
         notification = record.notification
         return cls(
+            account_id=notification.account_id,
+            account_label=notification.account_label,
             thread_id=notification.thread_id,
             repository=notification.repository,
             reason=notification.reason,
@@ -59,6 +63,9 @@ class DashboardData:
     """Full dashboard payload for web and CLI presentation."""
 
     name: str
+    include_read: bool
+    sort_by: str
+    descending: bool
     generated_at: str | None
     groups: list[DashboardGroup]
     total_items: int
@@ -87,11 +94,42 @@ def build_dashboard_data(
     selected = [
         record for record in records if _included_by_dashboard(record=record, dashboard=dashboard, now=current_time)
     ]
-    sorted_records = sorted(
-        selected,
-        key=lambda record: _sort_key(record=record, sort_by=dashboard.sort_by),
-        reverse=dashboard.descending,
-    )
+    if dashboard.sort_by == "updated_at":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.updated_at,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "repository":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.repository,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "reason":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.reason,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "subject_type":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.subject_type,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "title":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.subject_title,
+            reverse=dashboard.descending,
+        )
+    else:
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.score,
+            reverse=dashboard.descending,
+        )
     if dashboard.max_items > 0:
         sorted_records = sorted_records[: dashboard.max_items]
     grouped_records = _group_records(records=sorted_records, group_by=dashboard.group_by)
@@ -104,6 +142,9 @@ def build_dashboard_data(
     ]
     return DashboardData(
         name=dashboard.name,
+        include_read=dashboard.include_read,
+        sort_by=dashboard.sort_by,
+        descending=dashboard.descending,
         generated_at=generated_at.isoformat() if generated_at is not None else None,
         groups=groups,
         total_items=sum(len(group.items) for group in groups),
@@ -122,28 +163,24 @@ def _included_by_dashboard(
         return False
     if not dashboard.include_read and not record.notification.unread:
         return False
-    return matches_criteria(
+    if not matches_criteria(
         criteria=dashboard.match,
         notification=record.notification,
         score=record.score,
         now=now,
         context=record.context,
+    ):
+        return False
+    return not any(
+        matches_criteria(
+            criteria=ignore_rule,
+            notification=record.notification,
+            score=record.score,
+            now=now,
+            context=record.context,
+        )
+        for ignore_rule in dashboard.ignore_rules
     )
-
-
-def _sort_key(record: NotificationRecord, sort_by: str) -> object:
-    notification = record.notification
-    if sort_by == "updated_at":
-        return notification.updated_at
-    if sort_by == "repository":
-        return notification.repository
-    if sort_by == "reason":
-        return notification.reason
-    if sort_by == "subject_type":
-        return notification.subject_type
-    if sort_by == "title":
-        return notification.subject_title
-    return record.score
 
 
 def _group_records(

@@ -39,6 +39,8 @@ dashboards:
     descending: true
     match:
       reason_in: ["mention"]
+    ignore_rules:
+      - reason_in: ["subscribed"]
 """.strip(),
         encoding="utf-8",
     )
@@ -50,6 +52,8 @@ dashboards:
     assert "org/repo" in config.rules.per_repository
     assert config.dashboards[0].name == "triage"
     assert config.dashboards[0].match.reason_in == ["mention"]
+    assert len(config.dashboards[0].ignore_rules) == 1
+    assert config.dashboards[0].ignore_rules[0].reason_in == ["subscribed"]
 
 
 def test_config_parses_auth_and_database_sections(tmp_path: Path) -> None:
@@ -87,6 +91,9 @@ def test_config_github_defaults(tmp_path: Path) -> None:
     config = load_config(config_file)
     assert config.github.token_env == "GITHUB_TOKEN"
     assert config.github.api_base_url == "https://api.github.com"
+    assert len(config.github.accounts) == 1
+    assert config.github.accounts[0].id == "primary"
+    assert config.github.accounts[0].label == "Primary"
 
 
 def test_config_polling_defaults(tmp_path: Path) -> None:
@@ -281,6 +288,22 @@ rules:
     )
 
     with pytest.raises(ValueError, match=r"match\.context\[\]\.path"):
+        load_config(config_file)
+
+
+def test_dashboard_ignore_rules_errors_reference_ignore_rules_section(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+dashboards:
+  - name: triage
+    ignore_rules:
+      - min_score: nope
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"dashboards\[\]\.ignore_rules\[\]\.min_score"):
         load_config(config_file)
 
 

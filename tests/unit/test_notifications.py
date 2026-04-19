@@ -125,7 +125,8 @@ class TestDetectNewUnreadEvents:
         current = [_record("42", unread=True, score=7.5)]
         events = detect_new_unread_events(previous=[], current=current)
         e = events[0]
-        assert e.event_id == "42"
+        assert e.event_id == "primary:42"
+        assert e.account_id == "primary"
         assert e.thread_id == "42"
         assert e.repository == "org/repo"
         assert e.reason == "mention"

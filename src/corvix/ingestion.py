@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+from urllib import error as url_error
 from urllib import parse, request
 from urllib.parse import urlparse
 
@@ -15,8 +17,9 @@ from corvix.types import JsonObject, JsonValue
 
 logger = logging.getLogger(__name__)
 
-_ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite"})
+_ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite", "Release"})
 _CHECK_SUITE_PATH_SEGMENTS = 5
+_RELEASE_PATH_SEGMENTS = 5
 
 
 def _as_json_object(value: JsonValue) -> JsonObject | None:
@@ -74,6 +77,8 @@ class GitHubNotificationsClient:
 
     token: str
     api_base_url: str = "https://api.github.com"
+    account_id: str = "primary"
+    account_label: str = "Primary"
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
         """Fetch notifications with pagination."""
@@ -83,7 +88,14 @@ class GitHubNotificationsClient:
             raw = self._fetch_page(polling=polling, page=page)
             if not raw:
                 break
-            notifications.extend(Notification.from_api_payload(payload) for payload in raw)
+            notifications.extend(
+                Notification.from_api_payload(
+                    payload,
+                    account_id=self.account_id,
+                    account_label=self.account_label,
+                )
+                for payload in raw
+            )
             page += 1
         return notifications
 
@@ -114,12 +126,14 @@ class GitHubNotificationsClient:
     def dismiss_thread(self, thread_id: str) -> None:
         """Dismiss a notification thread (removes it from inbox permanently)."""
         url = self._build_url(f"/notifications/threads/{thread_id}", {})
-        self._request_no_content(url, method="DELETE")
+        self._request_no_content_with_backoff(url, method="DELETE")
 
     def enrich_web_url(self, notification: Notification) -> str | None:
         """Resolve a browser URL via API for notification types the fast path cannot handle."""
         if notification.subject_type == "CheckSuite" and notification.subject_url:
             return self._resolve_check_suite(notification.subject_url, notification.repository)
+        if notification.subject_type == "Release" and notification.subject_url:
+            return self._resolve_release(notification.subject_url)
         return None
 
     def _resolve_check_suite(self, subject_url: str, repository: str) -> str | None:
@@ -145,6 +159,26 @@ class GitHubNotificationsClient:
                 html_url = first.get("html_url")
                 if isinstance(html_url, str):
                     return html_url
+        return None
+
+    def _resolve_release(self, subject_url: str) -> str | None:
+        parsed = urlparse(subject_url)
+        segments = [s for s in parsed.path.split("/") if s]
+        # Expected: ["repos", owner, repo, "releases", id]
+        if len(segments) < _RELEASE_PATH_SEGMENTS or segments[3] != "releases":
+            return None
+        try:
+            self._validate_api_host(subject_url)
+            payload = self._request_json(subject_url, method="GET")
+        except Exception:
+            logger.debug("Failed to fetch release metadata from %s", subject_url)
+            return None
+        payload_object = _as_json_object(payload)
+        if payload_object is None:
+            return None
+        html_url = payload_object.get("html_url")
+        if isinstance(html_url, str):
+            return html_url
         return None
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
@@ -178,9 +212,55 @@ class GitHubNotificationsClient:
         with request.urlopen(req, timeout=30):
             return
 
+    def _request_no_content_with_backoff(self, url: str, method: str, max_attempts: int = 4) -> None:
+        """Perform no-content request with retries for GitHub throttling responses."""
+        attempt = 1
+        while attempt <= max_attempts:
+            try:
+                self._request_no_content(url, method)
+                return
+            except url_error.HTTPError as error:
+                retryable = error.code in {403, 429}
+                if not retryable or attempt >= max_attempts:
+                    detail = _http_error_detail(error)
+                    msg = f"GitHub API request failed with status {error.code}: {detail}"
+                    raise RuntimeError(msg) from error
+                delay_seconds = _retry_delay_seconds(error=error, attempt=attempt)
+                logger.warning(
+                    "GitHub API throttled dismiss request; retrying",
+                    extra={"attempt": attempt, "max_attempts": max_attempts, "delay_seconds": delay_seconds},
+                )
+                time.sleep(delay_seconds)
+                attempt += 1
+
     def _validate_api_host(self, url: str) -> None:
         expected = parse.urlparse(self.api_base_url).hostname
         actual = parse.urlparse(url).hostname
         if not expected or not actual or actual.casefold() != expected.casefold():
             msg = "URL host must match configured GitHub API base host."
             raise ValueError(msg)
+
+
+def _http_error_detail(error: url_error.HTTPError) -> str:
+    try:
+        payload = json.loads(error.read().decode("utf-8"))
+    except Exception:
+        return error.reason if isinstance(error.reason, str) else "request failed"
+    if not isinstance(payload, dict):
+        return error.reason if isinstance(error.reason, str) else "request failed"
+    message = payload.get("message")
+    if not isinstance(message, str) or not message:
+        return error.reason if isinstance(error.reason, str) else "request failed"
+    return message
+
+
+def _retry_delay_seconds(error: url_error.HTTPError, attempt: int) -> float:
+    retry_after_raw = error.headers.get("Retry-After") if error.headers is not None else None
+    if isinstance(retry_after_raw, str):
+        try:
+            retry_after_seconds = float(retry_after_raw)
+        except ValueError:
+            retry_after_seconds = 0.0
+        if retry_after_seconds > 0:
+            return min(retry_after_seconds, 10.0)
+    return min(0.5 * (2 ** (attempt - 1)), 5.0)

@@ -60,6 +60,15 @@ def test_dashboard_selector_lists_and_switches(app_page: PageLike) -> None:
 
 
 @pytest.mark.e2e
+def test_dashboard_suburl_loads_selected_dashboard(page: PageLike, corvix_server: str) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    page.goto(f"{corvix_server}/dashboards/triage")
+    expect(page.get_by_label("Select dashboard")).to_have_value("triage")
+    expect(page.locator("tr.notification-row")).to_have_count(2)
+
+
+@pytest.mark.e2e
 def test_empty_dashboard_shows_empty_state(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
@@ -142,11 +151,37 @@ def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: PageLike) -> N
 
 
 @pytest.mark.e2e
+def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    def delayed_snapshot(route: RouteLike) -> None:
+        response = route.fetch(timeout=5_000)
+        route.fulfill(response=response)
+
+    app_page.route("**/api/snapshot*", delayed_snapshot)
+
+    rows = app_page.locator("tr.notification-row")
+    expect(rows).to_have_count(3)
+
+    app_page.get_by_label("Dismiss Review API changes").click()
+    app_page.get_by_label("Dismiss Dependency update").click()
+
+    expect(rows).to_have_count(1)
+
+    app_page.wait_for_timeout(3_400)
+    expect(rows).to_have_count(1)
+
+    expect(app_page.locator(".undo-toast")).to_have_count(0, timeout=8_000)
+    expect(rows).to_have_count(1)
+
+    app_page.unroute("**/api/snapshot*", delayed_snapshot)
+
+
+@pytest.mark.e2e
 def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     def delayed_snapshot(route: RouteLike) -> None:
-        route.fetch(timeout=5_000)
         page.wait_for_timeout(500)
         route.continue_()
 

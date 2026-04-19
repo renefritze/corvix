@@ -60,6 +60,7 @@ def test_build_dashboard_data_filters_and_groups() -> None:
     data = build_dashboard_data(records=records, dashboard=dashboard, generated_at=NOW)
 
     assert data.name == "triage"
+    assert data.include_read is False
     assert data.total_items == 1
     assert len(data.groups) == 1
     assert data.groups[0].name == "org/a"
@@ -82,6 +83,24 @@ def test_dismissed_records_filtered_out() -> None:
         _make_record(thread_id="2", dismissed=True),
     ]
     data = build_dashboard_data(records=records, dashboard=DashboardSpec(name="d", include_read=True), generated_at=NOW)
+    assert data.total_items == 1
+    assert data.groups[0].items[0].thread_id == "1"
+
+
+def test_dashboard_ignore_rules_filter_records() -> None:
+    records = [
+        _make_record(thread_id="1", reason="mention", score=42.0),
+        _make_record(thread_id="2", reason="subscribed", score=10.0),
+    ]
+    data = build_dashboard_data(
+        records=records,
+        dashboard=DashboardSpec(
+            name="triage",
+            include_read=True,
+            ignore_rules=[MatchCriteria(reason_in=["subscribed"])],
+        ),
+        generated_at=NOW,
+    )
     assert data.total_items == 1
     assert data.groups[0].items[0].thread_id == "1"
 

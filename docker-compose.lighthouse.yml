@@ -1,0 +1,52 @@
+---
+services:
+  web-lighthouse:
+    build:
+      context: .
+    command:
+    - uvicorn
+    - corvix.web.app:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - "8000"
+    environment:
+      CORVIX_CONFIG: /fixtures/corvix.lighthouse.yaml
+    volumes:
+    - ./tests/lighthouse:/fixtures:ro
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - from urllib.request import urlopen; import sys; sys.exit(0 if urlopen("http://127.0.0.1:8000/api/health", timeout=2).status
+        == 200 else 1)
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  lighthouse:
+    build:
+      context: .
+      dockerfile: docker/lighthouse.Dockerfile
+    depends_on:
+      web-lighthouse:
+        condition: service_healthy
+    working_dir: /workspace
+    command:
+    - lhci
+    - autorun
+    - --config=.lighthouserc.json
+    environment:
+      CHROME_PATH: /usr/bin/chromium
+    volumes:
+    - ./:/workspace
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt.example
+  github_token:
+    file: ./secrets/github_token.txt.example
+  database_url:
+    file: ./secrets/database_url.txt.example

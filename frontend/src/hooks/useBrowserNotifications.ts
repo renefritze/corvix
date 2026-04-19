@@ -7,6 +7,7 @@
  * stored in localStorage.
  */
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { notificationKey } from "../types";
 import type { BrowserTabNotificationsConfig, DashboardItem } from "../types";
 
 const STORAGE_KEY = "corvix.notifications.browser.seen";
@@ -122,7 +123,7 @@ export function useBrowserNotifications({
 		const cooldownMs = (config.cooldown_seconds ?? 10) * 1000;
 
 		const newItems = items.filter(
-			(item) => item.unread && !seenRef.current.has(item.thread_id),
+			(item) => item.unread && !seenRef.current.has(notificationKey(item)),
 		);
 
 		// Cap burst and only mark actually-notified items as seen.
@@ -131,7 +132,7 @@ export function useBrowserNotifications({
 
 		const updatedSeen = new Set(seenRef.current);
 		for (const item of toNotify) {
-			updatedSeen.add(item.thread_id);
+			updatedSeen.add(notificationKey(item));
 		}
 		seenRef.current = updatedSeen;
 		saveSeen(updatedSeen);
@@ -143,7 +144,7 @@ export function useBrowserNotifications({
 			try {
 				const notif = new Notification(item.subject_title, {
 					body: `${item.repository} · ${item.reason}`,
-					tag: item.thread_id,
+					tag: notificationKey(item),
 					icon: "/assets/favicon.svg",
 				});
 				notif.addEventListener("click", () => {

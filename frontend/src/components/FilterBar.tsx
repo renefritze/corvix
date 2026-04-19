@@ -2,6 +2,7 @@ import type { DashboardItem, FilterState } from "../types";
 
 interface FilterBarProps {
 	filters: FilterState;
+	includeRead: boolean;
 	items: DashboardItem[];
 	onFilterChange: <K extends keyof FilterState>(
 		key: K,
@@ -14,6 +15,7 @@ interface FilterBarProps {
 
 export function FilterBar({
 	filters,
+	includeRead,
 	items,
 	onFilterChange,
 	onClearFilters,
@@ -24,6 +26,12 @@ export function FilterBar({
 	const repositories = Array.from(
 		new Set(items.map((i) => i.repository)),
 	).sort();
+	const selectedRepositoryMissing =
+		filters.repository !== "" && !repositories.includes(filters.repository);
+	const selectedRepositoryLabel =
+		filters.unread === "unread"
+			? `${filters.repository} (no unread notifications)`
+			: `${filters.repository} (no matching notifications)`;
 
 	return (
 		<div class="filter-row">
@@ -38,9 +46,13 @@ export function FilterBar({
 				}
 				aria-label="Unread state filter"
 			>
-				<option value="all">All</option>
+				<option value="all" disabled={!includeRead}>
+					{includeRead ? "All" : "🔒 All (disabled by dashboard)"}
+				</option>
 				<option value="unread">Unread only</option>
-				<option value="read">Read only</option>
+				<option value="read" disabled={!includeRead}>
+					{includeRead ? "Read only" : "🔒 Read only (disabled by dashboard)"}
+				</option>
 			</select>
 			<select
 				value={filters.reason}
@@ -64,6 +76,9 @@ export function FilterBar({
 				aria-label="Repository filter"
 			>
 				<option value="">All repositories</option>
+				{selectedRepositoryMissing && (
+					<option value={filters.repository}>{selectedRepositoryLabel}</option>
+				)}
 				{repositories.map((r) => (
 					<option key={r} value={r}>
 						{r}

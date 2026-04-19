@@ -43,6 +43,7 @@ def render_dashboards(
             for item in group.items:
                 row_count += 1
                 table.add_row(
+                    item.account_label,
                     f"{item.score:.2f}",
                     item.updated_at,
                     item.repository,
@@ -61,6 +62,7 @@ def render_dashboards(
 def _build_table(dashboard: DashboardSpec, group_name: str) -> Table:
     title = f"{dashboard.name} [{group_name}]"
     table = Table(title=title)
+    table.add_column("Account")
     table.add_column("Score", justify="right")
     table.add_column("Updated")
     table.add_column("Repository")

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from corvix.domain import NotificationRecord
+from corvix.domain import NotificationRecord, notification_key
 from corvix.notifications.models import NotificationEvent
 
 
@@ -35,7 +35,7 @@ def detect_new_unread_events(
     include_read:
         When ``True``, read records also generate events (default ``False``).
     """
-    prev_by_id: dict[str, NotificationRecord] = {r.notification.thread_id: r for r in previous}
+    prev_by_id: dict[str, NotificationRecord] = {notification_key(r.notification): r for r in previous}
 
     events: list[NotificationEvent] = []
     for record in current:
@@ -48,7 +48,8 @@ def detect_new_unread_events(
         if record.score < min_score:
             continue
 
-        prev = prev_by_id.get(notification.thread_id)
+        key = notification_key(notification)
+        prev = prev_by_id.get(key)
         is_new = prev is None
         became_unread = prev is not None and not prev.notification.unread
 
@@ -57,7 +58,8 @@ def detect_new_unread_events(
 
         events.append(
             NotificationEvent(
-                event_id=notification.thread_id,
+                event_id=key,
+                account_id=notification.account_id,
                 thread_id=notification.thread_id,
                 repository=notification.repository,
                 reason=notification.reason,

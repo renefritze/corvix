@@ -181,6 +181,7 @@ button:disabled { opacity: 0.6; cursor: default; }
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+  /* keep predictable layout but let the title take most free space */
   table-layout: fixed;
 }
 
@@ -210,6 +211,7 @@ button:disabled { opacity: 0.6; cursor: default; }
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
   user-select: none;
+  position: relative;
 }
 
 .notification-table th.sortable { cursor: pointer; }
@@ -217,15 +219,17 @@ button:disabled { opacity: 0.6; cursor: default; }
 .notification-table th.sort-active { color: var(--accent); }
 .sort-arrow { font-size: 0.65rem; }
 
-/* Column widths */
-.col-status { width: 28px; text-align: center; }
-.col-title { min-width: 200px; }
-.col-repository { width: 180px; }
-.col-type { width: 90px; }
-.col-reason { width: 100px; }
-.col-score { width: 70px; text-align: right; }
-.col-updated { width: 110px; }
-.col-actions { width: 36px; text-align: center; }
+/* Column widths — widths applied to both th and td for table-layout: fixed to work correctly.
+   Title is flexible (auto) and absorbs all remaining space. Other columns sized to their
+   longest typical content value to minimise wasted whitespace. */
+.col-status { width: 28px; text-align: center; }         /* unread dot */
+.col-actions { width: 36px; text-align: center; }        /* dismiss button */
+.col-score { width: 75px; text-align: right; }           /* "Score" header + "72.9" data */
+.col-updated { width: 110px; }                           /* "Updated" header + up to "59m ago" data */
+.col-type { width: 110px; }                              /* longest common value: "PullRequest" */
+.col-reason { width: 150px; }                            /* longest GitHub reason: "review_requested" */
+.col-repository { width: 185px; }                        /* typical org/repo names */
+.col-title { min-width: 160px; width: auto; }            /* flexible — takes all remaining space */
 
 /* Table rows */
 .notification-table td {
@@ -236,6 +240,13 @@ button:disabled { opacity: 0.6; cursor: default; }
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.25;
+}
+
+.notification-table td.col-title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  vertical-align: top;
 }
 
 .notification-row { transition: background 0.1s; }
@@ -264,12 +275,14 @@ button:disabled { opacity: 0.6; cursor: default; }
 
 /* Title */
 .title-link {
-  display: block;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
   color: var(--ink);
   max-width: 100%;
+  line-height: 1.3;
 }
 a.title-link:hover { color: var(--accent); }
 a.title-link:focus-visible {
@@ -314,6 +327,16 @@ kbd {
   text-overflow: ellipsis;
 }
 
+.title-meta {
+  display: none;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Score */
 .col-score td, .score-value {
   font-family: "Menlo", "Consolas", monospace;
@@ -333,6 +356,45 @@ kbd {
   line-height: 1;
 }
 .dismiss-btn:hover { color: var(--danger); border-color: transparent; }
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.col-resize-handle:focus-visible::after {
+  background: var(--accent);
+}
+
+.col-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  right: 1px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.12s ease-in-out;
+}
+
+.col-resize-handle:hover::after {
+  background: var(--accent);
+}
+
+body.col-resizing,
+body.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
 
 /* Group header */
 .group-header-row td {
@@ -429,8 +491,13 @@ kbd {
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
-  .hide-mobile { display: none; }
-  .col-repository { width: 140px; }
+  .hide-mobile,
+  .col-score,
+  .col-updated {
+    display: none;
+  }
+  .title-meta { display: block; }
+  .col-repository { width: 130px; }
 }
 
 @media (max-width: 480px) {

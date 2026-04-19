@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "preact/hooks";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "preact/hooks";
 import { markNotificationRead } from "./api";
 import { EmptyState } from "./components/EmptyState";
 import { FilterBar } from "./components/FilterBar";
@@ -12,24 +18,85 @@ import { useFilters } from "./hooks/useFilters";
 import { useKeyboard } from "./hooks/useKeyboard";
 import { useSnapshot } from "./hooks/useSnapshot";
 import { useSort } from "./hooks/useSort";
-import type { DashboardItem, FilterState } from "./types";
+import { notificationKey } from "./types";
+import type { DashboardItem, SortColumn } from "./types";
+
+const DASHBOARD_PATH_PREFIX = "/dashboards/";
+
+function mapDashboardSortToColumn(sortBy: string): SortColumn {
+	if (sortBy === "title") return "subject_title";
+	if (sortBy === "repository") return "repository";
+	if (sortBy === "subject_type") return "subject_type";
+	if (sortBy === "reason") return "reason";
+	if (sortBy === "updated_at") return "updated_at";
+	return "score";
+}
+
+function parseDashboardFromPath(pathname: string): string | undefined {
+	if (!pathname.startsWith(DASHBOARD_PATH_PREFIX)) {
+		return undefined;
+	}
+	const rawName = pathname.slice(DASHBOARD_PATH_PREFIX.length);
+	if (!rawName) {
+		return undefined;
+	}
+	return decodeURIComponent(rawName);
+}
+
+function dashboardPath(name: string | undefined): string {
+	if (!name) {
+		return "/";
+	}
+	return `${DASHBOARD_PATH_PREFIX}${encodeURIComponent(name)}`;
+}
 
 export function App() {
-	const [dashboard, setDashboard] = useState<string | undefined>(undefined);
+	const [dashboard, setDashboard] = useState<string | undefined>(() => {
+		if (typeof window === "undefined") {
+			return undefined;
+		}
+		return parseDashboardFromPath(window.location.pathname);
+	});
 	const [toastError, setToastError] = useState<string | null>(null);
 	const [showShortcuts, setShowShortcuts] = useState(false);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
 
-	const { snapshot, loading, refreshing, error, refresh } =
+	const { snapshot, loading, refreshing, manualRefreshing, error, refresh } =
 		useSnapshot(dashboard);
 	const { filters, setFilter, clearFilters } = useFilters();
-	const { sortColumn, sortDirection, handleSort } = useSort("score", "desc");
-	const { pending, dismiss, undoAll } = useDismiss(refresh, setToastError);
+	const configuredSortColumn = useMemo(
+		() => mapDashboardSortToColumn(snapshot?.sort_by ?? "score"),
+		[snapshot?.sort_by],
+	);
+	const configuredSortDirection =
+		snapshot?.descending === false ? "asc" : "desc";
+	const { sortColumn, sortDirection, handleSort } = useSort(
+		configuredSortColumn,
+		configuredSortDirection,
+	);
 
 	const allItems = useMemo<DashboardItem[]>(() => {
 		if (!snapshot) return [];
 		return snapshot.groups.flatMap((g) => g.items);
 	}, [snapshot]);
+
+	const currentThreadIds = useMemo(
+		() => new Set(allItems.map((item) => notificationKey(item))),
+		[allItems],
+	);
+
+	const { pending, dismiss, undoAll, hiddenThreadIds } = useDismiss(
+		refresh,
+		setToastError,
+		currentThreadIds,
+	);
+
+	const hiddenIds = hiddenThreadIds;
+	const dashboardAllowsRead = snapshot?.include_read ?? true;
+	const effectiveUnreadFilter =
+		dashboardAllowsRead || filters.unread === "unread"
+			? filters.unread
+			: "unread";
 
 	const notifConfig = snapshot?.notifications_config?.browser_tab ?? null;
 	const {
@@ -49,10 +116,11 @@ export function App() {
 			.map((group) => ({
 				...group,
 				items: group.items.filter((item) => {
-					if (pending.has(item.thread_id)) return false;
-					if (filters.unread !== "all") {
-						if (filters.unread === "unread" && !item.unread) return false;
-						if (filters.unread === "read" && item.unread) return false;
+					if (hiddenIds.has(notificationKey(item))) return false;
+					if (effectiveUnreadFilter !== "all") {
+						if (effectiveUnreadFilter === "unread" && !item.unread)
+							return false;
+						if (effectiveUnreadFilter === "read" && item.unread) return false;
 					}
 					if (filters.reason && item.reason !== filters.reason) return false;
 					if (filters.repository && item.repository !== filters.repository)
@@ -61,23 +129,24 @@ export function App() {
 				}),
 			}))
 			.filter((g) => g.items.length > 0);
-	}, [snapshot, filters, pending]);
+	}, [snapshot, filters, hiddenIds, effectiveUnreadFilter]);
 
 	const hasFilters =
-		filters.unread !== "all" ||
+		effectiveUnreadFilter !== "all" ||
 		filters.reason !== "" ||
 		filters.repository !== "";
 
 	const handleDismissFocused = useCallback(() => {
 		const focused = document.activeElement as HTMLElement | null;
 		const row = focused?.closest<HTMLTableRowElement>("tr[data-thread-id]");
+		const accountId = row?.dataset.accountId;
 		const threadId = row?.dataset.threadId;
-		if (threadId) dismiss(threadId);
+		if (accountId && threadId) dismiss(accountId, threadId);
 	}, [dismiss]);
 
 	const handleOpenTarget = useCallback(
-		(threadId: string) => {
-			void markNotificationRead(threadId)
+		(accountId: string, threadId: string) => {
+			void markNotificationRead(accountId, threadId)
 				.then(() => refresh())
 				.catch((err: unknown) => {
 					setToastError(
@@ -98,15 +167,58 @@ export function App() {
 	const dashboardNames = snapshot?.dashboard_names ?? [];
 	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
 
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const handlePopState = () => {
+			const fromPath = parseDashboardFromPath(window.location.pathname);
+			if (!fromPath) {
+				setDashboard(undefined);
+				return;
+			}
+			if (dashboardNames.length > 0 && !dashboardNames.includes(fromPath)) {
+				setDashboard(undefined);
+				return;
+			}
+			setDashboard(fromPath);
+		};
+		window.addEventListener("popstate", handlePopState);
+		return () => window.removeEventListener("popstate", handlePopState);
+	}, [dashboardNames]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		if (dashboardNames.length === 0) {
+			return;
+		}
+		if (dashboard && !dashboardNames.includes(dashboard)) {
+			setDashboard(undefined);
+		}
+	}, [dashboard, dashboardNames]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const targetPath = dashboardPath(currentDashboard ?? undefined);
+		if (window.location.pathname === targetPath) {
+			return;
+		}
+		window.history.pushState({}, "", targetPath);
+	}, [currentDashboard]);
+
 	return (
 		<div class="shell">
 			{refreshing && <div class="refresh-bar" aria-hidden="true" />}
 			<Toolbar
 				dashboardNames={dashboardNames}
 				currentDashboard={currentDashboard}
-				onDashboardChange={setDashboard}
+				onDashboardChange={(name) => setDashboard(name)}
 				onRefresh={refresh}
-				refreshing={refreshing}
+				refreshing={manualRefreshing}
 				summary={snapshot?.summary ?? null}
 				shortcutsOpen={showShortcuts}
 				onToggleShortcuts={() => setShowShortcuts((prev) => !prev)}
@@ -133,9 +245,20 @@ export function App() {
 			)}
 			{snapshot && (
 				<FilterBar
-					filters={filters}
+					filters={{ ...filters, unread: effectiveUnreadFilter }}
+					includeRead={dashboardAllowsRead}
 					items={allItems}
-					onFilterChange={setFilter}
+					onFilterChange={(key, value) => {
+						if (
+							key === "unread" &&
+							!dashboardAllowsRead &&
+							value !== "unread"
+						) {
+							setFilter("unread", "unread");
+							return;
+						}
+						setFilter(key, value);
+					}}
 					onClearFilters={clearFilters}
 					generatedAt={snapshot.generated_at}
 					filterBarRef={filterBarRef}
@@ -158,6 +281,11 @@ export function App() {
 						totalItems={snapshot?.total_items ?? 0}
 						onClearFilters={clearFilters}
 						onRetry={refresh}
+						filterContext={{
+							unread: effectiveUnreadFilter,
+							reason: filters.reason,
+							repository: filters.repository,
+						}}
 					/>
 				) : (
 					<NotificationTable

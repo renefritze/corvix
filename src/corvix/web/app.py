@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import asdict
 from importlib.resources import files
@@ -10,10 +11,12 @@ from pathlib import Path
 
 import uvicorn
 from litestar import Litestar, Response, get, post
+from litestar.config.compression import CompressionConfig
+from litestar.datastructures.headers import CacheControlHeader
 from litestar.exceptions import HTTPException
 from litestar.static_files import create_static_files_router
 
-from corvix.config import AppConfig, DashboardSpec, load_config
+from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, load_config
 from corvix.dashboarding import build_dashboard_data
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
@@ -48,13 +51,39 @@ THEMES: dict[str, dict[str, str]] = {
 
 _STATIC_ROOT = files("corvix.web").joinpath("static")
 _STATIC_ASSETS_DIR = str(_STATIC_ROOT.joinpath("assets"))
+_ASSET_FILENAMES = ("app.js", "index.css", "favicon.svg")
+_ASSET_CACHE_CONTROL = CacheControlHeader(public=True, max_age=31536000, immutable=True)
 
-INDEX_HTML = _STATIC_ROOT.joinpath("index.html").read_text(encoding="utf-8")
+
+def _asset_version_token() -> str:
+    digest = hashlib.sha256()
+    found_asset = False
+    for asset_name in _ASSET_FILENAMES:
+        asset_file = _STATIC_ROOT.joinpath("assets", asset_name)
+        if not asset_file.is_file():
+            continue
+        found_asset = True
+        digest.update(asset_name.encode("utf-8"))
+        digest.update(asset_file.read_bytes())
+    if not found_asset:
+        return "dev"
+    return digest.hexdigest()[:12]
+
+
+_INDEX_HTML_TEMPLATE = _STATIC_ROOT.joinpath("index.html").read_text(encoding="utf-8")
+INDEX_HTML = _INDEX_HTML_TEMPLATE.replace("__ASSET_VERSION__", _asset_version_token())
 
 
 @get("/", sync_to_thread=False)
 def index() -> Response[str]:
     """Serve the dashboard single-page UI."""
+    return Response(content=INDEX_HTML, media_type="text/html")
+
+
+@get("/dashboards/{dashboard_name:str}", sync_to_thread=False)
+def dashboard_index(dashboard_name: str) -> Response[str]:
+    """Serve the dashboard SPA for bookmarkable dashboard URLs."""
+    del dashboard_name
     return Response(content=INDEX_HTML, media_type="text/html")
 
 
@@ -103,46 +132,71 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     return payload
 
 
-@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=False)
-def dismiss_notification(thread_id: str) -> Response[None]:
+@post("/api/notifications/{account_id:str}/{thread_id:str}/dismiss", sync_to_thread=True)
+def dismiss_notification(account_id: str, thread_id: str) -> Response[None]:
     """Dismiss a notification thread (removes it from the GitHub inbox).
 
     Calls DELETE /notifications/threads/{id} on GitHub, then marks the record
     as dismissed in local storage. Returns 204 No Content on success.
     """
+    return _dismiss_notification_impl(account_id=account_id, thread_id=thread_id)
+
+
+@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=True)
+def dismiss_notification_default_account(thread_id: str) -> Response[None]:
+    """Backward-compatible dismiss endpoint for default account."""
     config = _load_runtime_config()
+    return _dismiss_notification_impl(account_id=_default_account_id(config), thread_id=thread_id)
+
+
+@post("/api/notifications/{account_id:str}/{thread_id:str}/mark-read", sync_to_thread=True)
+def mark_notification_read(account_id: str, thread_id: str) -> Response[None]:
+    """Mark a notification thread as read in GitHub and local storage."""
+    return _mark_notification_read_impl(account_id=account_id, thread_id=thread_id)
+
+
+@post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=True)
+def mark_notification_read_default_account(thread_id: str) -> Response[None]:
+    """Backward-compatible mark-read endpoint for default account."""
+    config = _load_runtime_config()
+    return _mark_notification_read_impl(account_id=_default_account_id(config), thread_id=thread_id)
+
+
+def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None]:
+    config = _load_runtime_config()
+    account = _require_account(config=config, account_id=account_id)
     try:
-        token = get_env_value(config.github.token_env)
+        token = get_env_value(account.token_env)
     except ValueError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
     if not token:
-        msg = f"GitHub token env var '{config.github.token_env}' (or '{config.github.token_env}_FILE') is not set."
+        msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
-    client = GitHubNotificationsClient(token=token, api_base_url=config.github.api_base_url)
+    client = GitHubNotificationsClient(token=token, api_base_url=account.api_base_url)
     try:
         client.dismiss_thread(thread_id)
     except Exception as error:
+        logger.exception("Failed to dismiss thread", extra={"thread_id": thread_id})
         msg = f"Failed to dismiss thread {thread_id}: {error}"
         raise HTTPException(status_code=502, detail=msg) from error
 
     cache = NotificationCache(path=config.resolve_cache_file())
-    cache.dismiss_record(user_id="", thread_id=thread_id)
+    cache.dismiss_record(user_id="", account_id=account_id, thread_id=thread_id)
     return Response(content=None, status_code=204)
 
 
-@post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=True)
-def mark_notification_read(thread_id: str) -> Response[None]:
-    """Mark a notification thread as read in GitHub and local storage."""
+def _mark_notification_read_impl(account_id: str, thread_id: str) -> Response[None]:
     config = _load_runtime_config()
+    account = _require_account(config=config, account_id=account_id)
     try:
-        token = get_env_value(config.github.token_env)
+        token = get_env_value(account.token_env)
     except ValueError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
     if not token:
-        msg = f"GitHub token env var '{config.github.token_env}' (or '{config.github.token_env}_FILE') is not set."
+        msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
 
-    client = GitHubNotificationsClient(token=token, api_base_url=config.github.api_base_url)
+    client = GitHubNotificationsClient(token=token, api_base_url=account.api_base_url)
     try:
         client.mark_thread_read(thread_id)
     except Exception as error:
@@ -151,8 +205,23 @@ def mark_notification_read(thread_id: str) -> Response[None]:
         raise HTTPException(status_code=502, detail=msg) from error
 
     cache = NotificationCache(path=config.resolve_cache_file())
-    cache.mark_record_read(user_id="", thread_id=thread_id)
+    cache.mark_record_read(user_id="", account_id=account_id, thread_id=thread_id)
     return Response(content=None, status_code=204)
+
+
+def _require_account(config: AppConfig, account_id: str) -> GitHubAccountConfig:
+    for account in config.github.accounts:
+        if account.id == account_id:
+            return account
+    msg = f"GitHub account '{account_id}' not found in config."
+    raise HTTPException(status_code=404, detail=msg)
+
+
+def _default_account_id(config: AppConfig) -> str:
+    if not config.github.accounts:
+        msg = "No GitHub accounts configured."
+        raise HTTPException(status_code=500, detail=msg)
+    return config.github.accounts[0].id
 
 
 def _load_runtime_config() -> AppConfig:
@@ -189,14 +258,22 @@ def _dashboard_names(dashboards: list[DashboardSpec]) -> list[str]:
 app = Litestar(
     route_handlers=[
         index,
+        dashboard_index,
         health,
         api_themes,
         dashboards,
         snapshot,
         dismiss_notification,
+        dismiss_notification_default_account,
         mark_notification_read,
-        create_static_files_router(path="/assets", directories=[_STATIC_ASSETS_DIR]),
+        mark_notification_read_default_account,
+        create_static_files_router(
+            path="/assets",
+            directories=[_STATIC_ASSETS_DIR],
+            cache_control=_ASSET_CACHE_CONTROL,
+        ),
     ],
+    compression_config=CompressionConfig(backend="gzip", minimum_size=500),
 )
 
 

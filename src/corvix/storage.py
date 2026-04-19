@@ -1,10 +1,17 @@
-"""Local persistence for polled notifications."""
+"""Local persistence for polled notifications.
+
+The JSON cache uses ``fcntl`` advisory locks and is therefore supported on
+Linux/POSIX platforms only.
+"""
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,10 +20,11 @@ from typing import Protocol
 import psycopg
 from psycopg.types.json import Jsonb
 
-from corvix.domain import Notification, NotificationRecord, format_timestamp, parse_timestamp
+from corvix.domain import Notification, NotificationRecord, format_timestamp, notification_key, parse_timestamp
 from corvix.types import UserId
 
-_NOTIFICATION_RECORD_COLUMNS = 16
+_NOTIFICATION_RECORD_COLUMNS = 18
+_DISMISSED_ROW_COLUMNS = 2
 
 
 class StorageBackend(Protocol):
@@ -31,9 +39,11 @@ class StorageBackend(Protocol):
 
     def load_records(self, user_id: UserId) -> tuple[datetime | None, list[NotificationRecord]]: ...
 
-    def dismiss_record(self, user_id: UserId, thread_id: str) -> None: ...
+    def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None: ...
 
-    def mark_record_read(self, user_id: UserId, thread_id: str) -> None: ...
+    def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None: ...
+
+    def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]: ...
 
     def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]: ...
 
@@ -51,8 +61,50 @@ class NotificationCache:
     def save(self, records: list[NotificationRecord], generated_at: datetime | None = None) -> None:
         """Persist records to disk."""
         timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+        with self._exclusive_lock():
+            try:
+                _, existing_records = self._load_unlocked()
+            except ValueError:
+                existing_records = []
+            dismissed_ids = {notification_key(record.notification) for record in existing_records if record.dismissed}
+            records_to_save = [
+                NotificationRecord(
+                    notification=record.notification,
+                    score=record.score,
+                    excluded=record.excluded,
+                    matched_rules=list(record.matched_rules),
+                    actions_taken=list(record.actions_taken),
+                    dismissed=record.dismissed or notification_key(record.notification) in dismissed_ids,
+                    context=record.context,
+                )
+                for record in records
+            ]
+            self._save_unlocked(records=records_to_save, generated_at=timestamp)
+
+    def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
+        """Load snapshot from disk if available."""
+        return self._load_unlocked()
+
+    def _load_unlocked(self) -> tuple[datetime | None, list[NotificationRecord]]:
+        """Load snapshot from disk without acquiring a file lock."""
+        if not self.path.exists():
+            return None, []
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            msg = "Invalid cache file format."
+            raise ValueError(msg)
+        generated_raw = payload.get("generated_at")
+        generated_at = parse_timestamp(generated_raw) if isinstance(generated_raw, str) else None
+        raw_notifications = payload.get("notifications", [])
+        if not isinstance(raw_notifications, list):
+            msg = "Invalid cache file format: 'notifications' must be a list."
+            raise ValueError(msg)
+        records = [NotificationRecord.from_dict(item) for item in raw_notifications if isinstance(item, dict)]
+        return generated_at, records
+
+    def _save_unlocked(self, records: list[NotificationRecord], generated_at: datetime) -> None:
         payload = {
-            "generated_at": format_timestamp(timestamp),
+            "generated_at": format_timestamp(generated_at),
             "notifications": [record.to_dict() for record in records],
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,22 +129,16 @@ class NotificationCache:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink()
 
-    def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
-        """Load snapshot from disk if available."""
-        if not self.path.exists():
-            return None, []
-        payload = json.loads(self.path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            msg = "Invalid cache file format."
-            raise ValueError(msg)
-        generated_raw = payload.get("generated_at")
-        generated_at = parse_timestamp(generated_raw) if isinstance(generated_raw, str) else None
-        raw_notifications = payload.get("notifications", [])
-        if not isinstance(raw_notifications, list):
-            msg = "Invalid cache file format: 'notifications' must be a list."
-            raise ValueError(msg)
-        records = [NotificationRecord.from_dict(item) for item in raw_notifications if isinstance(item, dict)]
-        return generated_at, records
+    @contextmanager
+    def _exclusive_lock(self) -> Iterator[None]:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.parent / f".{self.path.name}.lock"
+        with lock_path.open("a", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     # --- StorageBackend protocol methods ---
 
@@ -109,30 +155,43 @@ class NotificationCache:
         """Load records; user_id ignored in single-user mode."""
         return self.load()
 
-    def dismiss_record(self, user_id: UserId, thread_id: str) -> None:
-        """Mark a record as dismissed by thread_id in the JSON file."""
-        generated_at, records = self.load()
-        updated = False
-        for record in records:
-            if record.notification.thread_id == thread_id:
-                record.dismissed = True
-                updated = True
-        if updated:
-            self.save(records, generated_at)
+    def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+        """Mark a record as dismissed by account/thread id in the JSON file."""
+        with self._exclusive_lock():
+            generated_at, records = self._load_unlocked()
+            updated = False
+            for record in records:
+                if record.notification.account_id == account_id and record.notification.thread_id == thread_id:
+                    record.dismissed = True
+                    updated = True
+            if updated:
+                timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+                self._save_unlocked(records=records, generated_at=timestamp)
 
-    def mark_record_read(self, user_id: UserId, thread_id: str) -> None:
-        """Mark a record as read by thread_id in the JSON file."""
-        generated_at, records = self.load()
-        updated = False
-        for record in records:
-            if record.notification.thread_id == thread_id and record.notification.unread:
-                record.notification.unread = False
-                updated = True
-        if updated:
-            self.save(records, generated_at)
+    def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+        """Mark a record as read by account/thread id in the JSON file."""
+        with self._exclusive_lock():
+            generated_at, records = self._load_unlocked()
+            updated = False
+            for record in records:
+                if (
+                    record.notification.account_id == account_id
+                    and record.notification.thread_id == thread_id
+                    and record.notification.unread
+                ):
+                    record.notification.unread = False
+                    updated = True
+            if updated:
+                timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+                self._save_unlocked(records=records, generated_at=timestamp)
+
+    def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
+        """Return account-scoped keys of dismissed records."""
+        _, records = self.load()
+        return [notification_key(r.notification) for r in records if r.dismissed]
 
     def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]:
-        """Return thread_ids of dismissed records."""
+        """Backward-compatible API returning only thread IDs."""
         _, records = self.load()
         return [r.notification.thread_id for r in records if r.dismissed]
 
@@ -165,11 +224,12 @@ class PostgresStorage:
                     cur.execute(
                         """
                         INSERT INTO notification_records
-                            (user_id, thread_id, repository, reason, subject_title,
-                             subject_type, unread, updated_at, thread_url, web_url, score,
-                             excluded, matched_rules, actions_taken, context, dismissed, snapshot_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (user_id, thread_id) DO UPDATE SET
+                            (user_id, account_id, account_label, thread_id, repository, reason, subject_title,
+                              subject_type, unread, updated_at, thread_url, web_url, score,
+                              excluded, matched_rules, actions_taken, context, dismissed, snapshot_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (user_id, account_id, thread_id) DO UPDATE SET
+                            account_label = EXCLUDED.account_label,
                             repository    = EXCLUDED.repository,
                             reason        = EXCLUDED.reason,
                             subject_title = EXCLUDED.subject_title,
@@ -187,6 +247,8 @@ class PostgresStorage:
                         """,
                         (
                             user_id,
+                            n.account_id,
+                            n.account_label,
                             n.thread_id,
                             n.repository,
                             n.reason,
@@ -214,6 +276,7 @@ class PostgresStorage:
                 cur.execute(
                     """
                     SELECT thread_id, repository, reason, subject_title, subject_type,
+                           account_id, account_label,
                            unread, updated_at, thread_url, web_url, score, excluded,
                            matched_rules, actions_taken, context, dismissed, snapshot_at
                     FROM notification_records
@@ -238,21 +301,25 @@ class PostgresStorage:
             reason = _require_str(row[2], "reason")
             subject_title = _require_str(row[3], "subject_title")
             subject_type = _require_str(row[4], "subject_type")
-            unread = _require_bool(row[5], "unread")
-            updated_at = _require_datetime(row[6], "updated_at")
-            thread_url = _optional_str(row[7], "thread_url")
-            web_url = _optional_str(row[8], "web_url")
-            score = _require_float(row[9], "score")
-            excluded = _require_bool(row[10], "excluded")
-            matched_rules = _coerce_str_list(row[11], "matched_rules")
-            actions_taken = _coerce_str_list(row[12], "actions_taken")
-            context = row[13]
-            dismissed = _require_bool(row[14], "dismissed")
-            snapshot_at = _require_datetime(row[15], "snapshot_at")
+            account_id = _require_str(row[5], "account_id")
+            account_label = _require_str(row[6], "account_label")
+            unread = _require_bool(row[7], "unread")
+            updated_at = _require_datetime(row[8], "updated_at")
+            thread_url = _optional_str(row[9], "thread_url")
+            web_url = _optional_str(row[10], "web_url")
+            score = _require_float(row[11], "score")
+            excluded = _require_bool(row[12], "excluded")
+            matched_rules = _coerce_str_list(row[13], "matched_rules")
+            actions_taken = _coerce_str_list(row[14], "actions_taken")
+            context = row[15]
+            dismissed = _require_bool(row[16], "dismissed")
+            snapshot_at = _require_datetime(row[17], "snapshot_at")
             if latest_snapshot is None:
                 latest_snapshot = snapshot_at
             notification = Notification(
                 thread_id=thread_id,
+                account_id=account_id,
+                account_label=account_label,
                 repository=repository,
                 reason=reason,
                 subject_title=subject_title,
@@ -275,28 +342,44 @@ class PostgresStorage:
             )
         return latest_snapshot, records
 
-    def dismiss_record(self, user_id: UserId, thread_id: str) -> None:
-        """Set dismissed=true for a specific thread_id."""
+    def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+        """Set dismissed=true for a specific account/thread id."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE notification_records SET dismissed = true WHERE user_id = %s AND thread_id = %s",
-                    (user_id, thread_id),
+                    "UPDATE notification_records SET dismissed = true WHERE user_id = %s AND account_id = %s AND thread_id = %s",
+                    (user_id, account_id, thread_id),
                 )
             conn.commit()
 
-    def mark_record_read(self, user_id: UserId, thread_id: str) -> None:
-        """Set unread=false for a specific thread_id."""
+    def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+        """Set unread=false for a specific account/thread id."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE notification_records SET unread = false WHERE user_id = %s AND thread_id = %s",
-                    (user_id, thread_id),
+                    "UPDATE notification_records SET unread = false WHERE user_id = %s AND account_id = %s AND thread_id = %s",
+                    (user_id, account_id, thread_id),
                 )
             conn.commit()
+
+    def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
+        """Return account-scoped keys where dismissed=true for user_id."""
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT account_id, thread_id FROM notification_records WHERE user_id = %s AND dismissed = true",
+                    (user_id,),
+                )
+                rows = cur.fetchall()
+        dismissed_ids: list[str] = []
+        for row in rows:
+            if not row or len(row) < _DISMISSED_ROW_COLUMNS:
+                continue
+            dismissed_ids.append(f"{_require_str(row[0], 'account_id')}:{_require_str(row[1], 'thread_id')}")
+        return dismissed_ids
 
     def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]:
-        """Return thread_ids where dismissed=true for user_id."""
+        """Backward-compatible API returning only thread IDs."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(

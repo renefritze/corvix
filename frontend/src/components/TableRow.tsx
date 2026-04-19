@@ -12,8 +12,8 @@ function relativeTime(iso: string): string {
 
 interface TableRowProps {
 	item: DashboardItem;
-	onDismiss: (threadId: string) => void;
-	onOpenTarget: (threadId: string) => void;
+	onDismiss: (accountId: string, threadId: string) => void;
+	onOpenTarget: (accountId: string, threadId: string) => void;
 	isPendingDismissal: boolean;
 }
 
@@ -23,9 +23,12 @@ export function TableRow({
 	onOpenTarget,
 	isPendingDismissal,
 }: TableRowProps) {
+	const scoreLabel = item.score.toFixed(1);
+	const updatedLabel = relativeTime(item.updated_at);
+
 	function handleOpenTarget() {
 		if (!item.unread) return;
-		onOpenTarget(item.thread_id);
+		onOpenTarget(item.account_id, item.thread_id);
 	}
 
 	function handleTitleClick() {
@@ -39,6 +42,7 @@ export function TableRow({
 
 	return (
 		<tr
+			data-account-id={item.account_id}
 			data-thread-id={item.thread_id}
 			tabIndex={0}
 			class={[
@@ -67,6 +71,9 @@ export function TableRow({
 				) : (
 					<span class="title-link">{item.subject_title}</span>
 				)}
+				<div class="title-meta">
+					{`${item.account_label} · ${scoreLabel} · ${updatedLabel} · ${item.subject_type} · ${item.reason}`}
+				</div>
 			</td>
 			<td class="col-repository" data-label="Repository">
 				<span class="repo-label">{item.repository}</span>
@@ -78,17 +85,17 @@ export function TableRow({
 				{item.reason}
 			</td>
 			<td class="col-score" data-label="Score">
-				<span class="score-value">{item.score.toFixed(1)}</span>
+				<span class="score-value">{scoreLabel}</span>
 			</td>
 			<td class="col-updated" data-label="Updated">
-				<span title={item.updated_at}>{relativeTime(item.updated_at)}</span>
+				<span title={item.updated_at}>{updatedLabel}</span>
 			</td>
 			<td class="col-actions">
 				<button
 					type="button"
 					class="dismiss-btn"
 					aria-label={`Dismiss ${item.subject_title}`}
-					onClick={() => onDismiss(item.thread_id)}
+					onClick={() => onDismiss(item.account_id, item.thread_id)}
 				>
 					✕
 				</button>

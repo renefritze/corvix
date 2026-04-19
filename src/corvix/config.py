@@ -75,6 +75,7 @@ class DashboardSpec:
     include_read: bool = False
     max_items: int = 100
     match: MatchCriteria = field(default_factory=MatchCriteria)
+    ignore_rules: list[MatchCriteria] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -104,7 +105,26 @@ class PollingConfig:
 class GitHubConfig:
     """GitHub API configuration."""
 
-    token_env: str = "GITHUB_TOKEN"
+    accounts: list[GitHubAccountConfig] = field(default_factory=list)
+
+    @property
+    def token_env(self) -> str:
+        """Backward-compatible shortcut to first account token env."""
+        return self.accounts[0].token_env if self.accounts else "GITHUB_TOKEN"
+
+    @property
+    def api_base_url(self) -> str:
+        """Backward-compatible shortcut to first account API base URL."""
+        return self.accounts[0].api_base_url if self.accounts else "https://api.github.com"
+
+
+@dataclass(slots=True)
+class GitHubAccountConfig:
+    """One GitHub account configuration for multi-account polling."""
+
+    id: str
+    label: str
+    token_env: str
     api_base_url: str = "https://api.github.com"
 
 
@@ -217,8 +237,11 @@ class AppConfig:
 
 DEFAULT_CONFIG = """\
 github:
-  token_env: GITHUB_TOKEN
-  api_base_url: https://api.github.com
+  accounts:
+    - id: primary
+      label: Primary
+      token_env: GITHUB_TOKEN
+      api_base_url: https://api.github.com
 
 enrichment:
   enabled: false
@@ -288,6 +311,12 @@ dashboards:
     max_items: 100
     match:
       reason_in: ["mention", "review_requested", "assign"]
+    ignore_rules:
+      - reason_in: ["comment"]
+        context:
+          - path: github.latest_comment.is_ci_only
+            op: equals
+            value: true
 """
 
 
@@ -396,58 +425,58 @@ def _to_str_list(value: object) -> list[str]:
     return output
 
 
-def _parse_match(value: object) -> MatchCriteria:
-    match = _ensure_map(value, "match")
+def _parse_match(value: object, *, section: str = "match") -> MatchCriteria:
+    match = _ensure_map(value, section)
     return MatchCriteria(
         repository_in=_to_str_list(match.get("repository_in")),
         repository_glob=_to_str_list(match.get("repository_glob")),
         reason_in=_to_str_list(match.get("reason_in")),
         subject_type_in=_to_str_list(match.get("subject_type_in")),
         title_contains_any=_to_str_list(match.get("title_contains_any")),
-        title_regex=_get_optional_str(match, "title_regex", "match.title_regex"),
-        unread=_get_optional_bool(match, "unread", "match.unread"),
-        min_score=_get_optional_float(match, "min_score", "match.min_score"),
-        max_age_hours=_get_optional_float(match, "max_age_hours", "match.max_age_hours"),
-        context=_parse_context_predicates(match.get("context", [])),
+        title_regex=_get_optional_str(match, "title_regex", f"{section}.title_regex"),
+        unread=_get_optional_bool(match, "unread", f"{section}.unread"),
+        min_score=_get_optional_float(match, "min_score", f"{section}.min_score"),
+        max_age_hours=_get_optional_float(match, "max_age_hours", f"{section}.max_age_hours"),
+        context=_parse_context_predicates(match.get("context", []), section=f"{section}.context"),
     )
 
 
-def _parse_context_predicates(value: object) -> list[ContextPredicate]:
-    predicates = _ensure_list(value, "match.context")
-    return [_parse_context_predicate(item) for item in predicates]
+def _parse_context_predicates(value: object, *, section: str = "match.context") -> list[ContextPredicate]:
+    predicates = _ensure_list(value, section)
+    return [_parse_context_predicate(item, section=f"{section}[]") for item in predicates]
 
 
-def _parse_context_predicate(value: object) -> ContextPredicate:
-    predicate = _ensure_map(value, "match.context predicate")
+def _parse_context_predicate(value: object, *, section: str = "match.context[]") -> ContextPredicate:
+    predicate = _ensure_map(value, f"{section} predicate")
     path_raw = predicate.get("path")
     if not isinstance(path_raw, str) or not path_raw.strip():
-        msg = "Config field 'match.context[].path' is required."
+        msg = f"Config field '{section}.path' is required."
         raise ValueError(msg)
     op_raw = predicate.get("op")
     if not isinstance(op_raw, str):
         supported = ", ".join(sorted(_CONTEXT_OPERATORS))
-        msg = f"Config field 'match.context[].op' must be one of: {supported}."
+        msg = f"Config field '{section}.op' must be one of: {supported}."
         raise ValueError(msg)
     op = op_raw.strip()
     if op not in _CONTEXT_OPERATORS:
         supported = ", ".join(sorted(_CONTEXT_OPERATORS))
-        msg = f"Config field 'match.context[].op' must be one of: {supported}."
+        msg = f"Config field '{section}.op' must be one of: {supported}."
         raise ValueError(msg)
     predicate_value = predicate.get("value")
     if op == "regex":
         if not isinstance(predicate_value, str):
-            msg = "Config field 'match.context[].value' must be a string when op is 'regex'."
+            msg = f"Config field '{section}.value' must be a string when op is 'regex'."
             raise ValueError(msg)
         try:
             re.compile(predicate_value)
         except re.error as error:
-            msg = f"Config field 'match.context[].value' contains an invalid regex: {error}."
+            msg = f"Config field '{section}.value' contains an invalid regex: {error}."
             raise ValueError(msg) from error
     return ContextPredicate(
         path=path_raw.strip(),
         op=op,
         value=predicate_value,
-        case_insensitive=_get_bool(predicate, "case_insensitive", False, "match.context[].case_insensitive"),
+        case_insensitive=_get_bool(predicate, "case_insensitive", False, f"{section}.case_insensitive"),
     )
 
 
@@ -502,9 +531,15 @@ def _parse_dashboards(value: object) -> list[DashboardSpec]:
                 include_read=_get_bool(dashboard, "include_read", False, "dashboards[].include_read"),
                 max_items=_get_int(dashboard, "max_items", 100, "dashboards[].max_items"),
                 match=_parse_match(dashboard.get("match", {})),
+                ignore_rules=_parse_dashboard_ignore_rules(dashboard.get("ignore_rules", [])),
             ),
         )
     return parsed
+
+
+def _parse_dashboard_ignore_rules(value: object) -> list[MatchCriteria]:
+    rules = _ensure_list(value, "dashboards[].ignore_rules")
+    return [_parse_match(item, section="dashboards[].ignore_rules[]") for item in rules]
 
 
 def _parse_scoring(value: object) -> ScoringConfig:
@@ -526,10 +561,52 @@ def _to_float_map(value: object, section: str) -> dict[str, float]:
 
 def _parse_github(value: object) -> GitHubConfig:
     github = _ensure_map(value, "github")
-    return GitHubConfig(
-        token_env=_get_str(github, "token_env", "GITHUB_TOKEN", "github.token_env"),
-        api_base_url=_get_str(github, "api_base_url", "https://api.github.com", "github.api_base_url"),
+    fallback_token_env = _get_str(github, "token_env", "GITHUB_TOKEN", "github.token_env")
+    fallback_api_base_url = _get_str(
+        github,
+        "api_base_url",
+        "https://api.github.com",
+        "github.api_base_url",
     )
+    if "accounts" not in github:
+        raw_accounts: list[object] = [{"label": "Primary"}]
+    else:
+        raw_accounts = _ensure_list(github.get("accounts", []), "github.accounts")
+    if "accounts" in github and not raw_accounts:
+        msg = "Config section 'github.accounts' must contain at least one account."
+        raise ValueError(msg)
+    accounts: list[GitHubAccountConfig] = []
+    seen_ids: set[str] = set()
+    for index, raw_account in enumerate(raw_accounts):
+        account = _ensure_map(raw_account, f"github.accounts[{index}]")
+        account_id = _get_str(account, "id", "primary", f"github.accounts[{index}].id").strip()
+        if not account_id:
+            msg = f"Config field 'github.accounts[{index}].id' is required."
+            raise ValueError(msg)
+        if account_id in seen_ids:
+            msg = f"Config field 'github.accounts[{index}].id' must be unique ('{account_id}')."
+            raise ValueError(msg)
+        seen_ids.add(account_id)
+        label = _get_str(account, "label", account_id, f"github.accounts[{index}].label").strip() or account_id
+        token_env = _get_str(account, "token_env", fallback_token_env, f"github.accounts[{index}].token_env").strip()
+        if not token_env:
+            msg = f"Config field 'github.accounts[{index}].token_env' is required."
+            raise ValueError(msg)
+        api_base_url = _get_str(
+            account,
+            "api_base_url",
+            fallback_api_base_url,
+            f"github.accounts[{index}].api_base_url",
+        )
+        accounts.append(
+            GitHubAccountConfig(
+                id=account_id,
+                label=label,
+                token_env=token_env,
+                api_base_url=api_base_url,
+            )
+        )
+    return GitHubConfig(accounts=accounts)
 
 
 def _parse_polling(value: object) -> PollingConfig:

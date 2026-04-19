@@ -249,9 +249,15 @@ dashboards:
     max_items: 100
     match:                        # optional MatchCriteria sub-filter
       reason_in: ["mention", "review_requested"]
+    ignore_rules:                 # optional per-dashboard exclusions (in addition to global rule excludes)
+      - reason_in: ["comment"]
+        context:
+          - path: github.latest_comment.is_ci_only
+            op: equals
+            value: true
 ```
 
-Excluded records are never shown in any dashboard regardless of `match`.
+Global rule exclusions (`rule.exclude_from_dashboards`) are applied to every dashboard. Dashboard-level `ignore_rules` are applied on top of those globals for the selected dashboard.
 
 ### 3.8 `auth`
 
@@ -351,6 +357,7 @@ Framework: Litestar. Served via uvicorn. Config loaded on every request from the
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/` | Single-page HTML dashboard app served from `src/corvix/web/static/index.html`. |
+| `GET` | `/dashboards/{name}` | Same SPA shell, with dashboard selected from URL path (bookmarkable). |
 | `GET` | `/api/health` | Returns `{"status": "ok"}`. |
 | `GET` | `/api/themes` | Returns available UI theme presets. |
 | `GET` | `/api/dashboards` | Returns `{"dashboard_names": [...]}`. |
@@ -364,6 +371,8 @@ The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/a
 ```json
 {
   "name": "<dashboard name>",
+  "sort_by": "score",
+  "descending": true,
   "generated_at": "<ISO 8601 or null>",
   "total_items": 42,
   "groups": [
