@@ -63,16 +63,23 @@ Ready to contribute? Here's how to set up {}`corvix` for local development.
    git clone https://github.com/renefritze/corvix
    ```
 
-3. Install your local copy into a virtualenv:
+3. Install dependencies with `uv`:
 
    ```bash
    cd corvix/
-   python3 -m venv venv
-   source venv/bin/activate
-   python3 -m pip install .[dev]
+   uv sync
    ```
 
-4. Create a branch for local development:
+4. Prepare local runtime config and Docker secrets for end-to-end testing:
+
+   ```bash
+   cp config/corvix.example.yaml config/corvix.yaml
+   cp secrets/github_token.txt.example secrets/github_token.txt
+   cp secrets/postgres_password.txt.example secrets/postgres_password.txt
+   cp secrets/database_url.txt.example secrets/database_url.txt
+   ```
+
+5. Create a branch for local development:
 
    ```bash
    git checkout -b name-of-your-bugfix-or-feature
@@ -80,14 +87,14 @@ Ready to contribute? Here's how to set up {}`corvix` for local development.
 
    Now you can make your changes locally.
 
-5. Make sure you have pre-commit installed and activated:
+6. Make sure you have pre-commit installed and activated:
 
    ```bash
    pre-commit install
    pre-commit run --all-files
    ```
 
-6. Commit your changes and push your branch to GitHub:
+7. Commit your changes and push your branch to GitHub:
 
    ```bash
    git add .
@@ -95,7 +102,7 @@ Ready to contribute? Here's how to set up {}`corvix` for local development.
    git push origin name-of-your-bugfix-or-feature
    ```
 
-7. Submit a pull request through the GitHub website.
+8. Submit a pull request through the GitHub website.
 
 ## Pull Request Guidelines
 
@@ -104,7 +111,7 @@ Before you submit a pull request, check that it meets these guidelines:
 1. The pull request should include tests.
 2. If the pull request adds functionality, the docs should be updated. Put
    your new functionality into a function with a docstring, and add the
-   feature to the list in README.rst.
+   feature to the list in README.md.
 3. The pull request should work for multiple Python versions.
 
 ## Tips
@@ -112,7 +119,13 @@ Before you submit a pull request, check that it meets these guidelines:
 To run a subset of tests:
 
 ```bash
-pytest tests.test_corvix
+uv run pytest tests/test_corvix.py
+```
+
+To run the local stack for manual verification:
+
+```bash
+docker compose up --build
 ```
 
 ## Deploying

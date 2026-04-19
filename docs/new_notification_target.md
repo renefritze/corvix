@@ -71,7 +71,6 @@ Place it in `src/corvix/notifications/targets/`:
 ```text
 src/corvix/notifications/targets/
     base.py          ← protocol definition (do not edit)
-    web_push.py      ← phase 2 placeholder
     slack.py         ← your new file
 ```
 

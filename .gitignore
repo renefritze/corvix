@@ -724,4 +724,4 @@ _version.py
 
 .pre-commit-cache/
 .playwright-cli/
-.claude/settings.local.json
+.agents/settings.local.json

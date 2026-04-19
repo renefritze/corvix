@@ -9,22 +9,21 @@ coverage:
         target: 80%
         paths:
         - src/
-        - python/
+        - frontend/src/
     project:
       default: false  # disable default status
-      source:  # report coverage status for source files
+      backend:
         target: 80%
         paths:
         - src/
+      frontend:
+        target: 80%
+        paths:
+        - frontend/src/
       tests:  # report coverage status for tests...
         target: 0%  # ... but let the check always pass
         paths:
         - tests/
-      python:  # report coverage status for python directory
-        target: 80%
-        threshold: 5%  # TODO: remove threshold once we have reached 80% coverage
-        paths:
-        - python/
 
 # makes no sense to execute benchmarks with coverage instrumentation
 ignore:

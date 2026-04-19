@@ -32,6 +32,8 @@ Normalized view of one GitHub notification thread. Constructed via `Notification
 | `thread_url` | `str \| None` | `url` |
 | `subject_url` | `str \| None` | `subject.url` (GitHub API URL for the subject resource) |
 | `web_url` | `str \| None` | derived human-facing GitHub URL; `None` if unresolvable (see §2.4) |
+| `account_id` | `str` | configured account id (for example `work`, `personal`) |
+| `account_label` | `str` | display label for the configured account |
 
 ### 2.2 `NotificationRecord` (processed)
 
@@ -56,6 +58,8 @@ JSON file at the path configured in `state.cache_file`:
   "generated_at": "<ISO 8601 UTC timestamp>",
   "notifications": [
     {
+      "account_id": "work",
+      "account_label": "Work",
       "thread_id": "1",
       "repository": "owner/repo",
       "reason": "mention",
@@ -120,9 +124,16 @@ YAML file, default path `corvix.yaml`. Generate a starter with `corvix init-conf
 
 ```yaml
 github:
-  token_env: GITHUB_TOKEN        # env var holding the PAT
-  api_base_url: https://api.github.com
+  accounts:
+    - id: primary
+      label: Primary
+      token_env: GITHUB_TOKEN
+      api_base_url: https://api.github.com
 ```
+
+Multi-account setups add more entries to `github.accounts`.
+
+Legacy top-level `github.token_env` and `github.api_base_url` keys are still accepted as fallbacks for compatibility.
 
 ### 3.2 `polling`
 
@@ -171,11 +182,15 @@ enrichment:
   github_latest_comment:
     enabled: false
     timeout_seconds: 10
+  github_pr_state:
+    enabled: false
+    timeout_seconds: 10
 ```
 
 When enabled, Corvix runs provider-based enrichment before scoring/rules. Current provider:
 
 - `github_latest_comment`: fetches latest comment metadata for `reason == comment` notifications.
+- `github_pr_state`: fetches pull request state metadata for pull-request notifications.
 
 ### 3.6 `rules`
 
@@ -362,7 +377,10 @@ Framework: Litestar. Served via uvicorn. Config loaded on every request from the
 | `GET` | `/api/themes` | Returns available UI theme presets. |
 | `GET` | `/api/dashboards` | Returns `{"dashboard_names": [...]}`. |
 | `GET` | `/api/snapshot?dashboard=<name>` | Loads cache, runs `build_dashboard_data`, returns `DashboardData` as JSON plus `dashboard_names`. |
-| `POST` | `/api/notifications/{thread_id}/dismiss` | Calls GitHub dismiss API and marks the local record dismissed. |
+| `POST` | `/api/notifications/{account_id}/{thread_id}/dismiss` | Calls GitHub dismiss API and marks the local record dismissed for the account-scoped notification. |
+| `POST` | `/api/notifications/{thread_id}/dismiss` | Backward-compatible dismiss route using the default configured account. |
+| `POST` | `/api/notifications/{account_id}/{thread_id}/mark-read` | Calls GitHub mark-read API and updates local cache state for the account-scoped notification. |
+| `POST` | `/api/notifications/{thread_id}/mark-read` | Backward-compatible mark-read route using the default configured account. |
 
 The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/api/snapshot`, and renders grouped tables in a responsive layout.
 
@@ -438,6 +456,8 @@ Optional development override: if live-reload/source mounts are needed, add a co
 ## Planned Architecture
 
 ## 10. Multi-user support
+
+Status: Pending (some prerequisite pieces are implemented, but multi-user auth/session runtime is not).
 
 ### 10.1 Motivation
 
@@ -566,6 +586,8 @@ Currently `_load_runtime_config()` reads YAML from disk on every web request. In
 
 ## 11. Two-way dismiss
 
+Status: Done (dismiss action type and web endpoints are implemented).
+
 ### 11.1 GitHub API mapping
 
 | Corvix action | GitHub API call | Effect |
@@ -620,6 +642,8 @@ Add a dismiss button (e.g. `×`) per notification row. On click, `POST` to the d
 
 ## 12. Theming
 
+Status: Done for runtime theme presets and `/api/themes`; multi-user DB-backed preference persistence is still pending.
+
 ### 12.1 Approach
 
 The current SPA already uses CSS custom properties (`--bg`, `--ink`, `--surface`, `--accent`, `--line`, `--ok`, `--muted`). Theming is a JS-only operation: apply a preset by setting these variables on `document.documentElement.style`.
@@ -661,6 +685,8 @@ The SPA is an embedded string. CSS custom properties make theming a runtime JS o
 ---
 
 ## 13. Browser notifications
+
+Status: Pending (notification event model/dispatcher scaffolding exists; browser push delivery is not implemented yet).
 
 ### 13.1 Architecture
 
