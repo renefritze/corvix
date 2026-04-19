@@ -68,7 +68,7 @@ class PollCycleInput:
     notification_targets: list[NotificationTarget] | None = None
 
 
-def run_poll_cycle(input: PollCycleInput) -> PollingSummary:  # noqa: PLR0915
+def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     """Fetch notifications, score/evaluate, optionally execute actions, and persist cache.
 
     If ``input.notification_targets`` is provided (and
@@ -77,50 +77,102 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:  # noqa: PLR0915
     target after saving the snapshot.
     """
     current_time = input.now if input.now is not None else datetime.now(tz=UTC)
-    active_clients = input.clients or ((input.client,) if input.client is not None else ())
-    if not active_clients:
-        msg = "At least one notifications client is required for polling."
-        raise ValueError(msg)
+    active_clients = _resolve_active_clients(input)
+    previous_records = _load_previous_records(input)
 
-    # Load previous snapshot for newness detection before overwriting.
-    notif_cfg = input.config.notifications
-    previous_records: list[NotificationRecord] = []
-    if notif_cfg.enabled and input.notification_targets:
-        _, previous_records = input.cache.load()
+    notifications, clients_by_account = _fetch_notifications(input.config.polling, active_clients)
+    _resolve_web_urls_for_notifications(notifications, active_clients)
 
-    notifications: list[Notification] = []
-    clients_by_account: dict[str, NotificationsClient] = {}
-    for client in active_clients:
-        fetched = client.fetch_notifications(input.config.polling)
-        notifications.extend(fetched)
-        if fetched:
-            clients_by_account[fetched[0].account_id] = client
-    enrichers_by_account: dict[str, WebUrlEnricher] = {}
-    for client in active_clients:
-        if isinstance(client, WebUrlEnricher):
-            account_id = getattr(client, "account_id", "primary")
-            if isinstance(account_id, str) and account_id:
-                enrichers_by_account[account_id] = cast(WebUrlEnricher, client)
-    for notification in notifications:
-        resolve_web_urls([notification], enricher=enrichers_by_account.get(notification.account_id))
     enrichment_engine = EnrichmentEngine(
         config=input.config.enrichment,
         providers=_build_enrichment_providers(input.config),
     )
     enrichment_client = active_clients[0]
-    enrichment_clients: dict[str, JsonFetchClient] = {key: value for key, value in clients_by_account.items()}
+    enrichment_clients: dict[str, JsonFetchClient] = dict(clients_by_account)
     enrichment_result = enrichment_engine.run(
         notifications=notifications,
         client=enrichment_client,
         clients_by_account=enrichment_clients,
     )
 
+    records, excluded, action_count, errors = _process_notifications(
+        notifications=notifications,
+        input=input,
+        current_time=current_time,
+        clients_by_account=clients_by_account,
+        contexts_by_notification_key=enrichment_result.contexts_by_notification_key,
+    )
+    errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
+    input.cache.save(records=records, generated_at=current_time)
+
+    dispatch = _dispatch_notification_events(input, previous_records, records)
+
+    return PollingSummary(
+        fetched=len(notifications),
+        excluded=excluded,
+        actions_taken=action_count,
+        errors=errors,
+        dispatch=dispatch,
+    )
+
+
+def _resolve_active_clients(input: PollCycleInput) -> tuple[NotificationsClient, ...]:
+    active_clients = input.clients or ((input.client,) if input.client is not None else ())
+    if not active_clients:
+        msg = "At least one notifications client is required for polling."
+        raise ValueError(msg)
+    return active_clients
+
+
+def _load_previous_records(input: PollCycleInput) -> list[NotificationRecord]:
+    if input.config.notifications.enabled and input.notification_targets:
+        _, previous_records = input.cache.load()
+        return previous_records
+    return []
+
+
+def _fetch_notifications(
+    polling: PollingConfig,
+    active_clients: tuple[NotificationsClient, ...],
+) -> tuple[list[Notification], dict[str, NotificationsClient]]:
+    notifications: list[Notification] = []
+    clients_by_account: dict[str, NotificationsClient] = {}
+    for client in active_clients:
+        fetched = client.fetch_notifications(polling)
+        notifications.extend(fetched)
+        if fetched:
+            clients_by_account[fetched[0].account_id] = client
+    return notifications, clients_by_account
+
+
+def _resolve_web_urls_for_notifications(
+    notifications: list[Notification],
+    active_clients: tuple[NotificationsClient, ...],
+) -> None:
+    enrichers_by_account: dict[str, WebUrlEnricher] = {}
+    for client in active_clients:
+        if not isinstance(client, WebUrlEnricher):
+            continue
+        account_id = getattr(client, "account_id", "primary")
+        if isinstance(account_id, str) and account_id:
+            enrichers_by_account[account_id] = cast(WebUrlEnricher, client)
+    for notification in notifications:
+        resolve_web_urls([notification], enricher=enrichers_by_account.get(notification.account_id))
+
+
+def _process_notifications(
+    notifications: list[Notification],
+    input: PollCycleInput,
+    current_time: datetime,
+    clients_by_account: dict[str, NotificationsClient],
+    contexts_by_notification_key: dict[str, dict[str, object]],
+) -> tuple[list[NotificationRecord], int, int, list[str]]:
     records: list[NotificationRecord] = []
     excluded = 0
     action_count = 0
     errors: list[str] = []
     for notification in notifications:
-        record_context = enrichment_result.contexts_by_notification_key.get(notification_key(notification), {})
+        record_context = contexts_by_notification_key.get(notification_key(notification), {})
         score = score_notification(notification=notification, config=input.config.scoring, now=current_time)
         evaluation = evaluate_rules(
             notification=notification,
@@ -156,29 +208,25 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:  # noqa: PLR0915
         if evaluation.excluded:
             excluded += 1
         records.append(record)
+    return records, excluded, action_count, errors
 
-    errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
-    input.cache.save(records=records, generated_at=current_time)
 
-    # Detect new events and dispatch to targets.
-    dispatch: DispatchResult | None = None
-    if notif_cfg.enabled and input.notification_targets:
-        events = detect_new_unread_events(
-            previous=previous_records,
-            current=records,
-            min_score=notif_cfg.detect.min_score,
-            include_read=notif_cfg.detect.include_read,
-        )
-        dispatcher = NotificationDispatcher(targets=input.notification_targets)
-        dispatch = dispatcher.dispatch(events)
-
-    return PollingSummary(
-        fetched=len(notifications),
-        excluded=excluded,
-        actions_taken=action_count,
-        errors=errors,
-        dispatch=dispatch,
+def _dispatch_notification_events(
+    input: PollCycleInput,
+    previous_records: list[NotificationRecord],
+    records: list[NotificationRecord],
+) -> DispatchResult | None:
+    notif_cfg = input.config.notifications
+    if not notif_cfg.enabled or not input.notification_targets:
+        return None
+    events = detect_new_unread_events(
+        previous=previous_records,
+        current=records,
+        min_score=notif_cfg.detect.min_score,
+        include_read=notif_cfg.detect.include_read,
     )
+    dispatcher = NotificationDispatcher(targets=input.notification_targets)
+    return dispatcher.dispatch(events)
 
 
 def run_watch_loop(  # noqa: PLR0913

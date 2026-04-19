@@ -3,9 +3,9 @@ import { cleanup } from "@testing-library/preact";
 import { afterEach, vi } from "vitest";
 
 class ResizeObserverMock {
-	observe() {}
-	unobserve() {}
-	disconnect() {}
+	observe = vi.fn();
+	unobserve = vi.fn();
+	disconnect = vi.fn();
 }
 
 Object.defineProperty(window, "ResizeObserver", {

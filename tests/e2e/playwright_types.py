@@ -37,12 +37,28 @@ class ConsoleMessageLike(Protocol):
     text: str
 
 
+class ApiResponseLike(Protocol): ...
+
+
 class RouteLike(Protocol):
-    def fetch(self, *, timeout: int | None = None) -> object: ...
+    def fetch(self, *, timeout: int | None = None) -> ApiResponseLike: ...
 
     def continue_(self) -> None: ...
 
+    @overload
+    def fulfill(self, *, response: ApiResponseLike) -> None: ...
+
+    @overload
     def fulfill(self, *, status: int, content_type: str, body: str) -> None: ...
+
+    def fulfill(
+        self,
+        *,
+        response: ApiResponseLike | None = None,
+        status: int | None = None,
+        content_type: str | None = None,
+        body: str | None = None,
+    ) -> None: ...
 
 
 class PageLike(Protocol):

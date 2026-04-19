@@ -11,6 +11,7 @@ import yaml
 _POLLING_PER_PAGE_MIN = 1
 _POLLING_PER_PAGE_MAX = 50
 _CONTEXT_OPERATORS = {"equals", "not_equals", "contains", "regex", "in", "exists"}
+DEFAULT_GITHUB_API_BASE_URL = "https://api.github.com"
 
 
 @dataclass(slots=True)
@@ -115,7 +116,7 @@ class GitHubConfig:
     @property
     def api_base_url(self) -> str:
         """Backward-compatible shortcut to first account API base URL."""
-        return self.accounts[0].api_base_url if self.accounts else "https://api.github.com"
+        return self.accounts[0].api_base_url if self.accounts else DEFAULT_GITHUB_API_BASE_URL
 
 
 @dataclass(slots=True)
@@ -125,7 +126,7 @@ class GitHubAccountConfig:
     id: str
     label: str
     token_env: str
-    api_base_url: str = "https://api.github.com"
+    api_base_url: str = DEFAULT_GITHUB_API_BASE_URL
 
 
 @dataclass(slots=True)
@@ -235,19 +236,13 @@ class AppConfig:
         return self.state.cache_file.expanduser().resolve()
 
 
-DEFAULT_CONFIG = """\
-# GitHub account(s) to poll and merge into one dashboard feed.
+DEFAULT_CONFIG = f"""\
 github:
-  # One or more account entries; each account uses its own token env var.
   accounts:
-    # Stable account identifier stored with each notification record.
     - id: primary
-      # Human-readable label shown in UI/API payloads.
       label: Primary
-      # Env var that stores the account token (also supports <VAR>_FILE).
       token_env: GITHUB_TOKEN
-      # GitHub API base URL (default github.com public API endpoint).
-      api_base_url: https://api.github.com
+      api_base_url: {DEFAULT_GITHUB_API_BASE_URL}
 
 # Optional enrichment providers that add context used by rules/dashboards.
 enrichment:
@@ -433,7 +428,7 @@ def _ensure_map(value: object, section: str) -> dict[str, object]:
 
 def _ensure_list(value: object, section: str) -> list[object]:
     if isinstance(value, list):
-        return [item for item in value]
+        return list(value)
     msg = f"Config section '{section}' must be a list."
     raise ValueError(msg)
 
@@ -663,7 +658,7 @@ def _parse_github(value: object) -> GitHubConfig:
     fallback_api_base_url = _get_str(
         github,
         "api_base_url",
-        "https://api.github.com",
+        DEFAULT_GITHUB_API_BASE_URL,
         "github.api_base_url",
     )
     if "accounts" not in github:

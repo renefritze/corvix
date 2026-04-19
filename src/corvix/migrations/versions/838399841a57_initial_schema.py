@@ -18,6 +18,7 @@ revision: str = "838399841a57"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+USERS_ID_FK = "users.id"
 
 
 def upgrade() -> None:
@@ -34,7 +35,7 @@ def upgrade() -> None:
     op.create_table(
         "notification_records",
         sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey(USERS_ID_FK), nullable=False),
         sa.Column("thread_id", sa.Text, nullable=False),
         sa.Column("repository", sa.Text, nullable=False),
         sa.Column("reason", sa.Text, nullable=False),
@@ -54,7 +55,7 @@ def upgrade() -> None:
 
     op.create_table(
         "user_preferences",
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), primary_key=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey(USERS_ID_FK), primary_key=True),
         sa.Column("theme", sa.Text, nullable=False, server_default="default"),
         sa.Column("browser_notify", sa.Boolean, nullable=False, server_default="false"),
     )
@@ -62,7 +63,7 @@ def upgrade() -> None:
     op.create_table(
         "push_subscriptions",
         sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey(USERS_ID_FK), nullable=False),
         sa.Column("endpoint", sa.Text, nullable=False),
         sa.Column("p256dh_key", sa.Text, nullable=False),
         sa.Column("auth_key", sa.Text, nullable=False),
