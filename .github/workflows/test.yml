@@ -251,6 +251,8 @@ jobs:
   ui-screenshot-check:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name
       == 'workflow_dispatch'
+    permissions:
+      contents: read
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2

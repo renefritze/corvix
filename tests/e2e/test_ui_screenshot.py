@@ -45,6 +45,7 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     page.goto(f"{corvix_server}/dashboards/overview", wait_until="networkidle")
     page.wait_for_selector("table.notification-table")
     page.wait_for_selector("text=Corvix")
+    page.wait_for_function("() => document.fonts.status === 'loaded'")
 
     page.add_style_tag(content="*, *::before, *::after { animation: none !important; transition: none !important; }")
 
