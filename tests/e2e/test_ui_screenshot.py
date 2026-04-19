@@ -47,7 +47,14 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     page.wait_for_selector("text=Corvix")
     page.wait_for_function("() => document.fonts.status === 'loaded'")
 
-    page.add_style_tag(content="*, *::before, *::after { animation: none !important; transition: none !important; }")
+    page.add_style_tag(
+        content=(
+            "*, *::before, *::after { animation: none !important; transition: none !important; }"
+            "html, body, button, select, input, textarea {"
+            " font-family: 'Liberation Sans', Arial, sans-serif !important;"
+            "}"
+        )
+    )
 
     SCREENSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
     page.locator(".shell").screenshot(path=str(SCREENSHOT_PATH), animations="disabled")
