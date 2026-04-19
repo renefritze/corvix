@@ -10,6 +10,8 @@ updates:
   directory: /
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     all:
       patterns:
@@ -19,6 +21,8 @@ updates:
   directory: /
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     all:
       patterns:
@@ -28,6 +32,8 @@ updates:
   directory: /frontend
   schedule:
     interval: monthly
+  cooldown:
+    default-days: 7
   groups:
     all:
       patterns:
