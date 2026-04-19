@@ -157,14 +157,15 @@ jobs:
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24  # v5.4.3
+      env:
+        PY_FLAG: ${{ matrix.python-version == '3.13' && 'py313' || 'pygt313' }}
       with:
         use_oidc: true
         fail_ci_if_error: true
         files: |
           coverage-python.xml
           frontend/coverage/lcov.info
-        flags: suite-integration-tests,lang-python,lang-frontend,${{ matrix.python-version == '3.13' && 'py313' || 'pygt313'
-          }}
+        flags: suite-integration-tests,lang-python,lang-frontend,${{ env.PY_FLAG }}
         name: integration-tests-${{ matrix.python-version }}
 
   e2e-tests:

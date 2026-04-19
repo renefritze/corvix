@@ -12,8 +12,7 @@ services:
     - "8000"
     environment:
       CORVIX_CONFIG: /fixtures/corvix.lighthouse.yaml
-    ports:
-    - "4173:8000"
+    ports: ["4173:8000"]
     volumes:
     - ./tests/lighthouse:/fixtures:ro
     healthcheck:
