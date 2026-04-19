@@ -569,7 +569,7 @@ def _parse_github(value: object) -> GitHubConfig:
         "github.api_base_url",
     )
     if "accounts" not in github:
-        raw_accounts: list[object] = [{}]
+        raw_accounts: list[object] = [{"label": "Primary"}]
     else:
         raw_accounts = _ensure_list(github.get("accounts", []), "github.accounts")
     if "accounts" in github and not raw_accounts:

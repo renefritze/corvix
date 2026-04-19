@@ -91,6 +91,9 @@ def test_config_github_defaults(tmp_path: Path) -> None:
     config = load_config(config_file)
     assert config.github.token_env == "GITHUB_TOKEN"
     assert config.github.api_base_url == "https://api.github.com"
+    assert len(config.github.accounts) == 1
+    assert config.github.accounts[0].id == "primary"
+    assert config.github.accounts[0].label == "Primary"
 
 
 def test_config_polling_defaults(tmp_path: Path) -> None:

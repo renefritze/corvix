@@ -7,6 +7,14 @@ vi.mock("../api", () => ({
 	dismissNotification: vi.fn(),
 }));
 
+function deferred<T>() {
+	let resolve!: (value: T | PromiseLike<T>) => void;
+	const promise = new Promise<T>((res) => {
+		resolve = res;
+	});
+	return { promise, resolve };
+}
+
 function Harness({
 	currentThreadIds,
 	onRefresh,
@@ -39,7 +47,8 @@ function Harness({
 describe("useDismiss", () => {
 	it("queues and commits dismissal after timeout", async () => {
 		vi.useFakeTimers();
-		vi.mocked(dismissNotification).mockResolvedValue(undefined);
+		const request = deferred<void>();
+		vi.mocked(dismissNotification).mockReturnValue(request.promise);
 		const onRefresh = vi.fn().mockResolvedValue(undefined);
 		const onError = vi.fn();
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -56,6 +65,10 @@ describe("useDismiss", () => {
 		expect(screen.getByTestId("pending-size")).toHaveTextContent("1");
 
 		vi.advanceTimersByTime(3_100);
+		expect(screen.getByTestId("pending-size")).toHaveTextContent("1");
+		expect(screen.getByTestId("hidden-size")).toHaveTextContent("1");
+
+		request.resolve();
 		await waitFor(() => {
 			expect(screen.getByTestId("pending-size")).toHaveTextContent("0");
 		});

@@ -58,11 +58,6 @@ export function useDismiss(
 
 			const timerId = setTimeout(async () => {
 				try {
-					setPending((prev) => {
-						const next = new Map(prev);
-						next.delete(key);
-						return next;
-					});
 					await dismissNotification(accountId, threadId);
 					setCommitted((prev) => {
 						const next = new Set(prev);

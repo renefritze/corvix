@@ -99,8 +99,10 @@ export function TableHeader({
 							)}
 						</button>
 						{resizeKey && (
-							<span
+							<button
+								type="button"
 								class="col-resize-handle"
+								aria-label={`Resize ${label} column`}
 								onMouseDown={(event) => {
 									event.preventDefault();
 									event.stopPropagation();

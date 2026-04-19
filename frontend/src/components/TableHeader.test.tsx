@@ -29,17 +29,20 @@ describe("TableHeader", () => {
 		);
 
 		const scoreHeader = screen
-			.getByRole("button", { name: /score/i })
+			.getByRole("button", { name: /^Score\b/i })
 			.closest("th");
 		expect(scoreHeader).toHaveAttribute("aria-sort", "ascending");
 
-		await user.click(screen.getByRole("button", { name: /repository/i }));
+		await user.click(screen.getByRole("button", { name: /^Repository$/i }));
 		expect(onSort).toHaveBeenCalledWith("repository");
 
 		const handle = container.querySelector(
 			".col-repository .col-resize-handle",
 		);
 		expect(handle).not.toBeNull();
+		expect(
+			screen.getByRole("button", { name: "Resize Repository column" }),
+		).toBeInTheDocument();
 		handle?.dispatchEvent(
 			new MouseEvent("mousedown", { bubbles: true, clientX: 240 }),
 		);
