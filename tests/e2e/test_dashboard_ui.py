@@ -155,8 +155,8 @@ def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(ap
     expect = pytest.importorskip("playwright.sync_api").expect
 
     def delayed_snapshot(route: RouteLike) -> None:
-        app_page.wait_for_timeout(2_000)
-        route.continue_()
+        response = route.fetch(timeout=5_000)
+        route.fulfill(response=response)
 
     app_page.route("**/api/snapshot*", delayed_snapshot)
 

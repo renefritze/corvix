@@ -79,8 +79,10 @@ def _wait_for_health(base_url: str, timeout_seconds: float = HEALTH_TIMEOUT_SECO
     raise RuntimeError(msg)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str) -> Generator[str]:
+    # Function scope avoids cross-test state leakage (dismissed rows persisted in cache)
+    # and keeps CI behavior deterministic regardless of test order.
     pytest.importorskip("playwright")
 
     base_dir = tmp_path_factory.mktemp("corvix-e2e")
@@ -209,3 +211,10 @@ def app_page(page: PageLike, corvix_server: str) -> PageLike:
     page.goto(corvix_server)
     page.wait_for_selector("#app")
     return page
+
+
+@pytest.fixture(autouse=True)
+def cleanup_routes(page: PageLike) -> Generator[None]:
+    """Ensure all routed handlers are removed between tests."""
+    yield
+    page.unroute_all(behavior="ignoreErrors")
