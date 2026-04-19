@@ -6,15 +6,17 @@ import json
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Page
+
+from tests.e2e.playwright_types import PageLike
+
+pytest.importorskip("playwright")
 
 SCREENSHOT_PATH = Path("docs/_static/corvix-ui.png")
-APP_URL = "http://127.0.0.1:4173/dashboards/overview"
 FROZEN_NOW_ISO = "2026-04-09T10:30:00.000Z"
 
 
 @pytest.mark.e2e
-def test_generate_ui_screenshot(page: Page) -> None:
+def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     frozen_now = json.dumps(FROZEN_NOW_ISO)
     script = """
         (() => {
@@ -40,7 +42,7 @@ def test_generate_ui_screenshot(page: Page) -> None:
     page.add_init_script(script.replace("__FIXED_NOW__", frozen_now))
 
     page.set_viewport_size({"width": 1720, "height": 1080})
-    page.goto(APP_URL, wait_until="networkidle")
+    page.goto(f"{corvix_server}/dashboards/overview", wait_until="networkidle")
     page.wait_for_selector("table.notification-table")
     page.wait_for_selector("text=Corvix")
 

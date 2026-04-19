@@ -6,7 +6,7 @@ GitHub notifications dashboards
 
 ![Corvix dashboard UI screenshot with fixture data](docs/_static/corvix-ui.png)
 
-Regenerate this screenshot with `make ui-screenshot` (fixture data from `tests/lighthouse/notifications.json`).
+Regenerate this screenshot with `UI_SCREENSHOT_INSTALL_DEPS=1 make ui-screenshot` (fixture data from `tests/lighthouse/notifications.json`).
 
 ## Run with Docker Compose
 
@@ -51,7 +51,7 @@ uv sync
 uv run pytest
 uv run ruff check .
 make frontend-build
-make ui-screenshot
+UI_SCREENSHOT_INSTALL_DEPS=1 make ui-screenshot
 npm --prefix frontend run test -- --run
 npm --prefix frontend run test:coverage
 make lighthouse

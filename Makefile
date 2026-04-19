@@ -18,9 +18,11 @@ lighthouse:
 	docker compose -f docker-compose.yml -f docker-compose.lighthouse.yml up --build --abort-on-container-exit --exit-code-from lighthouse lighthouse
 
 ui-screenshot:
-	@set -euo pipefail; \
-	COMPOSE_PROJECT_NAME=corvix-screenshot docker compose -f docker-compose.lighthouse.yml up --build -d web-lighthouse; \
+	@set -eu; \
 	trap 'COMPOSE_PROJECT_NAME=corvix-screenshot docker compose -f docker-compose.lighthouse.yml down --volumes --remove-orphans' EXIT; \
-	uv sync --extra e2e; \
-	uv run playwright install chromium; \
+	COMPOSE_PROJECT_NAME=corvix-screenshot docker compose -f docker-compose.lighthouse.yml up --build -d --wait web-lighthouse; \
+	if [ "$${UI_SCREENSHOT_INSTALL_DEPS:-0}" = "1" ]; then \
+		uv sync --extra e2e; \
+		uv run playwright install chromium; \
+	fi; \
 	uv run pytest -m e2e tests/e2e/test_ui_screenshot.py -q
