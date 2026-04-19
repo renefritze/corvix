@@ -29,6 +29,9 @@ jobs:
   fast-tests:
     needs: docker-compose-build
     if: github.event_name != 'schedule'
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       matrix:
         python-version: ['3.13', '> 3.13']
@@ -86,18 +89,25 @@ jobs:
 
     - name: Test fast suite
       run: |
-        uv run --frozen pytest -m "not integration and not e2e"
+        uv run --frozen pytest -m "not integration and not e2e" --cov-report=xml:coverage-python.xml
 
-      # - name: Upload coverage
-      #   uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24  # v5.4.3
-      #   with:
-      #     env_vars: OS,PYTHON_VERSION
-      #     fail_ci_if_error: true
-      #     token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24  # v5.4.3
+      with:
+        use_oidc: true
+        fail_ci_if_error: true
+        files: |
+          coverage-python.xml
+          frontend/coverage/lcov.info
+        flags: suite-fast-tests,lang-python,lang-frontend,${{ matrix.python-version == '3.13' && 'py313' || 'pygt313' }}
+        name: fast-tests-${{ matrix.python-version }}
 
   integration-tests:
     needs: docker-compose-build
     if: github.event_name != 'schedule'
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       matrix:
         python-version: ['3.13', '> 3.13']
@@ -143,12 +153,27 @@ jobs:
 
     - name: Test integration suite
       run: |
-        uv run --frozen pytest -m "integration"
+        uv run --frozen pytest -m "integration" --cov-report=xml:coverage-python.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24  # v5.4.3
+      with:
+        use_oidc: true
+        fail_ci_if_error: true
+        files: |
+          coverage-python.xml
+          frontend/coverage/lcov.info
+        flags: suite-integration-tests,lang-python,lang-frontend,${{ matrix.python-version == '3.13' && 'py313' || 'pygt313'
+          }}
+        name: integration-tests-${{ matrix.python-version }}
 
   e2e-tests:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name
       == 'workflow_dispatch'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
     - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
@@ -192,7 +217,18 @@ jobs:
         uv run playwright install --with-deps chromium
     - name: Test e2e suite
       run: |-
-        uv run --frozen pytest -m "e2e"
+        uv run --frozen pytest -m "e2e" --cov-report=xml:coverage-python.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24  # v5.4.3
+      with:
+        use_oidc: true
+        fail_ci_if_error: true
+        files: |
+          coverage-python.xml
+          frontend/coverage/lcov.info
+        flags: suite-e2e-tests,lang-python,lang-frontend,py313
+        name: e2e-tests-py313
 
   lighthouse-tests:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name
