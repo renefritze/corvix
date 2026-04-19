@@ -247,6 +247,33 @@ jobs:
         path: .lighthouseci/
         if-no-files-found: ignore
 
+  ui-screenshot-check:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name
+      == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
+      name: Setup UV + Python
+      with:
+        python-version: '3.13'
+        enable-cache: true
+        cache-dependency-glob: |
+          **/requirements*.txt
+          **/pyproject.toml
+          **/uv.lock
+    - name: Install Playwright browser dependencies
+      run: |
+        uv sync --extra e2e
+        uv run playwright install --with-deps chromium
+    - name: Regenerate UI screenshot
+      run: |
+        make ui-screenshot
+    - name: Verify screenshot is up to date
+      run: |
+        git add -N docs/_static/corvix-ui.png
+        git diff --exit-code -- docs/_static/corvix-ui.png
+
   tests-status:
     name: tests-status
     if: ${{ always() }}
@@ -256,6 +283,7 @@ jobs:
     - integration-tests
     - e2e-tests
     - lighthouse-tests
+    - ui-screenshot-check
     runs-on: ubuntu-24.04
     steps:
     - name: Fail if any required test job failed
@@ -265,19 +293,22 @@ jobs:
         INTEGRATION_TESTS_RESULT: ${{ needs.integration-tests.result }}
         E2E_TESTS_RESULT: ${{ needs.e2e-tests.result }}
         LIGHTHOUSE_TESTS_RESULT: ${{ needs.lighthouse-tests.result }}
+        UI_SCREENSHOT_CHECK_RESULT: ${{ needs.ui-screenshot-check.result }}
       run: |-
         echo "docker-compose-build: ${DOCKER_COMPOSE_BUILD_RESULT}"
         echo "fast-tests: ${FAST_TESTS_RESULT}"
         echo "integration-tests: ${INTEGRATION_TESTS_RESULT}"
         echo "e2e-tests: ${E2E_TESTS_RESULT}"
         echo "lighthouse-tests: ${LIGHTHOUSE_TESTS_RESULT}"
+        echo "ui-screenshot-check: ${UI_SCREENSHOT_CHECK_RESULT}"
 
         for result in \
           "${DOCKER_COMPOSE_BUILD_RESULT}" \
           "${FAST_TESTS_RESULT}" \
           "${INTEGRATION_TESTS_RESULT}" \
           "${E2E_TESTS_RESULT}" \
-          "${LIGHTHOUSE_TESTS_RESULT}"; do
+          "${LIGHTHOUSE_TESTS_RESULT}" \
+          "${UI_SCREENSHOT_CHECK_RESULT}"; do
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
             echo "Detected failing upstream test job result: ${result}"
             exit 1

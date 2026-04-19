@@ -2,7 +2,11 @@
 
 [![image](https://github.com/renefritze/corvix/workflows/pytest/badge.svg)](https://github.com/renefritze/corvix/actions)
 
-Github notifications dashboards
+GitHub notifications dashboards
+
+![Corvix dashboard UI screenshot with fixture data](docs/_static/corvix-ui.png)
+
+Regenerate this screenshot with `make ui-screenshot` (fixture data from `tests/lighthouse/notifications.json`).
 
 ## Run with Docker Compose
 
@@ -19,17 +23,17 @@ Corvix local runtime and end-to-end testing are Docker Compose only.
 
 2. Edit secret files:
 
-- `secrets/github_token.txt`: your GitHub PAT.
-- `secrets/postgres_password.txt`: strong DB password.
-- `secrets/database_url.txt`: full SQLAlchemy/PostgreSQL URL (must match DB credentials).
+   - `secrets/github_token.txt`: your GitHub PAT.
+   - `secrets/postgres_password.txt`: strong DB password.
+   - `secrets/database_url.txt`: full SQLAlchemy/PostgreSQL URL (must match DB credentials).
 
-1. Start services:
+3. Start services:
 
     ```bash
     docker compose up --build
     ```
 
-2. Open `http://localhost:8000`.
+4. Open `http://localhost:8000`.
 
 Notes:
 
@@ -47,6 +51,7 @@ uv sync
 uv run pytest
 uv run ruff check .
 make frontend-build
+make ui-screenshot
 npm --prefix frontend run test -- --run
 npm --prefix frontend run test:coverage
 make lighthouse
@@ -133,7 +138,6 @@ The first dashboard listed in your config is loaded by default. You can add, rem
 
 ## After generating your project
 
-- setup branch protection+automerge in [github project settings](https://github.com/renefritze/corvix/settings/branches)
-- request install for the codecov.io app in [github project settings](https://github.com/renefritze/corvix/settings/installations)
+- setup branch protection+automerge in [GitHub project settings](https://github.com/renefritze/corvix/settings/branches)
+- request install for the codecov.io app in [GitHub project settings](https://github.com/renefritze/corvix/settings/installations)
 - configure codecov.io in [codecov.io settings](https://codecov.io/gh/renefritze/corvix/settings)
-- add the `CODECOV_TOKEN` secret in [github project settings](https://github.com/renefritze/corvix/settings/secrets/actions)
