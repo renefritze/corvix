@@ -7,16 +7,25 @@
 version: 2
 updates:
 - package-ecosystem: github-actions
-  directory: /  # Location of package manifests
+  directory: /
   schedule:
     interval: monthly
   groups:
     all:
       patterns:
       - "*"
+
 - package-ecosystem: uv
-  directories:  # Location of package manifests
-  - "**/*"  # see https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated#defining-multiple-locations-for-manifest-files
+  directory: /
+  schedule:
+    interval: monthly
+  groups:
+    all:
+      patterns:
+      - "*"
+
+- package-ecosystem: npm
+  directory: /frontend
   schedule:
     interval: monthly
   groups:
