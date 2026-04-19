@@ -19,10 +19,9 @@ lighthouse:
 
 ui-screenshot:
 	@set -eu; \
-	trap 'COMPOSE_PROJECT_NAME=corvix-screenshot docker compose -f docker-compose.lighthouse.yml down --volumes --remove-orphans' EXIT; \
-	COMPOSE_PROJECT_NAME=corvix-screenshot docker compose -f docker-compose.lighthouse.yml up --build -d --wait web-lighthouse; \
-	if [ "$${UI_SCREENSHOT_INSTALL_DEPS:-0}" = "1" ]; then \
-		uv sync --extra e2e; \
-		uv run playwright install chromium; \
-	fi; \
-	uv run pytest -m e2e tests/e2e/test_ui_screenshot.py -q
+		docker run --rm \
+		--user "$$(id -u):$$(id -g)" \
+		-v "$$(pwd):/workspace" \
+		-w /workspace \
+		mcr.microsoft.com/playwright/python:v1.58.0-noble \
+		bash -lc "python -m pip install --quiet uv && export PATH=\"/home/ubuntu/.local/bin:$$PATH\" && uv sync --extra e2e && uv run pytest -m e2e tests/e2e/test_ui_screenshot.py -q"

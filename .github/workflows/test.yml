@@ -265,10 +265,6 @@ jobs:
           **/requirements*.txt
           **/pyproject.toml
           **/uv.lock
-    - name: Install Playwright browser dependencies
-      run: |
-        uv sync --extra e2e
-        uv run playwright install --with-deps chromium
     - name: Regenerate UI screenshot
       run: |
         make ui-screenshot
