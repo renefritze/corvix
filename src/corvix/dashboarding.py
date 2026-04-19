@@ -94,11 +94,42 @@ def build_dashboard_data(
     selected = [
         record for record in records if _included_by_dashboard(record=record, dashboard=dashboard, now=current_time)
     ]
-    sorted_records = sorted(
-        selected,
-        key=lambda record: _sort_key(record=record, sort_by=dashboard.sort_by),
-        reverse=dashboard.descending,
-    )
+    if dashboard.sort_by == "updated_at":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.updated_at,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "repository":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.repository,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "reason":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.reason,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "subject_type":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.subject_type,
+            reverse=dashboard.descending,
+        )
+    elif dashboard.sort_by == "title":
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.notification.subject_title,
+            reverse=dashboard.descending,
+        )
+    else:
+        sorted_records = sorted(
+            selected,
+            key=lambda record: record.score,
+            reverse=dashboard.descending,
+        )
     if dashboard.max_items > 0:
         sorted_records = sorted_records[: dashboard.max_items]
     grouped_records = _group_records(records=sorted_records, group_by=dashboard.group_by)
@@ -150,21 +181,6 @@ def _included_by_dashboard(
         )
         for ignore_rule in dashboard.ignore_rules
     )
-
-
-def _sort_key(record: NotificationRecord, sort_by: str) -> object:
-    notification = record.notification
-    if sort_by == "updated_at":
-        return notification.updated_at
-    if sort_by == "repository":
-        return notification.repository
-    if sort_by == "reason":
-        return notification.reason
-    if sort_by == "subject_type":
-        return notification.subject_type
-    if sort_by == "title":
-        return notification.subject_title
-    return record.score
 
 
 def _group_records(
