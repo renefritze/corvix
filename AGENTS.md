@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to AGENTS.md when working with code in this repository.
+This file provides guidance to contributors and agents working with code in this repository.
 
 ## Commands
 
