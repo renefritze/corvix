@@ -24,4 +24,4 @@ ui-screenshot:
 		-v "$$(pwd):/workspace" \
 		-w /workspace \
 		mcr.microsoft.com/playwright/python:v1.58.0-noble \
-		bash -lc "python -m pip install --quiet uv && export PATH=\"/home/ubuntu/.local/bin:$$PATH\" && uv sync --extra e2e && uv run pytest -m e2e tests/e2e/test_ui_screenshot.py -q"
+		bash -lc 'python -m pip install --quiet uv && export PATH="$$(python -m site --user-base)/bin:$$PATH" && uv sync --extra e2e && uv run pytest -m e2e tests/e2e/test_ui_screenshot.py -q'
