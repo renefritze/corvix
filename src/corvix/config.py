@@ -236,87 +236,185 @@ class AppConfig:
 
 
 DEFAULT_CONFIG = """\
+# GitHub account(s) to poll and merge into one dashboard feed.
 github:
+  # One or more account entries; each account uses its own token env var.
   accounts:
+    # Stable account identifier stored with each notification record.
     - id: primary
+      # Human-readable label shown in UI/API payloads.
       label: Primary
+      # Env var that stores the account token (also supports <VAR>_FILE).
       token_env: GITHUB_TOKEN
+      # GitHub API base URL (default github.com public API endpoint).
       api_base_url: https://api.github.com
 
+# Optional enrichment providers that add context used by rules/dashboards.
 enrichment:
+  # Master switch for all enrichment providers.
   enabled: false
+  # Global request budget shared by providers each poll cycle.
   max_requests_per_cycle: 25
+  # Adds github.latest_comment.* context for comment-based filtering.
   github_latest_comment:
+    # Enable latest-comment metadata lookups.
     enabled: false
+    # HTTP timeout per request made by this provider.
     timeout_seconds: 10
+  # Adds github.pr_state.* context for PR-state/author filtering.
   github_pr_state:
+    # Enable pull-request state metadata lookups.
     enabled: false
+    # HTTP timeout per request made by this provider.
     timeout_seconds: 10
 
+# Polling behavior for fetching notifications from GitHub.
 polling:
+  # Watch-loop delay between poll cycles, in seconds.
   interval_seconds: 60
+  # GitHub page size per request (valid range: 1-50).
   per_page: 50
+  # Maximum pages to fetch per cycle to cap API usage.
   max_pages: 5
+  # Include notifications from repositories you are not participating in.
   all: false
+  # Restrict results to threads you participate in when true.
   participating: false
 
+# Local state file used to persist notification snapshots.
 state:
+  # JSON cache path. In Docker Compose, /data is a shared persistent volume.
   cache_file: ~/.cache/corvix/notifications.json
 
+# Priority scoring model used when sort_by=score.
 scoring:
+  # Points added to unread notifications.
   unread_bonus: 15
+  # Points subtracted per hour since last update.
   age_decay_per_hour: 0.25
+  # Extra points by GitHub reason (mention/review_requested/etc).
   reason_weights:
     mention: 50
     review_requested: 40
     assign: 30
     author: 10
+  # Per-repository score adjustments (repo full_name -> points).
   repository_weights:
     your-org/critical-repo: 25
+  # Score adjustments by subject type (Issue, PullRequest, etc).
   subject_type_weights:
     PullRequest: 10
+  # Case-insensitive keyword boosts when title contains the key.
   title_keyword_weights:
     security: 20
     urgent: 15
 
+# Automation rules evaluated for each notification after scoring.
 rules:
+  # Rules applied to all repositories.
   global:
+    # Rule name appears in matched_rules for traceability.
     - name: mute-bot-noise
+      # Match criteria: all provided fields must match.
       match:
+        # Regex against notification title.
         title_regex: ".*\\[bot\\].*"
+      # Actions to execute when the rule matches.
       actions:
+        # mark_read marks a thread as read (dry-run unless apply_actions=true).
         - type: mark_read
+      # Hide matching records from dashboards while still processing them.
       exclude_from_dashboards: true
+  # Repository-specific rules map: repo full_name -> list of rules.
   per_repository:
     your-org/infra:
       - name: mute-chore-prs
         match:
+          # Match when title contains any listed keyword.
           title_contains_any: ["chore", "deps"]
         actions:
           - type: mark_read
         exclude_from_dashboards: true
 
+# Event detection + delivery targets for user-facing notifications.
+notifications:
+  # Master switch for event detection and dispatch.
+  enabled: true
+  # Controls which records qualify as notification events.
+  detect:
+    # Include read records in event detection when true.
+    include_read: false
+    # Minimum score threshold required for event emission.
+    min_score: 0
+  # In-tab browser delivery target (shown while dashboard tab is open).
+  browser_tab:
+    # Enable browser-tab deliveries.
+    enabled: true
+    # Max events sent to this target per poll cycle.
+    max_per_cycle: 5
+    # Per-thread delivery cooldown in seconds to suppress repeats.
+    cooldown_seconds: 10
+  # Background Web Push delivery target.
+  web_push:
+    # Enable Web Push delivery.
+    enabled: false
+    # Env var name containing VAPID public key.
+    vapid_public_key_env: CORVIX_VAPID_PUBLIC_KEY
+    # Env var name containing VAPID private key.
+    vapid_private_key_env: CORVIX_VAPID_PRIVATE_KEY
+    # Web Push contact subject (recommended: mailto:<team@example.com>).
+    subject: ""
+
+# Dashboards rendered in UI; first entry is selected by default.
 dashboards:
+  # Unique dashboard name used in routes and selector.
   - name: overview
+    # Grouping key: none | repository | reason | subject_type.
     group_by: reason
+    # Sort key: score | updated_at | repository | reason | subject_type | title.
     sort_by: updated_at
+    # Sort order for selected sort_by field.
     descending: true
+    # Include read records when true.
     include_read: true
+    # Maximum records shown (<=0 means no truncation).
     max_items: 200
   - name: triage
+    # Grouping key: none | repository | reason | subject_type.
     group_by: repository
+    # Sort key: score | updated_at | repository | reason | subject_type | title.
     sort_by: score
+    # Sort order for selected sort_by field.
     descending: true
+    # Include read records when true.
     include_read: false
+    # Maximum records shown (<=0 means no truncation).
     max_items: 100
+    # Additional include filter (same schema as rule match).
     match:
       reason_in: ["mention", "review_requested", "assign"]
+    # Exclusion filters applied after match/include checks.
     ignore_rules:
       - reason_in: ["comment"]
         context:
+          # Dot path into enrichment context payload.
           - path: github.latest_comment.is_ci_only
+            # Predicate operator: equals | not_equals | contains | regex | in | exists.
             op: equals
+            # Value compared by the operator.
             value: true
+
+# Optional auth mode for the web app.
+auth:
+  # single_user (no login) or multi_user (session-based login).
+  mode: single_user
+  # Secret used to sign sessions in multi_user mode.
+  session_secret: ""
+
+# Database settings (used by DB-backed storage/migrations/commands).
+database:
+  # Env var holding SQLAlchemy database URL (also supports <VAR>_FILE).
+  url_env: DATABASE_URL
 """
 
 
