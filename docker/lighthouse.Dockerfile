@@ -5,8 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation \
+    && npm install -g @lhci/cli \
     && rm -rf /var/lib/apt/lists/*
-
-RUN npm install -g @lhci/cli
 
 WORKDIR /workspace

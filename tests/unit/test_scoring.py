@@ -55,12 +55,12 @@ NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC)
 
 def test_unread_bonus_applied() -> None:
     score = score_notification(_make_notification(unread=True), _config(unread_bonus=10.0), now=NOW)
-    assert score == 10.0
+    assert score == pytest.approx(10.0)
 
 
 def test_no_unread_bonus_when_read() -> None:
     score = score_notification(_make_notification(unread=False), _config(unread_bonus=10.0), now=NOW)
-    assert score == 0.0
+    assert score == pytest.approx(0.0)
 
 
 def test_reason_weight_applied() -> None:
@@ -69,7 +69,7 @@ def test_reason_weight_applied() -> None:
         _config(reason_weights={"mention": 50.0}),
         now=NOW,
     )
-    assert score == 50.0
+    assert score == pytest.approx(50.0)
 
 
 def test_reason_weight_no_match_zero() -> None:
@@ -78,7 +78,7 @@ def test_reason_weight_no_match_zero() -> None:
         _config(reason_weights={"mention": 50.0}),
         now=NOW,
     )
-    assert score == 0.0
+    assert score == pytest.approx(0.0)
 
 
 def test_repository_weight_applied() -> None:
@@ -87,7 +87,7 @@ def test_repository_weight_applied() -> None:
         _config(repository_weights={"org/critical": 25.0}),
         now=NOW,
     )
-    assert score == 25.0
+    assert score == pytest.approx(25.0)
 
 
 def test_subject_type_weight_applied() -> None:
@@ -96,7 +96,7 @@ def test_subject_type_weight_applied() -> None:
         _config(subject_type_weights={"PullRequest": 10.0}),
         now=NOW,
     )
-    assert score == 10.0
+    assert score == pytest.approx(10.0)
 
 
 def test_title_keyword_match_case_insensitive() -> None:
@@ -105,7 +105,7 @@ def test_title_keyword_match_case_insensitive() -> None:
         _config(title_keyword_weights={"security": 20.0}),
         now=NOW,
     )
-    assert score == 20.0
+    assert score == pytest.approx(20.0)
 
 
 def test_title_keyword_no_match() -> None:
@@ -114,7 +114,7 @@ def test_title_keyword_no_match() -> None:
         _config(title_keyword_weights={"security": 20.0}),
         now=NOW,
     )
-    assert score == 0.0
+    assert score == pytest.approx(0.0)
 
 
 def test_multiple_title_keywords_accumulate() -> None:
@@ -123,7 +123,7 @@ def test_multiple_title_keywords_accumulate() -> None:
         _config(title_keyword_weights={"security": 20.0, "urgent": 15.0}),
         now=NOW,
     )
-    assert score == 35.0
+    assert score == pytest.approx(35.0)
 
 
 def test_age_decay_reduces_score() -> None:
@@ -132,7 +132,7 @@ def test_age_decay_reduces_score() -> None:
         _config(age_decay_per_hour=1.0),
         now=NOW,
     )
-    assert score == -4.0
+    assert score == pytest.approx(-4.0)
 
 
 def test_age_decay_zero_for_fresh_notification() -> None:
@@ -141,7 +141,7 @@ def test_age_decay_zero_for_fresh_notification() -> None:
         _config(age_decay_per_hour=1.0),
         now=NOW,
     )
-    assert score == 0.0
+    assert score == pytest.approx(0.0)
 
 
 def test_all_weights_combined() -> None:
@@ -161,7 +161,6 @@ def test_all_weights_combined() -> None:
         subject_type_weights={"PullRequest": 10.0},
         title_keyword_weights={"security": 20.0},
     )
-    # 10 (unread) + 50 (reason) + 25 (repo) + 10 (type) + 20 (keyword) - 2 (decay) = 113
     assert score_notification(n, config, now=NOW) == pytest.approx(113.0)
 
 

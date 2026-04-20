@@ -18,6 +18,10 @@ EXPECTED_POPULATED_TOTAL_ITEMS = 3
 EXPECTED_POPULATED_GROUPS = 2
 
 
+def _raise_bad_env(_name: str) -> str:
+    raise ValueError("bad env")
+
+
 @pytest.fixture()
 def client() -> TestClient:
     return TestClient(app)
@@ -336,7 +340,7 @@ def test_dismiss_token_env_error_returns_500(
     configured_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("corvix.web.app.get_env_value", lambda _name: (_ for _ in ()).throw(ValueError("bad env")))
+    monkeypatch.setattr("corvix.web.app.get_env_value", _raise_bad_env)
 
     response = configured_client.post("/api/notifications/123/dismiss")
 
@@ -411,7 +415,7 @@ def test_mark_read_token_env_error_returns_500(
     configured_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("corvix.web.app.get_env_value", lambda _name: (_ for _ in ()).throw(ValueError("bad env")))
+    monkeypatch.setattr("corvix.web.app.get_env_value", _raise_bad_env)
 
     response = configured_client.post("/api/notifications/123/mark-read")
 

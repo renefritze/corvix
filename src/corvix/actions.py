@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
-
-if TYPE_CHECKING:
-    pass
 
 
 @runtime_checkable

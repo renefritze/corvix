@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from corvix.config import ContextPredicate, DashboardSpec, MatchCriteria
 from corvix.dashboarding import DashboardItem, build_dashboard_data
 from corvix.domain import Notification, NotificationRecord
@@ -327,7 +329,7 @@ def test_dashboard_item_from_record() -> None:
     record = _make_record(thread_id="42", score=99.5)
     item = DashboardItem.from_record(record)
     assert item.thread_id == "42"
-    assert item.score == 99.5
+    assert item.score == pytest.approx(99.5)
     assert item.repository == "org/a"
 
 
