@@ -44,7 +44,7 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     page.add_init_script(script.replace("__FIXED_NOW__", frozen_now))
 
     page.set_viewport_size({"width": 1720, "height": 1080})
-    base_url = os.getenv("CORVIX_UI_SCREENSHOT_BASE_URL", corvix_server).rstrip("/")
+    base_url = (os.getenv("CORVIX_UI_SCREENSHOT_BASE_URL") or corvix_server).rstrip("/")
     page.goto(f"{base_url}{DEFAULT_DASHBOARD_PATH}", wait_until="networkidle")
     page.wait_for_selector("table.notification-table")
     page.wait_for_selector("text=Corvix")

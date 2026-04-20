@@ -98,6 +98,18 @@ class PageLike(Protocol):
 
     def route(self, url: str, handler: Callable[[RouteLike], object]) -> None: ...
 
+    def unroute(
+        self,
+        url: str,
+        handler: Callable[[RouteLike], object] | None = None,
+    ) -> None: ...
+
+    def unroute_all(
+        self,
+        *,
+        behavior: Literal["default", "wait", "ignoreErrors"] | None = None,
+    ) -> None: ...
+
     def wait_for_timeout(self, timeout: float) -> None: ...
 
     def set_viewport_size(self, viewport: dict[str, int]) -> None: ...
