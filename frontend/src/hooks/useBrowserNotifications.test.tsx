@@ -5,9 +5,17 @@ import type { BrowserTabNotificationsConfig, DashboardItem } from "../types";
 import { useBrowserNotifications } from "./useBrowserNotifications";
 
 class NotificationMock {
-	static permission: NotificationPermission = "default";
+	private static permissionState: NotificationPermission = "default";
 	static readonly requestPermission = vi.fn(async () => "granted");
 	static readonly instances: NotificationMock[] = [];
+
+	static get permission(): NotificationPermission {
+		return NotificationMock.permissionState;
+	}
+
+	static setPermission(value: NotificationPermission): void {
+		NotificationMock.permissionState = value;
+	}
 
 	readonly title: string;
 	readonly options?: NotificationOptions;
@@ -60,9 +68,9 @@ function Harness({
 describe("useBrowserNotifications", () => {
 	beforeEach(() => {
 		NotificationMock.instances.length = 0;
-		NotificationMock.permission = "default";
+		NotificationMock.setPermission("default");
 		NotificationMock.requestPermission.mockImplementation(async () => {
-			NotificationMock.permission = "granted";
+			NotificationMock.setPermission("granted");
 			return "granted";
 		});
 		Object.defineProperty(globalThis, "Notification", {
