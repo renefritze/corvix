@@ -22,10 +22,11 @@ from tests.e2e.playwright_types import PageLike
 HEALTH_TIMEOUT_SECONDS = 15.0
 HEALTH_POLL_INTERVAL_SECONDS = 0.2
 HTTP_OK = 200
+FIXED_TIMESTAMP = "2024-01-01T00:00:00Z"
 
 
 class _MockGitHubHandler(BaseHTTPRequestHandler):
-    def do_PATCH(self) -> None:
+    def _handle_thread_mutation(self) -> None:
         if self.path.startswith("/notifications/threads/"):
             self.send_response(HTTPStatus.NO_CONTENT)
             self.end_headers()
@@ -33,13 +34,11 @@ class _MockGitHubHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.NOT_FOUND)
         self.end_headers()
 
+    def do_PATCH(self) -> None:
+        self._handle_thread_mutation()
+
     def do_DELETE(self) -> None:
-        if self.path.startswith("/notifications/threads/"):
-            self.send_response(HTTPStatus.NO_CONTENT)
-            self.end_headers()
-            return
-        self.send_response(HTTPStatus.NOT_FOUND)
-        self.end_headers()
+        self._handle_thread_mutation()
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -91,7 +90,7 @@ def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str
     cache_file.write_text(
         json.dumps(
             {
-                "generated_at": "2024-01-01T00:00:00Z",
+                "generated_at": FIXED_TIMESTAMP,
                 "notifications": [
                     {
                         "thread_id": "101",
@@ -100,7 +99,7 @@ def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str
                         "subject_title": "Review API changes",
                         "subject_type": "PullRequest",
                         "unread": True,
-                        "updated_at": "2024-01-01T00:00:00Z",
+                        "updated_at": FIXED_TIMESTAMP,
                         "thread_url": "https://api.github.com/notifications/threads/101",
                         "web_url": "https://github.com/org/repo-a/pull/101",
                         "score": 90.0,
@@ -116,7 +115,7 @@ def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str
                         "subject_title": "Dependency update",
                         "subject_type": "PullRequest",
                         "unread": True,
-                        "updated_at": "2024-01-01T00:00:00Z",
+                        "updated_at": FIXED_TIMESTAMP,
                         "thread_url": "https://api.github.com/notifications/threads/102",
                         "web_url": "https://github.com/org/repo-b/pull/102",
                         "score": 20.0,
@@ -132,7 +131,7 @@ def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str
                         "subject_title": "Triage flaky integration test",
                         "subject_type": "Issue",
                         "unread": False,
-                        "updated_at": "2024-01-01T00:00:00Z",
+                        "updated_at": FIXED_TIMESTAMP,
                         "thread_url": "https://api.github.com/notifications/threads/103",
                         "web_url": "https://github.com/org/repo-a/issues/103",
                         "score": 45.0,

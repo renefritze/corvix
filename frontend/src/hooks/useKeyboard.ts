@@ -27,12 +27,12 @@ function focusRelativeRow(delta: number) {
 	) as HTMLTableRowElement | null;
 	const idx = current ? rows.indexOf(current) : -1;
 
-	const nextIndex =
-		idx === -1
-			? delta > 0
-				? 0
-				: rows.length - 1
-			: Math.min(rows.length - 1, Math.max(0, idx + delta));
+	let nextIndex: number;
+	if (idx === -1) {
+		nextIndex = delta > 0 ? 0 : rows.length - 1;
+	} else {
+		nextIndex = Math.min(rows.length - 1, Math.max(0, idx + delta));
+	}
 
 	rows[nextIndex]?.focus();
 }

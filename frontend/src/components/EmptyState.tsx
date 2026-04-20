@@ -1,18 +1,18 @@
 import type { FilterState } from "../types";
 
 interface EmptyStateFilterContext {
-	unread: FilterState["unread"];
-	reason: string;
-	repository: string;
+	readonly unread: FilterState["unread"];
+	readonly reason: string;
+	readonly repository: string;
 }
 
 interface EmptyStateProps {
-	hasFilters: boolean;
-	totalItems: number;
-	onClearFilters: () => void;
-	onRetry: () => void;
-	error?: string | null;
-	filterContext?: EmptyStateFilterContext;
+	readonly hasFilters: boolean;
+	readonly totalItems: number;
+	readonly onClearFilters: () => void;
+	readonly onRetry: () => void;
+	readonly error?: string | null;
+	readonly filterContext?: EmptyStateFilterContext;
 }
 
 export function EmptyState({

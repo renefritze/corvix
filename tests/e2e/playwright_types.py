@@ -20,6 +20,13 @@ class LocatorLike(Protocol):
 
     def select_option(self, value: str) -> None: ...
 
+    def screenshot(
+        self,
+        *,
+        path: str | None = None,
+        animations: Literal["disabled", "allow"] | None = None,
+    ) -> bytes: ...
+
 
 class KeyboardLike(Protocol):
     def press(self, key: str) -> None: ...
@@ -30,18 +37,41 @@ class ConsoleMessageLike(Protocol):
     text: str
 
 
+class ApiResponseLike(Protocol): ...
+
+
 class RouteLike(Protocol):
-    def fetch(self, *, timeout: int | None = None) -> object: ...
+    def fetch(self, *, timeout: int | None = None) -> ApiResponseLike: ...
 
     def continue_(self) -> None: ...
 
+    @overload
+    def fulfill(self, *, response: ApiResponseLike) -> None: ...
+
+    @overload
     def fulfill(self, *, status: int, content_type: str, body: str) -> None: ...
+
+    def fulfill(
+        self,
+        *,
+        response: ApiResponseLike | None = None,
+        status: int | None = None,
+        content_type: str | None = None,
+        body: str | None = None,
+    ) -> None: ...
 
 
 class PageLike(Protocol):
     keyboard: KeyboardLike
 
-    def goto(self, url: str) -> None: ...
+    def add_init_script(self, script: str) -> None: ...
+
+    def goto(
+        self,
+        url: str,
+        *,
+        wait_until: Literal["commit", "domcontentloaded", "load", "networkidle"] | None = None,
+    ) -> None: ...
 
     def wait_for_selector(self, selector: str) -> LocatorLike: ...
 
@@ -68,8 +98,24 @@ class PageLike(Protocol):
 
     def route(self, url: str, handler: Callable[[RouteLike], object]) -> None: ...
 
+    def unroute(
+        self,
+        url: str,
+        handler: Callable[[RouteLike], object] | None = None,
+    ) -> None: ...
+
+    def unroute_all(
+        self,
+        *,
+        behavior: Literal["default", "wait", "ignoreErrors"] | None = None,
+    ) -> None: ...
+
     def wait_for_timeout(self, timeout: float) -> None: ...
 
     def set_viewport_size(self, viewport: dict[str, int]) -> None: ...
+
+    def wait_for_function(self, expression: str) -> object: ...
+
+    def add_style_tag(self, *, content: str) -> None: ...
 
     def reload(self) -> None: ...

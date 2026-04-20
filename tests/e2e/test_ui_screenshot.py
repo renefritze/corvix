@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ pytest.importorskip("playwright")
 
 SCREENSHOT_PATH = Path("docs/_static/corvix-ui.png")
 FROZEN_NOW_ISO = "2026-04-09T10:30:00.000Z"
+DEFAULT_DASHBOARD_PATH = "/dashboards/overview"
 
 
 @pytest.mark.e2e
@@ -42,7 +44,8 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     page.add_init_script(script.replace("__FIXED_NOW__", frozen_now))
 
     page.set_viewport_size({"width": 1720, "height": 1080})
-    page.goto(f"{corvix_server}/dashboards/overview", wait_until="networkidle")
+    base_url = (os.getenv("CORVIX_UI_SCREENSHOT_BASE_URL") or corvix_server).rstrip("/")
+    page.goto(f"{base_url}{DEFAULT_DASHBOARD_PATH}", wait_until="networkidle")
     page.wait_for_selector("table.notification-table")
     page.wait_for_selector("text=Corvix")
     page.wait_for_function("() => document.fonts.status === 'loaded'")

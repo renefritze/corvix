@@ -29,12 +29,12 @@ describe("useColumnResize", () => {
 				keys: "[MouseLeft>]",
 			},
 		]);
-		window.dispatchEvent(new MouseEvent("mousemove", { clientX: 150 }));
+		globalThis.dispatchEvent(new MouseEvent("mousemove", { clientX: 150 }));
 		await waitFor(() => {
 			expect(screen.getByTestId("repo-width")).toHaveTextContent("235");
 		});
 
-		window.dispatchEvent(new MouseEvent("mouseup"));
+		globalThis.dispatchEvent(new MouseEvent("mouseup"));
 		await user.click(screen.getByRole("button", { name: "reset" }));
 		expect(screen.getByTestId("repo-width")).toHaveTextContent("185");
 	});
@@ -45,7 +45,7 @@ describe("useColumnResize", () => {
 		expect(screen.getByTestId("repo-width")).toHaveTextContent("185");
 
 		fireEvent.mouseDown(screen.getByRole("button", { name: "start" }));
-		window.dispatchEvent(new MouseEvent("mousemove", { clientX: -10_000 }));
+		globalThis.dispatchEvent(new MouseEvent("mousemove", { clientX: -10_000 }));
 		await waitFor(() => {
 			expect(screen.getByTestId("repo-width")).toHaveTextContent("120");
 		});

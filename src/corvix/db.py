@@ -12,6 +12,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from corvix.env import get_env_value
 
+USERS_ID_FK = "users.id"
+
 
 class Base(DeclarativeBase):
     """Shared declarative base for all ORM models."""
@@ -42,7 +44,7 @@ class NotificationRecordRow(Base):
     __table_args__ = (UniqueConstraint("user_id", "account_id", "thread_id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), nullable=False)
     account_id: Mapped[str] = mapped_column(Text, nullable=False)
     account_label: Mapped[str] = mapped_column(Text, nullable=False)
     thread_id: Mapped[str] = mapped_column(Text, nullable=False)
@@ -70,7 +72,7 @@ class UserPreferences(Base):
 
     __tablename__ = "user_preferences"
 
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), primary_key=True)
     theme: Mapped[str] = mapped_column(Text, nullable=False, default="default")
     browser_notify: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
@@ -84,7 +86,7 @@ class PushSubscription(Base):
     __table_args__ = (UniqueConstraint("user_id", "endpoint"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), nullable=False)
     endpoint: Mapped[str] = mapped_column(Text, nullable=False)
     p256dh_key: Mapped[str] = mapped_column(Text, nullable=False)
     auth_key: Mapped[str] = mapped_column(Text, nullable=False)

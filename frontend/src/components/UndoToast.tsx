@@ -1,6 +1,6 @@
 interface UndoToastProps {
-	count: number;
-	onUndoAll: () => void;
+	readonly count: number;
+	readonly onUndoAll: () => void;
 }
 
 export function UndoToast({ count, onUndoAll }: UndoToastProps) {

@@ -5,10 +5,10 @@ import { useSort } from "./useSort";
 function Harness({
 	initialColumn,
 	initialDir,
-}: {
+}: Readonly<{
 	initialColumn?: "score" | "repository";
 	initialDir?: "asc" | "desc";
-}) {
+}>) {
 	const { sortColumn, sortDirection, handleSort } = useSort(
 		initialColumn,
 		initialDir,

@@ -103,6 +103,7 @@ def test_poll_dry_run_with_mocked_github(tmp_path: Path, monkeypatch: pytest.Mon
 
     class FakeClient:
         def __init__(self, **_kwargs: object) -> None:
+            # Stub accepts production constructor kwargs used by CLI wiring.
             pass
 
         def fetch_notifications(self, _polling: object) -> list[Notification]:
@@ -132,6 +133,7 @@ def test_watch_with_iterations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
     class FakeClient:
         def __init__(self, **_kwargs: object) -> None:
+            # Stub accepts production constructor kwargs used by CLI wiring.
             pass
 
         def fetch_notifications(self, _polling: object) -> list[Notification]:

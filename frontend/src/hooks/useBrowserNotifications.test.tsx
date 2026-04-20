@@ -6,11 +6,12 @@ import { useBrowserNotifications } from "./useBrowserNotifications";
 
 class NotificationMock {
 	static permission: NotificationPermission = "default";
-	static requestPermission = vi.fn(async () => "granted");
-	static instances: NotificationMock[] = [];
+	static readonly requestPermission = vi.fn(async () => "granted");
+	static readonly instances: NotificationMock[] = [];
 
 	readonly title: string;
 	readonly options?: NotificationOptions;
+	readonly close = vi.fn();
 	private clickHandler: (() => void) | null = null;
 
 	constructor(title: string, options?: NotificationOptions) {
@@ -23,8 +24,6 @@ class NotificationMock {
 		if (type === "click") this.clickHandler = listener;
 	}
 
-	close() {}
-
 	triggerClick() {
 		this.clickHandler?.();
 	}
@@ -33,7 +32,10 @@ class NotificationMock {
 function Harness({
 	items,
 	config,
-}: { items: DashboardItem[]; config: BrowserTabNotificationsConfig | null }) {
+}: Readonly<{
+	items: DashboardItem[];
+	config: BrowserTabNotificationsConfig | null;
+}>) {
 	const { active, permission, enable, disable, supported } =
 		useBrowserNotifications({
 			items,
@@ -57,13 +59,13 @@ function Harness({
 
 describe("useBrowserNotifications", () => {
 	beforeEach(() => {
-		NotificationMock.instances = [];
+		NotificationMock.instances.length = 0;
 		NotificationMock.permission = "default";
 		NotificationMock.requestPermission.mockImplementation(async () => {
 			NotificationMock.permission = "granted";
 			return "granted";
 		});
-		Object.defineProperty(window, "Notification", {
+		Object.defineProperty(globalThis, "Notification", {
 			value: NotificationMock,
 			writable: true,
 		});
@@ -142,7 +144,7 @@ describe("useBrowserNotifications", () => {
 			expect(NotificationMock.instances).toHaveLength(1);
 		});
 		NotificationMock.instances[0]?.triggerClick();
-		expect(window.open).toHaveBeenCalledWith(
+		expect(globalThis.open).toHaveBeenCalledWith(
 			"https://example.com/pr/1",
 			"_blank",
 			"noopener,noreferrer",

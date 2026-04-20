@@ -16,6 +16,7 @@ from corvix.domain import Notification
 from corvix.types import JsonObject, JsonValue
 
 logger = logging.getLogger(__name__)
+REQUEST_FAILED_DETAIL = "request failed"
 
 _ENRICHABLE_SUBJECT_TYPES: frozenset[str] = frozenset({"CheckSuite", "Release"})
 _CHECK_SUITE_PATH_SEGMENTS = 5
@@ -245,12 +246,12 @@ def _http_error_detail(error: url_error.HTTPError) -> str:
     try:
         payload = json.loads(error.read().decode("utf-8"))
     except Exception:
-        return error.reason if isinstance(error.reason, str) else "request failed"
+        return error.reason if isinstance(error.reason, str) else REQUEST_FAILED_DETAIL
     if not isinstance(payload, dict):
-        return error.reason if isinstance(error.reason, str) else "request failed"
+        return error.reason if isinstance(error.reason, str) else REQUEST_FAILED_DETAIL
     message = payload.get("message")
     if not isinstance(message, str) or not message:
-        return error.reason if isinstance(error.reason, str) else "request failed"
+        return error.reason if isinstance(error.reason, str) else REQUEST_FAILED_DETAIL
     return message
 
 

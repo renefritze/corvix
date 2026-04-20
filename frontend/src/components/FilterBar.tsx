@@ -1,16 +1,16 @@
 import type { DashboardItem, FilterState } from "../types";
 
 interface FilterBarProps {
-	filters: FilterState;
-	includeRead: boolean;
-	items: DashboardItem[];
-	onFilterChange: <K extends keyof FilterState>(
+	readonly filters: FilterState;
+	readonly includeRead: boolean;
+	readonly items: DashboardItem[];
+	readonly onFilterChange: <K extends keyof FilterState>(
 		key: K,
 		value: FilterState[K],
 	) => void;
-	onClearFilters: () => void;
-	generatedAt: string | null;
-	filterBarRef?: { current: HTMLSelectElement | null };
+	readonly onClearFilters: () => void;
+	readonly generatedAt: string | null;
+	readonly filterBarRef?: { current: HTMLSelectElement | null };
 }
 
 export function FilterBar({
@@ -22,10 +22,12 @@ export function FilterBar({
 	generatedAt,
 	filterBarRef,
 }: FilterBarProps) {
-	const reasons = Array.from(new Set(items.map((i) => i.reason))).sort();
-	const repositories = Array.from(
-		new Set(items.map((i) => i.repository)),
-	).sort();
+	const reasons = Array.from(new Set(items.map((i) => i.reason))).sort((a, b) =>
+		a.localeCompare(b),
+	);
+	const repositories = Array.from(new Set(items.map((i) => i.repository))).sort(
+		(a, b) => a.localeCompare(b),
+	);
 	const selectedRepositoryMissing =
 		filters.repository !== "" && !repositories.includes(filters.repository);
 	const selectedRepositoryLabel =

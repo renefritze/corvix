@@ -139,8 +139,6 @@ html_sidebars = {
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
 # documentation.
-#
-# html_theme_options = {}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -169,8 +167,6 @@ coverage_ignore_classes = r"""
 coverage_c_path = []
 coverage_c_regexes = {}
 coverage_ignore_c_items = {}
-
-# autodoc_default_flags = ['members', 'undoc-members', 'show-inheritance']
 
 # PyQt5 inventory is only used internally, actual link targets PySide2
 intersphinx_mapping = {

@@ -55,8 +55,10 @@ function parseSavedWidths(raw: string | null): ColumnWidths {
 
 export function useColumnResize() {
 	const [widths, setWidths] = useState<ColumnWidths>(() => {
-		if (typeof window === "undefined") return DEFAULT_COLUMN_WIDTHS;
-		return parseSavedWidths(window.localStorage.getItem(STORAGE_KEY));
+		if (typeof globalThis.window === "undefined") return DEFAULT_COLUMN_WIDTHS;
+		return parseSavedWidths(
+			globalThis.window.localStorage.getItem(STORAGE_KEY),
+		);
 	});
 	const dragRef = useRef<DragState | null>(null);
 
@@ -77,8 +79,10 @@ export function useColumnResize() {
 	const stopResize = useCallback(() => {
 		dragRef.current = null;
 		document.body.classList.remove("col-resizing");
-		window.removeEventListener("mousemove", onMouseMove);
-		window.removeEventListener("mouseup", stopResize);
+		if (typeof globalThis.window !== "undefined") {
+			globalThis.window.removeEventListener("mousemove", onMouseMove);
+			globalThis.window.removeEventListener("mouseup", stopResize);
+		}
 	}, [onMouseMove]);
 
 	const startResize = useCallback(
@@ -90,8 +94,10 @@ export function useColumnResize() {
 				startWidth: widths[column],
 			};
 			document.body.classList.add("col-resizing");
-			window.addEventListener("mousemove", onMouseMove);
-			window.addEventListener("mouseup", stopResize);
+			if (typeof globalThis.window !== "undefined") {
+				globalThis.window.addEventListener("mousemove", onMouseMove);
+				globalThis.window.addEventListener("mouseup", stopResize);
+			}
 		},
 		[onMouseMove, stopResize, widths],
 	);
@@ -111,9 +117,12 @@ export function useColumnResize() {
 	);
 
 	useEffect(() => {
-		if (typeof window === "undefined") return;
+		if (typeof globalThis.window === "undefined") return;
 		try {
-			window.localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
+			globalThis.window.localStorage.setItem(
+				STORAGE_KEY,
+				JSON.stringify(widths),
+			);
 		} catch {
 			/* ignore storage write errors */
 		}

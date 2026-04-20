@@ -52,10 +52,10 @@ function dashboardPath(name: string | undefined): string {
 
 export function App() {
 	const [dashboard, setDashboard] = useState<string | undefined>(() => {
-		if (typeof window === "undefined") {
+		if (typeof globalThis.window === "undefined") {
 			return undefined;
 		}
-		return parseDashboardFromPath(window.location.pathname);
+		return parseDashboardFromPath(globalThis.window.location.pathname);
 	});
 	const [toastError, setToastError] = useState<string | null>(null);
 	const [showShortcuts, setShowShortcuts] = useState(false);
@@ -168,11 +168,13 @@ export function App() {
 	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
 
 	useEffect(() => {
-		if (typeof window === "undefined") {
+		if (typeof globalThis.window === "undefined") {
 			return;
 		}
 		const handlePopState = () => {
-			const fromPath = parseDashboardFromPath(window.location.pathname);
+			const fromPath = parseDashboardFromPath(
+				globalThis.window.location.pathname,
+			);
 			if (!fromPath) {
 				setDashboard(undefined);
 				return;
@@ -183,12 +185,13 @@ export function App() {
 			}
 			setDashboard(fromPath);
 		};
-		window.addEventListener("popstate", handlePopState);
-		return () => window.removeEventListener("popstate", handlePopState);
+		globalThis.window.addEventListener("popstate", handlePopState);
+		return () =>
+			globalThis.window.removeEventListener("popstate", handlePopState);
 	}, [dashboardNames]);
 
 	useEffect(() => {
-		if (typeof window === "undefined") {
+		if (typeof globalThis.window === "undefined") {
 			return;
 		}
 		if (dashboardNames.length === 0) {
@@ -200,15 +203,56 @@ export function App() {
 	}, [dashboard, dashboardNames]);
 
 	useEffect(() => {
-		if (typeof window === "undefined") {
+		if (typeof globalThis.window === "undefined") {
 			return;
 		}
 		const targetPath = dashboardPath(currentDashboard ?? undefined);
-		if (window.location.pathname === targetPath) {
+		if (globalThis.window.location.pathname === targetPath) {
 			return;
 		}
-		window.history.pushState({}, "", targetPath);
+		globalThis.window.history.pushState({}, "", targetPath);
 	}, [currentDashboard]);
+
+	let boardContent = <LoadingSkeleton />;
+	if (!loading) {
+		if (error) {
+			boardContent = (
+				<EmptyState
+					hasFilters={false}
+					totalItems={0}
+					onClearFilters={clearFilters}
+					onRetry={refresh}
+					error={error}
+				/>
+			);
+		} else if (filteredGroups.length === 0) {
+			boardContent = (
+				<EmptyState
+					hasFilters={hasFilters}
+					totalItems={snapshot?.total_items ?? 0}
+					onClearFilters={clearFilters}
+					onRetry={refresh}
+					filterContext={{
+						unread: effectiveUnreadFilter,
+						reason: filters.reason,
+						repository: filters.repository,
+					}}
+				/>
+			);
+		} else {
+			boardContent = (
+				<NotificationTable
+					groups={filteredGroups}
+					sortColumn={sortColumn}
+					sortDirection={sortDirection}
+					onSort={handleSort}
+					onDismiss={dismiss}
+					onOpenTarget={handleOpenTarget}
+					pendingDismissals={new Set(pending.keys())}
+				/>
+			);
+		}
+	}
 
 	return (
 		<div class="shell">
@@ -229,19 +273,19 @@ export function App() {
 				onDisableNotifications={disableNotifications}
 			/>
 			{showShortcuts && (
-				<section
+				<dialog
 					id="shortcuts-panel"
 					class="shortcuts-panel"
-					role="dialog"
 					aria-label="Keyboard shortcuts"
+					open
 				>
 					<p>Vimium-first shortcuts</p>
 					<p>
-						<kbd>F</kbd> focus filters, <kbd>R</kbd> refresh, <kbd>J</kbd>
-						and <kbd>K</kbd> move between notifications, <kbd>D</kbd>
-						dismiss focused notification, <kbd>?</kbd> toggle this panel.
+						<kbd>F</kbd> focus filters, <kbd>R</kbd> refresh, <kbd>J</kbd> and{" "}
+						<kbd>K</kbd> move between notifications, <kbd>D</kbd> dismiss
+						focused notification, <kbd>?</kbd> toggle this panel.
 					</p>
-				</section>
+				</dialog>
 			)}
 			{snapshot && (
 				<FilterBar
@@ -264,41 +308,7 @@ export function App() {
 					filterBarRef={filterBarRef}
 				/>
 			)}
-			<main class="board">
-				{loading ? (
-					<LoadingSkeleton />
-				) : error ? (
-					<EmptyState
-						hasFilters={false}
-						totalItems={0}
-						onClearFilters={clearFilters}
-						onRetry={refresh}
-						error={error}
-					/>
-				) : filteredGroups.length === 0 ? (
-					<EmptyState
-						hasFilters={hasFilters}
-						totalItems={snapshot?.total_items ?? 0}
-						onClearFilters={clearFilters}
-						onRetry={refresh}
-						filterContext={{
-							unread: effectiveUnreadFilter,
-							reason: filters.reason,
-							repository: filters.repository,
-						}}
-					/>
-				) : (
-					<NotificationTable
-						groups={filteredGroups}
-						sortColumn={sortColumn}
-						sortDirection={sortDirection}
-						onSort={handleSort}
-						onDismiss={dismiss}
-						onOpenTarget={handleOpenTarget}
-						pendingDismissals={new Set(pending.keys())}
-					/>
-				)}
-			</main>
+			<main class="board">{boardContent}</main>
 			{toastError && (
 				<div class="error-toast" role="alert">
 					{toastError}

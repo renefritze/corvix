@@ -3,9 +3,25 @@ import userEvent from "@testing-library/user-event";
 import { App } from "./app";
 import { makeItem, makeSnapshot } from "./test/fixtures";
 
+type FetchInput = string | URL | Request;
+
+function setPath(path: string): void {
+	globalThis.history.pushState({}, "", path);
+}
+
+function requestUrl(input: FetchInput): string {
+	if (typeof input === "string") {
+		return input;
+	}
+	if (input instanceof URL) {
+		return input.toString();
+	}
+	return input.url;
+}
+
 describe("App", () => {
 	it("loads snapshot, filters items, and switches dashboards", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		const overview = makeSnapshot({
 			name: "overview",
 			groups: [
@@ -57,19 +73,17 @@ describe("App", () => {
 
 		const fetchMock = vi
 			.spyOn(globalThis, "fetch")
-			.mockImplementation(
-				async (input: string | URL | Request, init?: RequestInit) => {
-					if (init?.method === "POST") {
-						return { ok: true } as Response;
-					}
-					const url = String(input);
-					const payload = url.includes("dashboard=triage") ? triage : overview;
-					return {
-						ok: true,
-						json: async () => payload,
-					} as Response;
-				},
-			);
+			.mockImplementation(async (input: FetchInput, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				const url = requestUrl(input);
+				const payload = url.includes("dashboard=triage") ? triage : overview;
+				return {
+					ok: true,
+					json: async () => payload,
+				} as Response;
+			});
 
 		render(<App />);
 
@@ -94,11 +108,11 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(screen.getByRole("link", { name: "Three" })).toBeInTheDocument();
 		});
-		expect(window.location.pathname).toBe("/dashboards/triage");
+		expect(globalThis.location.pathname).toBe("/dashboards/triage");
 	});
 
 	it("shows error state when snapshot fetch fails", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: false,
 			status: 500,
@@ -113,7 +127,7 @@ describe("App", () => {
 	});
 
 	it("shows all-clear empty state when dashboard has no items", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: true,
 			json: async () =>
@@ -138,7 +152,7 @@ describe("App", () => {
 	});
 
 	it("shows loading skeleton before first snapshot resolves", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		let resolveFetch: ((value: Response) => void) | null = null;
 		vi.spyOn(globalThis, "fetch").mockImplementation(
 			() =>
@@ -165,7 +179,7 @@ describe("App", () => {
 	});
 
 	it("shows toast when mark-read fails from row link", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		const snapshot = makeSnapshot({
 			groups: [
 				{
@@ -177,7 +191,7 @@ describe("App", () => {
 			dashboard_names: ["overview"],
 		});
 		vi.spyOn(globalThis, "fetch").mockImplementation(
-			async (input: string | URL | Request, init?: RequestInit) => {
+			async (_input: FetchInput, init?: RequestInit) => {
 				if (init?.method === "POST") {
 					return { ok: false, status: 500 } as Response;
 				}
@@ -204,7 +218,7 @@ describe("App", () => {
 	});
 
 	it("falls back to default dashboard when URL dashboard is unknown", async () => {
-		window.history.pushState({}, "", "/dashboards/unknown");
+		setPath("/dashboards/unknown");
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: true,
 			json: async () =>
@@ -217,12 +231,12 @@ describe("App", () => {
 			expect(screen.getByLabelText("Select dashboard")).toHaveValue("overview");
 		});
 		await waitFor(() => {
-			expect(window.location.pathname).toBe("/dashboards/overview");
+			expect(globalThis.location.pathname).toBe("/dashboards/overview");
 		});
 	});
 
 	it("locks unread filter to unread-only when dashboard excludes read", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: true,
 			json: async () =>
@@ -275,7 +289,7 @@ describe("App", () => {
 	});
 
 	it("shows explicit repo empty state after reading the last unread item", async () => {
-		window.history.pushState({}, "", "/");
+		setPath("/");
 		const firstSnapshot = makeSnapshot({
 			include_read: false,
 			groups: [
@@ -317,7 +331,7 @@ describe("App", () => {
 
 		let getCount = 0;
 		vi.spyOn(globalThis, "fetch").mockImplementation(
-			async (input: string | URL | Request, init?: RequestInit) => {
+			async (_input: FetchInput, init?: RequestInit) => {
 				if (init?.method === "POST") {
 					return { ok: true } as Response;
 				}

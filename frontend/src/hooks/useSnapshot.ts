@@ -51,7 +51,7 @@ export function useSnapshot(dashboard: string | undefined) {
 					const nextMode = queuedMode.current ?? "auto";
 					needsReload.current = false;
 					queuedMode.current = null;
-					void load(nextMode);
+					load(nextMode);
 				}
 			}
 		},
@@ -60,8 +60,8 @@ export function useSnapshot(dashboard: string | undefined) {
 
 	useEffect(() => {
 		setLoading(true);
-		void load("initial");
-		const id = setInterval(() => void load("auto"), REFRESH_INTERVAL_MS);
+		load("initial");
+		const id = setInterval(() => load("auto"), REFRESH_INTERVAL_MS);
 		return () => clearInterval(id);
 	}, [load]);
 

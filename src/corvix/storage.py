@@ -157,6 +157,7 @@ class NotificationCache:
 
     def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
         """Mark a record as dismissed by account/thread id in the JSON file."""
+        _ = user_id
         with self._exclusive_lock():
             generated_at, records = self._load_unlocked()
             updated = False
@@ -170,6 +171,7 @@ class NotificationCache:
 
     def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
         """Mark a record as read by account/thread id in the JSON file."""
+        _ = user_id
         with self._exclusive_lock():
             generated_at, records = self._load_unlocked()
             updated = False
@@ -187,11 +189,13 @@ class NotificationCache:
 
     def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
         """Return account-scoped keys of dismissed records."""
+        _ = user_id
         _, records = self.load()
         return [notification_key(r.notification) for r in records if r.dismissed]
 
     def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]:
         """Backward-compatible API returning only thread IDs."""
+        _ = user_id
         _, records = self.load()
         return [r.notification.thread_id for r in records if r.dismissed]
 
@@ -410,26 +414,29 @@ def _fsync_directory(path: Path) -> None:
 
 
 def _coerce_context(value: object) -> dict[str, object]:
-    if isinstance(value, dict):
-        output: dict[str, object] = {}
-        for key, item in value.items():
-            if not isinstance(key, str):
-                continue
-            output[key] = item
-        return output
+    direct = _coerce_string_key_dict(value)
+    if direct is not None:
+        return direct
     if isinstance(value, str):
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError:
             return {}
-        if isinstance(parsed, dict):
-            output: dict[str, object] = {}
-            for key, item in parsed.items():
-                if not isinstance(key, str):
-                    continue
-                output[key] = item
-            return output
+        parsed_dict = _coerce_string_key_dict(parsed)
+        if parsed_dict is not None:
+            return parsed_dict
     return {}
+
+
+def _coerce_string_key_dict(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    output: dict[str, object] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            continue
+        output[key] = item
+    return output
 
 
 def _require_str(value: object, field: str) -> str:

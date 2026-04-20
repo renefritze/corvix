@@ -48,12 +48,12 @@ const COLUMNS: {
 ];
 
 interface TableHeaderProps {
-	sortColumn: SortColumn;
-	sortDirection: SortDirection;
-	onSort: (col: SortColumn) => void;
-	columnWidths: ColumnWidths;
-	onResizeStart: (column: ResizableSortColumn, startX: number) => void;
-	onResetColumnWidth: (column: ResizableSortColumn) => void;
+	readonly sortColumn: SortColumn;
+	readonly sortDirection: SortDirection;
+	readonly onSort: (col: SortColumn) => void;
+	readonly columnWidths: ColumnWidths;
+	readonly onResizeStart: (column: ResizableSortColumn, startX: number) => void;
+	readonly onResetColumnWidth: (column: ResizableSortColumn) => void;
 }
 
 export function TableHeader({
@@ -68,55 +68,58 @@ export function TableHeader({
 		<thead>
 			<tr>
 				<th class="col-status" aria-label="Unread status" />
-				{COLUMNS.map(({ key, label, className, colClass, resizeKey }) => (
-					<th
-						key={key}
-						class={[
-							colClass,
-							className,
-							"sortable",
-							sortColumn === key ? "sort-active" : "",
-						]
-							.filter(Boolean)
-							.join(" ")}
-						style={
-							resizeKey ? { width: `${columnWidths[resizeKey]}px` } : undefined
-						}
-						aria-sort={
-							sortColumn === key
-								? sortDirection === "asc"
-									? "ascending"
-									: "descending"
-								: "none"
-						}
-					>
-						<button type="button" onClick={() => onSort(key)}>
-							{label}
-							{sortColumn === key && (
-								<span class="sort-arrow" aria-hidden="true">
-									{sortDirection === "asc" ? " ▲" : " ▼"}
-								</span>
+				{COLUMNS.map(({ key, label, className, colClass, resizeKey }) => {
+					let ariaSort: "none" | "ascending" | "descending" = "none";
+					if (sortColumn === key) {
+						ariaSort = sortDirection === "asc" ? "ascending" : "descending";
+					}
+
+					return (
+						<th
+							key={key}
+							class={[
+								colClass,
+								className,
+								"sortable",
+								sortColumn === key ? "sort-active" : "",
+							]
+								.filter(Boolean)
+								.join(" ")}
+							style={
+								resizeKey
+									? { width: `${columnWidths[resizeKey]}px` }
+									: undefined
+							}
+							aria-sort={ariaSort}
+						>
+							<button type="button" onClick={() => onSort(key)}>
+								{label}
+								{sortColumn === key && (
+									<span class="sort-arrow" aria-hidden="true">
+										{sortDirection === "asc" ? " ▲" : " ▼"}
+									</span>
+								)}
+							</button>
+							{resizeKey && (
+								<button
+									type="button"
+									class="col-resize-handle"
+									aria-label={`Resize ${label} column`}
+									onMouseDown={(event) => {
+										event.preventDefault();
+										event.stopPropagation();
+										onResizeStart(resizeKey, event.clientX);
+									}}
+									onDblClick={(event) => {
+										event.preventDefault();
+										event.stopPropagation();
+										onResetColumnWidth(resizeKey);
+									}}
+								/>
 							)}
-						</button>
-						{resizeKey && (
-							<button
-								type="button"
-								class="col-resize-handle"
-								aria-label={`Resize ${label} column`}
-								onMouseDown={(event) => {
-									event.preventDefault();
-									event.stopPropagation();
-									onResizeStart(resizeKey, event.clientX);
-								}}
-								onDblClick={(event) => {
-									event.preventDefault();
-									event.stopPropagation();
-									onResetColumnWidth(resizeKey);
-								}}
-							/>
-						)}
-					</th>
-				))}
+						</th>
+					);
+				})}
 				<th class="col-actions" aria-label="Actions" />
 			</tr>
 		</thead>

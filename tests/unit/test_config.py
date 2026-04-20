@@ -125,8 +125,8 @@ def test_config_scoring_defaults(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text("{}\n", encoding="utf-8")
     config = load_config(config_file)
-    assert config.scoring.unread_bonus == 15.0
-    assert config.scoring.age_decay_per_hour == 0.25
+    assert config.scoring.unread_bonus == pytest.approx(15.0)
+    assert config.scoring.age_decay_per_hour == pytest.approx(0.25)
 
 
 def test_config_match_criteria_fields(tmp_path: Path) -> None:
@@ -163,8 +163,8 @@ rules:
     assert m.title_contains_any == ["urgent"]
     assert m.title_regex == ".*HOTFIX.*"
     assert m.unread is True
-    assert m.min_score == 10.0
-    assert m.max_age_hours == 48.0
+    assert m.min_score == pytest.approx(10.0)
+    assert m.max_age_hours == pytest.approx(48.0)
     assert len(m.context) == 1
     assert m.context[0].path == "github.latest_comment.author.login"
     assert m.context[0].op == "equals"
@@ -181,9 +181,9 @@ def test_config_enrichment_defaults(tmp_path: Path) -> None:
     assert config.enrichment.enabled is False
     assert config.enrichment.max_requests_per_cycle == 25
     assert config.enrichment.github_latest_comment.enabled is False
-    assert config.enrichment.github_latest_comment.timeout_seconds == 10.0
+    assert config.enrichment.github_latest_comment.timeout_seconds == pytest.approx(10.0)
     assert config.enrichment.github_pr_state.enabled is False
-    assert config.enrichment.github_pr_state.timeout_seconds == 10.0
+    assert config.enrichment.github_pr_state.timeout_seconds == pytest.approx(10.0)
 
 
 def test_config_enrichment_override(tmp_path: Path) -> None:
@@ -208,9 +208,9 @@ enrichment:
     assert config.enrichment.enabled is True
     assert config.enrichment.max_requests_per_cycle == 100
     assert config.enrichment.github_latest_comment.enabled is True
-    assert config.enrichment.github_latest_comment.timeout_seconds == 4.5
+    assert config.enrichment.github_latest_comment.timeout_seconds == pytest.approx(4.5)
     assert config.enrichment.github_pr_state.enabled is True
-    assert config.enrichment.github_pr_state.timeout_seconds == 7.5
+    assert config.enrichment.github_pr_state.timeout_seconds == pytest.approx(7.5)
 
 
 def test_config_match_context_invalid_operator_raises(tmp_path: Path) -> None:

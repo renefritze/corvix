@@ -74,7 +74,9 @@ export function useBrowserNotifications({
 	items,
 	config,
 }: UseBrowserNotificationsOptions): UseBrowserNotificationsReturn {
-	const supported = typeof window !== "undefined" && "Notification" in window;
+	const supported =
+		typeof globalThis.window !== "undefined" &&
+		"Notification" in globalThis.window;
 
 	const getPermission = (): NotifPermission => {
 		if (!supported) return "unsupported";
@@ -149,7 +151,7 @@ export function useBrowserNotifications({
 				});
 				notif.addEventListener("click", () => {
 					if (item.web_url) {
-						window.open(item.web_url, "_blank", "noopener,noreferrer");
+						globalThis.open(item.web_url, "_blank", "noopener,noreferrer");
 					}
 					notif.close();
 				});

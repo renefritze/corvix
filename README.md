@@ -6,7 +6,7 @@ GitHub notifications dashboards
 
 ![Corvix dashboard UI screenshot with fixture data](docs/_static/corvix-ui.png)
 
-Regenerate this screenshot with `make ui-screenshot`.
+Regenerate this screenshot with `make frontend-build && make ui-screenshot`.
 
 ## Run with Docker Compose
 

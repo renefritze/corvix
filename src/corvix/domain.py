@@ -11,6 +11,7 @@ _MIN_API_REPO_SEGMENTS = 4
 _MIN_RESOURCE_SEGMENTS = 2
 _RELEASE_TAG_SEGMENTS = 3
 _ACTIONS_RUNS_SEGMENTS = 3
+STORED_RECORD_LABEL = "stored record"
 _API_RESOURCE_TO_WEB_PATH = {
     "pulls": "pull",
     "issues": "issues",
@@ -45,7 +46,7 @@ def _optional_str(payload: Mapping[str, object], key: str) -> str | None:
         return None
     if isinstance(value, str):
         return value
-    msg = f"Invalid stored record: field '{key}' must be a string or null."
+    msg = f"Invalid {STORED_RECORD_LABEL}: field '{key}' must be a string or null."
     raise ValueError(msg)
 
 
@@ -72,12 +73,12 @@ def _optional_float(payload: Mapping[str, object], key: str, default: float, lab
 def _optional_str_list(payload: Mapping[str, object], key: str) -> list[str]:
     value = payload.get(key, [])
     if not isinstance(value, list):
-        msg = f"Invalid stored record: field '{key}' must be a list of strings."
+        msg = f"Invalid {STORED_RECORD_LABEL}: field '{key}' must be a list of strings."
         raise ValueError(msg)
     output: list[str] = []
     for item in value:
         if not isinstance(item, str):
-            msg = f"Invalid stored record: field '{key}' must be a list of strings."
+            msg = f"Invalid {STORED_RECORD_LABEL}: field '{key}' must be a list of strings."
             raise ValueError(msg)
         output.append(item)
     return output
@@ -87,9 +88,22 @@ def _optional_context(payload: Mapping[str, object], key: str) -> dict[str, obje
     value = payload.get(key, {})
     context = _as_object_map(value)
     if context is None:
-        msg = f"Invalid stored record: field '{key}' must be an object."
+        msg = f"Invalid {STORED_RECORD_LABEL}: field '{key}' must be an object."
         raise ValueError(msg)
     return context
+
+
+def _require_object_map(value: object, message: str) -> dict[str, object]:
+    object_map = _as_object_map(value)
+    if object_map is not None:
+        return object_map
+    raise ValueError(message)
+
+
+def _require_non_empty_str_value(value: object, message: str) -> str:
+    if isinstance(value, str) and value:
+        return value
+    raise ValueError(message)
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -132,44 +146,44 @@ class Notification:
         account_label: str = "Primary",
     ) -> Notification:
         """Build a notification from a GitHub API response payload."""
-        subject = _as_object_map(payload.get("subject"))
-        repository = _as_object_map(payload.get("repository"))
-        if subject is None:
-            msg = "Invalid notification payload: missing subject map."
-            raise ValueError(msg)
-        if repository is None:
-            msg = "Invalid notification payload: missing repository map."
-            raise ValueError(msg)
+        subject = _require_object_map(
+            payload.get("subject"),
+            "Invalid notification payload: missing subject map.",
+        )
+        repository = _require_object_map(
+            payload.get("repository"),
+            "Invalid notification payload: missing repository map.",
+        )
 
-        thread_id = payload.get("id")
-        if not isinstance(thread_id, str) or not thread_id:
-            msg = "Invalid notification payload: missing thread id."
-            raise ValueError(msg)
+        thread_id = _require_non_empty_str_value(
+            payload.get("id"),
+            "Invalid notification payload: missing thread id.",
+        )
 
-        updated = payload.get("updated_at")
-        if not isinstance(updated, str) or not updated:
-            msg = "Invalid notification payload: missing updated_at timestamp."
-            raise ValueError(msg)
+        updated = _require_non_empty_str_value(
+            payload.get("updated_at"),
+            "Invalid notification payload: missing updated_at timestamp.",
+        )
 
-        repo_name = repository.get("full_name")
-        if not isinstance(repo_name, str) or not repo_name:
-            msg = "Invalid notification payload: missing repository.full_name."
-            raise ValueError(msg)
+        repo_name = _require_non_empty_str_value(
+            repository.get("full_name"),
+            "Invalid notification payload: missing repository.full_name.",
+        )
 
-        reason = payload.get("reason")
-        if not isinstance(reason, str) or not reason:
-            msg = "Invalid notification payload: missing reason."
-            raise ValueError(msg)
+        reason = _require_non_empty_str_value(
+            payload.get("reason"),
+            "Invalid notification payload: missing reason.",
+        )
 
-        subject_title = subject.get("title")
-        if not isinstance(subject_title, str) or not subject_title:
-            msg = "Invalid notification payload: missing subject.title."
-            raise ValueError(msg)
+        subject_title = _require_non_empty_str_value(
+            subject.get("title"),
+            "Invalid notification payload: missing subject.title.",
+        )
 
-        subject_type = subject.get("type")
-        if not isinstance(subject_type, str) or not subject_type:
-            msg = "Invalid notification payload: missing subject.type."
-            raise ValueError(msg)
+        subject_type = _require_non_empty_str_value(
+            subject.get("type"),
+            "Invalid notification payload: missing subject.type.",
+        )
 
         unread = _optional_bool(payload, "unread", False, "notification payload")
 
@@ -233,16 +247,16 @@ class NotificationRecord:
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> NotificationRecord:
         """Parse a stored record."""
-        updated_at = _require_non_empty_str(payload, "updated_at", "stored record")
+        updated_at = _require_non_empty_str(payload, "updated_at", STORED_RECORD_LABEL)
         notification = Notification(
             account_id=_get_non_empty_str_or_default(payload, "account_id", "primary"),
             account_label=_get_non_empty_str_or_default(payload, "account_label", "Primary"),
-            thread_id=_require_non_empty_str(payload, "thread_id", "stored record"),
-            repository=_require_non_empty_str(payload, "repository", "stored record"),
-            reason=_require_non_empty_str(payload, "reason", "stored record"),
-            subject_title=_require_non_empty_str(payload, "subject_title", "stored record"),
-            subject_type=_require_non_empty_str(payload, "subject_type", "stored record"),
-            unread=_optional_bool(payload, "unread", False, "stored record"),
+            thread_id=_require_non_empty_str(payload, "thread_id", STORED_RECORD_LABEL),
+            repository=_require_non_empty_str(payload, "repository", STORED_RECORD_LABEL),
+            reason=_require_non_empty_str(payload, "reason", STORED_RECORD_LABEL),
+            subject_title=_require_non_empty_str(payload, "subject_title", STORED_RECORD_LABEL),
+            subject_type=_require_non_empty_str(payload, "subject_type", STORED_RECORD_LABEL),
+            unread=_optional_bool(payload, "unread", False, STORED_RECORD_LABEL),
             updated_at=parse_timestamp(updated_at),
             thread_url=_optional_str(payload, "thread_url"),
             subject_url=_optional_str(payload, "subject_url"),
@@ -250,11 +264,11 @@ class NotificationRecord:
         )
         return cls(
             notification=notification,
-            score=_optional_float(payload, "score", 0.0, "stored record"),
-            excluded=_optional_bool(payload, "excluded", False, "stored record"),
+            score=_optional_float(payload, "score", 0.0, STORED_RECORD_LABEL),
+            excluded=_optional_bool(payload, "excluded", False, STORED_RECORD_LABEL),
             matched_rules=_optional_str_list(payload, "matched_rules"),
             actions_taken=_optional_str_list(payload, "actions_taken"),
-            dismissed=_optional_bool(payload, "dismissed", False, "stored record"),
+            dismissed=_optional_bool(payload, "dismissed", False, STORED_RECORD_LABEL),
             context=_optional_context(payload, "context"),
         )
 

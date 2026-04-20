@@ -2,20 +2,20 @@ import type { NotifPermission } from "../hooks/useBrowserNotifications";
 import type { DashboardSummary } from "../types";
 
 interface ToolbarProps {
-	dashboardNames: string[];
-	currentDashboard: string | null;
-	onDashboardChange: (name: string) => void;
-	onRefresh: () => void;
-	refreshing: boolean;
-	summary: DashboardSummary | null;
-	shortcutsOpen: boolean;
-	onToggleShortcuts: () => void;
+	readonly dashboardNames: string[];
+	readonly currentDashboard: string | null;
+	readonly onDashboardChange: (name: string) => void;
+	readonly onRefresh: () => void;
+	readonly refreshing: boolean;
+	readonly summary: DashboardSummary | null;
+	readonly shortcutsOpen: boolean;
+	readonly onToggleShortcuts: () => void;
 	// Notification controls
-	notifSupported: boolean;
-	notifActive: boolean;
-	notifPermission: NotifPermission;
-	onEnableNotifications: () => void;
-	onDisableNotifications: () => void;
+	readonly notifSupported: boolean;
+	readonly notifActive: boolean;
+	readonly notifPermission: NotifPermission;
+	readonly onEnableNotifications: () => void;
+	readonly onDisableNotifications: () => void;
 }
 
 function NotifButton({
@@ -25,11 +25,11 @@ function NotifButton({
 	onEnable,
 	onDisable,
 }: {
-	supported: boolean;
-	active: boolean;
-	permission: NotifPermission;
-	onEnable: () => void;
-	onDisable: () => void;
+	readonly supported: boolean;
+	readonly active: boolean;
+	readonly permission: NotifPermission;
+	readonly onEnable: () => void;
+	readonly onDisable: () => void;
 }) {
 	if (!supported) return null;
 

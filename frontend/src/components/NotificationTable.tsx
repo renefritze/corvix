@@ -15,27 +15,30 @@ function sortItems(
 	dir: SortDirection,
 ): DashboardItem[] {
 	const sorted = [...items].sort((a, b) => {
-		let av: string | number = a[col] as string | number;
-		let bv: string | number = b[col] as string | number;
-		if (typeof av === "string" && typeof bv === "string") {
-			av = av.toLowerCase();
-			bv = bv.toLowerCase();
+		const valueA = a[col];
+		const valueB = b[col];
+		if (typeof valueA === "string" && typeof valueB === "string") {
+			const normalizedA = valueA.toLowerCase();
+			const normalizedB = valueB.toLowerCase();
+			if (normalizedA < normalizedB) return -1;
+			if (normalizedA > normalizedB) return 1;
+			return 0;
 		}
-		if (av < bv) return -1;
-		if (av > bv) return 1;
+		if (valueA < valueB) return -1;
+		if (valueA > valueB) return 1;
 		return 0;
 	});
 	return dir === "desc" ? sorted.reverse() : sorted;
 }
 
 interface NotificationTableProps {
-	groups: DashboardGroup[];
-	sortColumn: SortColumn;
-	sortDirection: SortDirection;
-	onSort: (col: SortColumn) => void;
-	onDismiss: (accountId: string, threadId: string) => void;
-	onOpenTarget: (accountId: string, threadId: string) => void;
-	pendingDismissals: Set<string>;
+	readonly groups: DashboardGroup[];
+	readonly sortColumn: SortColumn;
+	readonly sortDirection: SortDirection;
+	readonly onSort: (col: SortColumn) => void;
+	readonly onDismiss: (accountId: string, threadId: string) => void;
+	readonly onOpenTarget: (accountId: string, threadId: string) => void;
+	readonly pendingDismissals: Set<string>;
 }
 
 export function NotificationTable({

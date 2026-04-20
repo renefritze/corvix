@@ -11,10 +11,10 @@ function relativeTime(iso: string): string {
 }
 
 interface TableRowProps {
-	item: DashboardItem;
-	onDismiss: (accountId: string, threadId: string) => void;
-	onOpenTarget: (accountId: string, threadId: string) => void;
-	isPendingDismissal: boolean;
+	readonly item: DashboardItem;
+	readonly onDismiss: (accountId: string, threadId: string) => void;
+	readonly onOpenTarget: (accountId: string, threadId: string) => void;
+	readonly isPendingDismissal: boolean;
 }
 
 export function TableRow({
@@ -25,6 +25,7 @@ export function TableRow({
 }: TableRowProps) {
 	const scoreLabel = item.score.toFixed(1);
 	const updatedLabel = relativeTime(item.updated_at);
+	const unreadStatusLabel = item.unread ? "Unread" : "Read";
 
 	function handleOpenTarget() {
 		if (!item.unread) return;
@@ -53,8 +54,11 @@ export function TableRow({
 				.filter(Boolean)
 				.join(" ")}
 		>
-			<td class="col-status" aria-hidden="true">
-				<span class={`unread-dot ${item.unread ? "dot-unread" : "dot-read"}`} />
+			<td class="col-status" aria-label={unreadStatusLabel}>
+				<span
+					class={`unread-dot ${item.unread ? "dot-unread" : "dot-read"}`}
+					aria-hidden="true"
+				/>
 			</td>
 			<td class="col-title" data-label="Title">
 				{item.web_url ? (
