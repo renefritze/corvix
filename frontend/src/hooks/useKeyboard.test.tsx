@@ -8,12 +8,12 @@ function Harness({
 	onFocusFilters,
 	onDismissFocused,
 	onToggleShortcuts,
-}: {
+}: Readonly<{
 	onRefresh: () => void;
 	onFocusFilters: () => void;
 	onDismissFocused: () => void;
 	onToggleShortcuts: () => void;
-}) {
+}>) {
 	const filterRef = useRef<HTMLSelectElement | null>(null);
 	useKeyboard({
 		onRefresh,
@@ -32,6 +32,11 @@ function Harness({
 			</select>
 			<input aria-label="search" />
 			<table>
+				<thead>
+					<tr>
+						<th scope="col">Title</th>
+					</tr>
+				</thead>
 				<tbody>
 					<tr class="notification-row" tabIndex={0} data-testid="row-1">
 						<td>

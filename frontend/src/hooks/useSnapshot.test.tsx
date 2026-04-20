@@ -8,7 +8,7 @@ vi.mock("../api", () => ({
 	fetchSnapshot: vi.fn(),
 }));
 
-function Harness({ dashboard }: { dashboard?: string }) {
+function Harness({ dashboard }: Readonly<{ dashboard?: string }>) {
 	const { snapshot, loading, refreshing, manualRefreshing, error, refresh } =
 		useSnapshot(dashboard);
 	return (
@@ -18,7 +18,12 @@ function Harness({ dashboard }: { dashboard?: string }) {
 			<div data-testid="manual-refreshing">{String(manualRefreshing)}</div>
 			<div data-testid="name">{snapshot?.name ?? "none"}</div>
 			<div data-testid="error">{error ?? "none"}</div>
-			<button type="button" onClick={() => void refresh()}>
+			<button
+				type="button"
+				onClick={() => {
+					refresh();
+				}}
+			>
 				refresh
 			</button>
 		</div>

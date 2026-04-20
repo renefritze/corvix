@@ -19,11 +19,11 @@ function Harness({
 	currentThreadIds,
 	onRefresh,
 	onError,
-}: {
+}: Readonly<{
 	currentThreadIds: Set<string>;
 	onRefresh: () => Promise<void>;
 	onError: (message: string) => void;
-}) {
+}>) {
 	const { pending, dismiss, undoAll, hiddenThreadIds } = useDismiss(
 		onRefresh,
 		onError,
