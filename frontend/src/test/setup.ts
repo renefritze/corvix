@@ -27,6 +27,13 @@ Object.defineProperty(globalThis, "matchMedia", {
 	})),
 });
 
+if (typeof globalThis.window !== "undefined") {
+	Object.defineProperty(globalThis.window, "matchMedia", {
+		writable: true,
+		value: globalThis.matchMedia,
+	});
+}
+
 Object.defineProperty(globalThis, "open", {
 	writable: true,
 	value: vi.fn(),

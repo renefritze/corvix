@@ -75,7 +75,8 @@ export function useBrowserNotifications({
 	config,
 }: UseBrowserNotificationsOptions): UseBrowserNotificationsReturn {
 	const supported =
-		globalThis.window !== undefined && "Notification" in globalThis.window;
+		typeof globalThis.window !== "undefined" &&
+		"Notification" in globalThis.window;
 
 	const getPermission = (): NotifPermission => {
 		if (!supported) return "unsupported";

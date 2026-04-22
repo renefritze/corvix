@@ -55,7 +55,7 @@ function parseSavedWidths(raw: string | null): ColumnWidths {
 
 export function useColumnResize() {
 	const [widths, setWidths] = useState<ColumnWidths>(() => {
-		if (globalThis.window === undefined) return DEFAULT_COLUMN_WIDTHS;
+		if (typeof globalThis.window === "undefined") return DEFAULT_COLUMN_WIDTHS;
 		return parseSavedWidths(
 			globalThis.window.localStorage.getItem(STORAGE_KEY),
 		);
@@ -79,7 +79,7 @@ export function useColumnResize() {
 	const stopResize = useCallback(() => {
 		dragRef.current = null;
 		document.body.classList.remove("col-resizing");
-		if (globalThis.window !== undefined) {
+		if (typeof globalThis.window !== "undefined") {
 			globalThis.window.removeEventListener("mousemove", onMouseMove);
 			globalThis.window.removeEventListener("mouseup", stopResize);
 		}
@@ -94,7 +94,7 @@ export function useColumnResize() {
 				startWidth: widths[column],
 			};
 			document.body.classList.add("col-resizing");
-			if (globalThis.window !== undefined) {
+			if (typeof globalThis.window !== "undefined") {
 				globalThis.window.addEventListener("mousemove", onMouseMove);
 				globalThis.window.addEventListener("mouseup", stopResize);
 			}
@@ -117,7 +117,7 @@ export function useColumnResize() {
 	);
 
 	useEffect(() => {
-		if (globalThis.window === undefined) return;
+		if (typeof globalThis.window === "undefined") return;
 		try {
 			globalThis.window.localStorage.setItem(
 				STORAGE_KEY,
