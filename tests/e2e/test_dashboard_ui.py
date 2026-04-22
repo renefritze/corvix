@@ -122,7 +122,7 @@ def test_filter_clears_when_input_emptied(app_page: PageLike) -> None:
     reason_filter = app_page.get_by_label("Reason filter")
     reason_filter.select_option("subscribed")
     expect(rows).to_have_count(1)
-    reason_filter.select_option("")
+    reason_filter.select_option([])
     expect(rows).to_have_count(3)
 
 
