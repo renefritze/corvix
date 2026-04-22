@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/preact";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { App } from "./app";
 import { makeItem, makeSnapshot } from "./test/fixtures";
@@ -215,6 +221,9 @@ describe("App", () => {
 				"Mark read failed: 500",
 			);
 		});
+
+		await user.click(screen.getByRole("button", { name: "✕" }));
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
 	it("falls back to default dashboard when URL dashboard is unknown", async () => {
@@ -286,6 +295,114 @@ describe("App", () => {
 		expect(
 			within(unreadFilter).getByRole("option", { name: /Read only/ }),
 		).toBeDisabled();
+
+		fireEvent.change(unreadFilter, { target: { value: "read" } });
+		expect(unreadFilter).toHaveValue("unread");
+	});
+
+	it("uses ascending sort direction when dashboard descending is false", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					sort_by: "score",
+					descending: false,
+					groups: [{ name: "g", items: [makeItem({ thread_id: "1" })] }],
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Review API changes" }),
+			).toBeVisible();
+		});
+		expect(
+			screen.getByRole("columnheader", { name: /Score/ }),
+		).toBeInTheDocument();
+	});
+
+	it("toggles shortcuts panel and enables browser notifications", async () => {
+		setPath("/");
+		const requestPermission = vi.fn(async () => "granted");
+		class NotificationMock {
+			static permission: NotificationPermission = "default";
+			static requestPermission = requestPermission;
+			addEventListener() {}
+			close() {}
+		}
+		Object.defineProperty(globalThis, "Notification", {
+			value: NotificationMock,
+			writable: true,
+		});
+
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					notifications_config: {
+						browser_tab: {
+							enabled: true,
+							max_per_cycle: 2,
+							cooldown_seconds: 10,
+						},
+					},
+				}),
+		} as Response);
+
+		const user = userEvent.setup();
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: /shortcuts/i })).toBeVisible();
+		});
+
+		await user.click(screen.getByRole("button", { name: /shortcuts/i }));
+		expect(
+			screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
+		).toBeVisible();
+
+		await user.click(screen.getByRole("button", { name: /shortcuts/i }));
+		expect(
+			screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
+		).not.toBeInTheDocument();
+
+		await user.click(
+			screen.getByRole("button", { name: "Enable browser notifications" }),
+		);
+		expect(requestPermission).toHaveBeenCalledTimes(1);
+	});
+
+	it("restores default dashboard on popstate to unknown dashboard", async () => {
+		setPath("/dashboards/overview");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					dashboard_names: ["overview", "triage"],
+					groups: [
+						{
+							name: "group-a",
+							items: [makeItem({ subject_title: "Known" })],
+						},
+					],
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "Known" })).toBeVisible();
+		});
+
+		setPath("/dashboards/does-not-exist");
+		globalThis.dispatchEvent(new PopStateEvent("popstate"));
+
+		await waitFor(() => {
+			expect(globalThis.location.pathname).toBe("/dashboards/overview");
+		});
 	});
 
 	it("shows explicit repo empty state after reading the last unread item", async () => {

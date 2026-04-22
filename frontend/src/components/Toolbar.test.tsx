@@ -69,4 +69,57 @@ describe("Toolbar", () => {
 		expect(screen.queryByLabelText("Select dashboard")).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
 	});
+
+	it("renders active notifications toggle and disables them", async () => {
+		const user = userEvent.setup();
+		const onDisableNotifications = vi.fn();
+
+		render(
+			<Toolbar
+				dashboardNames={["overview"]}
+				currentDashboard="overview"
+				onDashboardChange={vi.fn()}
+				onRefresh={vi.fn()}
+				refreshing={false}
+				summary={null}
+				shortcutsOpen={false}
+				onToggleShortcuts={vi.fn()}
+				notifSupported={true}
+				notifActive={true}
+				notifPermission="granted"
+				onEnableNotifications={vi.fn()}
+				onDisableNotifications={onDisableNotifications}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Disable browser notifications" }),
+		);
+		expect(onDisableNotifications).toHaveBeenCalledTimes(1);
+	});
+
+	it("handles null current dashboard value", () => {
+		render(
+			<Toolbar
+				dashboardNames={["overview", "triage"]}
+				currentDashboard={null}
+				onDashboardChange={vi.fn()}
+				onRefresh={vi.fn()}
+				refreshing={false}
+				summary={null}
+				shortcutsOpen={false}
+				onToggleShortcuts={vi.fn()}
+				notifSupported={false}
+				notifActive={false}
+				notifPermission="default"
+				onEnableNotifications={vi.fn()}
+				onDisableNotifications={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByLabelText("Select dashboard")).toBeInTheDocument();
+		expect(
+			screen.getByRole("option", { name: "overview" }),
+		).toBeInTheDocument();
+	});
 });
