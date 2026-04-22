@@ -11,7 +11,7 @@ describe("FilterBar", () => {
 
 		render(
 			<FilterBar
-				filters={{ unread: "all", reason: "", repository: "" }}
+				filters={{ unread: "all", reason: [], repository: "" }}
 				includeRead={true}
 				items={[
 					makeItem({ reason: "mention", repository: "org/a" }),
@@ -29,17 +29,52 @@ describe("FilterBar", () => {
 
 		const reason = screen.getByLabelText("Reason filter");
 		await user.selectOptions(reason, "subscribed");
-		expect(onFilterChange).toHaveBeenCalledWith("reason", "subscribed");
+		expect(onFilterChange).toHaveBeenCalledWith("reason", ["subscribed"]);
 
 		await user.click(screen.getByRole("button", { name: "Clear" }));
 		expect(onClearFilters).toHaveBeenCalledTimes(1);
 		expect(screen.getByText(/snapshot:/i)).toBeInTheDocument();
 	});
 
+	it("supports selecting multiple reasons", async () => {
+		const onFilterChange = vi.fn();
+		const user = userEvent.setup();
+
+		render(
+			<FilterBar
+				filters={{ unread: "all", reason: [], repository: "" }}
+				includeRead={true}
+				items={[
+					makeItem({ reason: "mention", repository: "org/a" }),
+					makeItem({
+						thread_id: "2",
+						reason: "subscribed",
+						repository: "org/b",
+					}),
+					makeItem({
+						thread_id: "3",
+						reason: "review_requested",
+						repository: "org/c",
+					}),
+				]}
+				onFilterChange={onFilterChange}
+				onClearFilters={vi.fn()}
+				generatedAt={null}
+			/>,
+		);
+
+		const reason = screen.getByLabelText("Reason filter");
+		await user.selectOptions(reason, ["mention", "subscribed"]);
+		expect(onFilterChange).toHaveBeenLastCalledWith("reason", [
+			"mention",
+			"subscribed",
+		]);
+	});
+
 	it("disables read-state options when dashboard excludes read items", () => {
 		render(
 			<FilterBar
-				filters={{ unread: "unread", reason: "", repository: "" }}
+				filters={{ unread: "unread", reason: [], repository: "" }}
 				includeRead={false}
 				items={[makeItem()]}
 				onFilterChange={vi.fn()}
@@ -63,7 +98,7 @@ describe("FilterBar", () => {
 	it("keeps selected repository visible when it no longer has unread items", () => {
 		render(
 			<FilterBar
-				filters={{ unread: "unread", reason: "", repository: "org/a" }}
+				filters={{ unread: "unread", reason: [], repository: "org/a" }}
 				includeRead={false}
 				items={[]}
 				onFilterChange={vi.fn()}

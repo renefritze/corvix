@@ -46,7 +46,7 @@ describe("EmptyState", () => {
 				onRetry={vi.fn()}
 				filterContext={{
 					unread: "unread",
-					reason: "",
+					reason: [],
 					repository: "org/repo-a",
 				}}
 			/>,
@@ -72,7 +72,7 @@ describe("EmptyState", () => {
 				onRetry={vi.fn()}
 				filterContext={{
 					unread: "all",
-					reason: "mention",
+					reason: ["mention"],
 					repository: "org/repo-b",
 				}}
 			/>,
@@ -97,7 +97,7 @@ describe("EmptyState", () => {
 				onRetry={vi.fn()}
 				filterContext={{
 					unread: "unread",
-					reason: "",
+					reason: [],
 					repository: "",
 				}}
 			/>,
