@@ -61,4 +61,36 @@ describe("useColumnResize", () => {
 
 		expect(screen.getByTestId("repo-width")).toHaveTextContent("120");
 	});
+
+	it("normalizes partially invalid stored widths", () => {
+		localStorage.setItem(
+			"corvix.table.columnWidths",
+			JSON.stringify({
+				repository: "nope",
+				subject_type: 20,
+				reason: 210,
+				score: null,
+				updated_at: 90,
+			}),
+		);
+
+		render(<Harness />);
+
+		expect(screen.getByTestId("repo-width")).toHaveTextContent("185");
+	});
+
+	it("removes resize listeners on unmount", async () => {
+		const user = userEvent.setup();
+		const { unmount } = render(<Harness />);
+
+		await user.pointer([
+			{
+				target: screen.getByRole("button", { name: "start" }),
+				keys: "[MouseLeft>]",
+			},
+		]);
+		unmount();
+
+		expect(document.body.classList.contains("col-resizing")).toBe(false);
+	});
 });

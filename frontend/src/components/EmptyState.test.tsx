@@ -62,4 +62,66 @@ describe("EmptyState", () => {
 			screen.getByRole("button", { name: "Clear filters" }),
 		).toBeInTheDocument();
 	});
+
+	it("renders repository-scoped empty message", () => {
+		render(
+			<EmptyState
+				hasFilters={true}
+				totalItems={2}
+				onClearFilters={vi.fn()}
+				onRetry={vi.fn()}
+				filterContext={{
+					unread: "all",
+					reason: "mention",
+					repository: "org/repo-b",
+				}}
+			/>,
+		);
+
+		expect(
+			screen.getByText("No notifications in org/repo-b"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				"No notifications in this repository match your filters.",
+			),
+		).toBeInTheDocument();
+	});
+
+	it("renders unread-only empty message without repository filter", () => {
+		render(
+			<EmptyState
+				hasFilters={true}
+				totalItems={2}
+				onClearFilters={vi.fn()}
+				onRetry={vi.fn()}
+				filterContext={{
+					unread: "unread",
+					reason: "",
+					repository: "",
+				}}
+			/>,
+		);
+
+		expect(screen.getByText("No unread notifications")).toBeInTheDocument();
+		expect(
+			screen.getByText("You're all caught up for the current filters."),
+		).toBeInTheDocument();
+	});
+
+	it("renders fallback no-results when there are items but filters are empty", () => {
+		render(
+			<EmptyState
+				hasFilters={false}
+				totalItems={3}
+				onClearFilters={vi.fn()}
+				onRetry={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByText("No results")).toBeInTheDocument();
+		expect(
+			screen.getByText("No notifications match the current filters."),
+		).toBeInTheDocument();
+	});
 });

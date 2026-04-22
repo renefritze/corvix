@@ -56,4 +56,49 @@ describe("TableRow", () => {
 		await user.click(screen.getByRole("link", { name: "Done" }));
 		expect(onOpenTarget).not.toHaveBeenCalled();
 	});
+
+	it("marks unread items as opened on middle click", async () => {
+		const onOpenTarget = vi.fn();
+
+		render(
+			<table>
+				<tbody>
+					<TableRow
+						item={makeItem({ thread_id: "t-3", subject_title: "Middle" })}
+						onDismiss={vi.fn()}
+						onOpenTarget={onOpenTarget}
+						isPendingDismissal={false}
+					/>
+				</tbody>
+			</table>,
+		);
+
+		screen
+			.getByRole("link", { name: "Middle" })
+			.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+
+		expect(onOpenTarget).toHaveBeenCalledWith("primary", "t-3");
+	});
+
+	it("renders plain title text when web_url is missing", () => {
+		render(
+			<table>
+				<tbody>
+					<TableRow
+						item={makeItem({
+							thread_id: "t-4",
+							subject_title: "No Link",
+							web_url: null,
+						})}
+						onDismiss={vi.fn()}
+						onOpenTarget={vi.fn()}
+						isPendingDismissal={false}
+					/>
+				</tbody>
+			</table>,
+		);
+
+		expect(screen.queryByRole("link", { name: "No Link" })).toBeNull();
+		expect(screen.getByText("No Link")).toBeInTheDocument();
+	});
 });

@@ -24,7 +24,7 @@ function Harness({
 	onRefresh: () => Promise<void>;
 	onError: (message: string) => void;
 }>) {
-	const { pending, dismiss, undoAll, hiddenThreadIds } = useDismiss(
+	const { pending, dismiss, undo, undoAll, hiddenThreadIds } = useDismiss(
 		onRefresh,
 		onError,
 		currentThreadIds,
@@ -36,6 +36,12 @@ function Harness({
 			<div data-testid="hidden-size">{hiddenThreadIds.size}</div>
 			<button type="button" onClick={() => dismiss("primary", "thread-1")}>
 				dismiss
+			</button>
+			<button type="button" onClick={() => dismiss("primary", "thread-2")}>
+				dismiss-2
+			</button>
+			<button type="button" onClick={() => undo("primary", "thread-1")}>
+				undo
 			</button>
 			<button type="button" onClick={undoAll}>
 				undo-all
@@ -123,5 +129,141 @@ describe("useDismiss", () => {
 			expect(onError).toHaveBeenCalledWith("network");
 		});
 		expect(onRefresh).not.toHaveBeenCalled();
+	});
+
+	it("undo cancels one pending dismissal", async () => {
+		vi.useFakeTimers();
+		vi.mocked(dismissNotification).mockResolvedValue(undefined);
+		const onRefresh = vi.fn().mockResolvedValue(undefined);
+		const onError = vi.fn();
+
+		render(
+			<Harness
+				currentThreadIds={new Set(["primary:thread-1", "primary:thread-2"])}
+				onRefresh={onRefresh}
+				onError={onError}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
+		expect(screen.getByTestId("pending-size")).toHaveTextContent("1");
+
+		fireEvent.click(screen.getByRole("button", { name: "undo" }));
+		expect(screen.getByTestId("pending-size")).toHaveTextContent("0");
+
+		vi.advanceTimersByTime(3_500);
+		expect(dismissNotification).not.toHaveBeenCalled();
+		expect(onRefresh).not.toHaveBeenCalled();
+	});
+
+	it("replaces existing pending timer on repeated dismiss", async () => {
+		vi.useFakeTimers();
+		vi.mocked(dismissNotification).mockResolvedValue(undefined);
+		const onRefresh = vi.fn().mockResolvedValue(undefined);
+		const onError = vi.fn();
+
+		render(
+			<Harness
+				currentThreadIds={new Set(["primary:thread-1"])}
+				onRefresh={onRefresh}
+				onError={onError}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
+		expect(screen.getByTestId("pending-size")).toHaveTextContent("1");
+		fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
+
+		expect(screen.getByTestId("pending-size")).toHaveTextContent("1");
+
+		vi.advanceTimersByTime(3_500);
+		await waitFor(() => {
+			expect(dismissNotification).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it("does not re-dismiss committed threads", async () => {
+		vi.useFakeTimers();
+		vi.mocked(dismissNotification).mockResolvedValue(undefined);
+		const onRefresh = vi.fn().mockResolvedValue(undefined);
+		const onError = vi.fn();
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+		render(
+			<Harness
+				currentThreadIds={new Set(["primary:thread-1"])}
+				onRefresh={onRefresh}
+				onError={onError}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "dismiss" }));
+		vi.advanceTimersByTime(3_500);
+		await waitFor(() => {
+			expect(dismissNotification).toHaveBeenCalledTimes(1);
+		});
+
+		await user.click(screen.getByRole("button", { name: "dismiss" }));
+		vi.advanceTimersByTime(3_500);
+		expect(dismissNotification).toHaveBeenCalledTimes(1);
+		expect(onError).not.toHaveBeenCalled();
+	});
+
+	it("drops committed entries when the thread no longer exists", async () => {
+		vi.useFakeTimers();
+		vi.mocked(dismissNotification).mockResolvedValue(undefined);
+		const onRefresh = vi.fn().mockResolvedValue(undefined);
+		const onError = vi.fn();
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+		const { rerender } = render(
+			<Harness
+				currentThreadIds={new Set(["primary:thread-1"])}
+				onRefresh={onRefresh}
+				onError={onError}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "dismiss" }));
+		vi.advanceTimersByTime(3_500);
+		await waitFor(() => {
+			expect(screen.getByTestId("hidden-size")).toHaveTextContent("1");
+		});
+
+		rerender(
+			<Harness
+				currentThreadIds={new Set()}
+				onRefresh={onRefresh}
+				onError={onError}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("hidden-size")).toHaveTextContent("0");
+		});
+	});
+
+	it("reports refresh errors after a successful dismiss call", async () => {
+		vi.useFakeTimers();
+		vi.mocked(dismissNotification).mockResolvedValue(undefined);
+		const onRefresh = vi.fn().mockRejectedValue(new Error("refresh boom"));
+		const onError = vi.fn();
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+		render(
+			<Harness
+				currentThreadIds={new Set(["primary:thread-1"])}
+				onRefresh={onRefresh}
+				onError={onError}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "dismiss" }));
+		vi.advanceTimersByTime(3_500);
+
+		await waitFor(() => {
+			expect(onError).toHaveBeenCalledWith("refresh boom");
+		});
+		expect(screen.getByTestId("pending-size")).toHaveTextContent("0");
 	});
 });

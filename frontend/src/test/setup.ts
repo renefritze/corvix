@@ -8,12 +8,12 @@ class ResizeObserverMock {
 	disconnect = vi.fn();
 }
 
-Object.defineProperty(window, "ResizeObserver", {
+Object.defineProperty(globalThis, "ResizeObserver", {
 	value: ResizeObserverMock,
 	writable: true,
 });
 
-Object.defineProperty(window, "matchMedia", {
+Object.defineProperty(globalThis, "matchMedia", {
 	writable: true,
 	value: vi.fn().mockImplementation((query: string) => ({
 		matches: false,
@@ -27,7 +27,14 @@ Object.defineProperty(window, "matchMedia", {
 	})),
 });
 
-Object.defineProperty(window, "open", {
+if (typeof globalThis.window !== "undefined") {
+	Object.defineProperty(globalThis.window, "matchMedia", {
+		writable: true,
+		value: globalThis.matchMedia,
+	});
+}
+
+Object.defineProperty(globalThis, "open", {
 	writable: true,
 	value: vi.fn(),
 });
@@ -35,6 +42,7 @@ Object.defineProperty(window, "open", {
 afterEach(() => {
 	cleanup();
 	localStorage.clear();
+	vi.clearAllMocks();
 	vi.restoreAllMocks();
 	vi.useRealTimers();
 });
