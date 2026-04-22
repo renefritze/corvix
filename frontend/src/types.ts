@@ -82,7 +82,7 @@ export type ColumnWidths = Record<ResizableSortColumn, number>;
 
 export interface FilterState {
 	unread: "all" | "unread" | "read";
-	reason: string;
+	reason: string[];
 	repository: string;
 }
 

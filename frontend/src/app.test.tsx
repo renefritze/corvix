@@ -105,7 +105,7 @@ describe("App", () => {
 		);
 		expect(screen.getByRole("link", { name: "Two" })).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: "One" })).not.toBeInTheDocument();
-		await user.selectOptions(screen.getByLabelText("Reason filter"), "");
+		await user.deselectOptions(screen.getByLabelText("Reason filter"), "subscribed");
 
 		await user.selectOptions(
 			screen.getByLabelText("Select dashboard"),
