@@ -35,6 +35,7 @@ Object.defineProperty(globalThis, "open", {
 afterEach(() => {
 	cleanup();
 	localStorage.clear();
+	vi.clearAllMocks();
 	vi.restoreAllMocks();
 	vi.useRealTimers();
 });
