@@ -151,7 +151,11 @@ export function useBrowserNotifications({
 				});
 				notif.addEventListener("click", () => {
 					if (item.web_url) {
-						globalThis.open(item.web_url, "_blank", "noopener,noreferrer");
+						globalThis.window.open(
+							item.web_url,
+							"_blank",
+							"noopener,noreferrer",
+						);
 					}
 					notif.close();
 				});

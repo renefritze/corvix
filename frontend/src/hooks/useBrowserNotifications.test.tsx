@@ -73,7 +73,7 @@ describe("useBrowserNotifications", () => {
 			NotificationMock.setPermission("granted");
 			return "granted";
 		});
-		Object.defineProperty(globalThis, "Notification", {
+		Object.defineProperty(globalThis.window, "Notification", {
 			value: NotificationMock,
 			writable: true,
 		});
@@ -152,7 +152,7 @@ describe("useBrowserNotifications", () => {
 			expect(NotificationMock.instances).toHaveLength(1);
 		});
 		NotificationMock.instances[0]?.triggerClick();
-		expect(globalThis.open).toHaveBeenCalledWith(
+		expect(globalThis.window.open).toHaveBeenCalledWith(
 			"https://example.com/pr/1",
 			"_blank",
 			"noopener,noreferrer",
