@@ -304,6 +304,7 @@ def test_rule_snippets_endpoint_returns_dashboard_and_global_snippets(populated_
     payload = response.json()
     assert payload["dashboard_name"] == "overview"
     assert 'repository_in: ["org/repo-a"]' in payload["dashboard_ignore_rule_snippet"]
+    assert 'title_regex: "^Title 101$"' in payload["dashboard_ignore_rule_snippet"]
     assert "exclude_from_dashboards: true" in payload["global_exclude_rule_snippet"]
     assert payload["dashboard_ignore_rule_with_context_snippet"] is None
     assert payload["global_exclude_rule_with_context_snippet"] is None

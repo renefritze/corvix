@@ -316,10 +316,12 @@ def _rule_match_lines(*, record: NotificationRecord, include_context: bool) -> l
     repository = notification.repository
     reason = notification.reason
     subject_type = notification.subject_type
+    title_regex = _anchored_title_regex(notification.subject_title)
     lines = [
         f"repository_in: [{_yaml_quoted(repository)}]",
         f"reason_in: [{_yaml_quoted(reason)}]",
         f"subject_type_in: [{_yaml_quoted(subject_type)}]",
+        f"title_regex: {_yaml_quoted(title_regex)}",
     ]
     if not include_context:
         return lines
@@ -350,6 +352,11 @@ def _context_predicate_lines(*, record: NotificationRecord) -> list[str]:
                 ]
             )
     return output
+
+
+def _anchored_title_regex(title: str) -> str:
+    escaped = re.sub(r"([.^$*+?{}\[\]|()\\])", r"\\\1", title)
+    return f"^{escaped}$"
 
 
 def _context_path_value(*, context: dict[str, object], path: str) -> tuple[bool, object | None]:
