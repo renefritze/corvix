@@ -4,6 +4,7 @@ version: "3.9"
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: corvix
       POSTGRES_USER: corvix
@@ -21,6 +22,7 @@ services:
   web:
     build:
       context: .
+    restart: unless-stopped
     command:
     - uvicorn
     - corvix.web.app:app
@@ -47,6 +49,7 @@ services:
   poller:
     build:
       context: .
+    restart: unless-stopped
     command:
     - corvix
     - --config
