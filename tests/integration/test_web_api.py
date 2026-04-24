@@ -60,6 +60,7 @@ def _record_payload(
     reason: str,
     score: float,
     unread: bool = True,
+    context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "thread_id": thread_id,
@@ -76,6 +77,7 @@ def _record_payload(
         "matched_rules": [],
         "actions_taken": [],
         "dismissed": False,
+        "context": context or {},
     }
 
 
@@ -293,6 +295,61 @@ def test_snapshot_sorting_order(populated_client: TestClient) -> None:
     payload = response.json()
     scores = [item["score"] for group in payload["groups"] for item in group["items"]]
     assert scores == sorted(scores, reverse=True)
+
+
+def test_rule_snippets_endpoint_returns_dashboard_and_global_snippets(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/notifications/primary/101/rule-snippets?dashboard=overview")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["dashboard_name"] == "overview"
+    assert 'repository_in: ["org/repo-a"]' in payload["dashboard_ignore_rule_snippet"]
+    assert "exclude_from_dashboards: true" in payload["global_exclude_rule_snippet"]
+    assert payload["dashboard_ignore_rule_with_context_snippet"] is None
+    assert payload["global_exclude_rule_with_context_snippet"] is None
+
+
+def test_rule_snippets_endpoint_returns_context_variants(
+    configured_client: TestClient,
+) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "notifications": [
+                    _record_payload(
+                        thread_id="ctx-1",
+                        repository="org/repo-a",
+                        reason="mention",
+                        score=10.0,
+                        context={
+                            "github": {
+                                "latest_comment": {"is_ci_only": True},
+                                "pr_state": {"state": "open", "draft": False},
+                            }
+                        },
+                    )
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    response = configured_client.get("/api/notifications/primary/ctx-1/rule-snippets?dashboard=triage")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["has_context"] is True
+    assert "context:" in payload["dashboard_ignore_rule_with_context_snippet"]
+    assert "github.latest_comment.is_ci_only" in payload["dashboard_ignore_rule_with_context_snippet"]
+    assert "context:" in payload["global_exclude_rule_with_context_snippet"]
+
+
+def test_rule_snippets_endpoint_unknown_thread_returns_404(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/notifications/primary/missing/rule-snippets?dashboard=overview")
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 # --- /api/notifications/{thread_id}/dismiss ---

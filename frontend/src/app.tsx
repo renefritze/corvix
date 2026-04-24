@@ -5,9 +5,10 @@ import {
 	useRef,
 	useState,
 } from "preact/hooks";
-import { markNotificationRead } from "./api";
+import { fetchRuleSnippets, markNotificationRead } from "./api";
 import { EmptyState } from "./components/EmptyState";
 import { FilterBar } from "./components/FilterBar";
+import { IgnoreRuleDialog } from "./components/IgnoreRuleDialog";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { NotificationTable } from "./components/NotificationTable";
 import { Toolbar } from "./components/Toolbar";
@@ -19,7 +20,7 @@ import { useKeyboard } from "./hooks/useKeyboard";
 import { useSnapshot } from "./hooks/useSnapshot";
 import { useSort } from "./hooks/useSort";
 import { notificationKey } from "./types";
-import type { DashboardItem, SortColumn } from "./types";
+import type { DashboardItem, RuleSnippetsPayload, SortColumn } from "./types";
 
 const DASHBOARD_PATH_PREFIX = "/dashboards/";
 
@@ -59,6 +60,17 @@ export function App() {
 	});
 	const [toastError, setToastError] = useState<string | null>(null);
 	const [showShortcuts, setShowShortcuts] = useState(false);
+	const [ignoreMenu, setIgnoreMenu] = useState<{
+		item: DashboardItem;
+		x: number;
+		y: number;
+	} | null>(null);
+	const [ignoreDialogItem, setIgnoreDialogItem] =
+		useState<DashboardItem | null>(null);
+	const [ignoreSnippets, setIgnoreSnippets] =
+		useState<RuleSnippetsPayload | null>(null);
+	const [ignoreLoading, setIgnoreLoading] = useState(false);
+	const [ignoreError, setIgnoreError] = useState<string | null>(null);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
 
 	const { snapshot, loading, refreshing, manualRefreshing, error, refresh } =
@@ -110,6 +122,9 @@ export function App() {
 		config: notifConfig,
 	});
 
+	const dashboardNames = snapshot?.dashboard_names ?? [];
+	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
+
 	const filteredGroups = useMemo(() => {
 		if (!snapshot) return [];
 		return snapshot.groups
@@ -157,15 +172,81 @@ export function App() {
 		[refresh],
 	);
 
+	const handleRequestIgnoreRule = useCallback(
+		(item: DashboardItem, position: { x: number; y: number }) => {
+			setIgnoreMenu({ item, x: position.x, y: position.y });
+		},
+		[],
+	);
+
+	const openIgnoreDialog = useCallback((item: DashboardItem) => {
+		setIgnoreDialogItem(item);
+		setIgnoreMenu(null);
+	}, []);
+
+	const closeIgnoreDialog = useCallback(() => {
+		setIgnoreDialogItem(null);
+		setIgnoreSnippets(null);
+		setIgnoreError(null);
+		setIgnoreLoading(false);
+	}, []);
+
+	useEffect(() => {
+		if (!ignoreMenu) return;
+		const handleClickAway = () => setIgnoreMenu(null);
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setIgnoreMenu(null);
+			}
+		};
+		window.addEventListener("click", handleClickAway);
+		window.addEventListener("keydown", handleEscape);
+		return () => {
+			window.removeEventListener("click", handleClickAway);
+			window.removeEventListener("keydown", handleEscape);
+		};
+	}, [ignoreMenu]);
+
+	useEffect(() => {
+		if (!ignoreDialogItem) {
+			return;
+		}
+		let cancelled = false;
+		setIgnoreLoading(true);
+		setIgnoreError(null);
+		setIgnoreSnippets(null);
+		void fetchRuleSnippets(
+			ignoreDialogItem.account_id,
+			ignoreDialogItem.thread_id,
+			currentDashboard ?? undefined,
+		)
+			.then((payload) => {
+				if (cancelled) return;
+				setIgnoreSnippets(payload);
+			})
+			.catch((error: unknown) => {
+				if (cancelled) return;
+				setIgnoreError(
+					error instanceof Error
+						? error.message
+						: "Failed to load rule snippets",
+				);
+			})
+			.finally(() => {
+				if (cancelled) return;
+				setIgnoreLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [ignoreDialogItem, currentDashboard]);
+
 	useKeyboard({
 		onRefresh: refresh,
 		onFocusFilters: () => filterBarRef.current?.focus(),
 		onDismissFocused: handleDismissFocused,
 		onToggleShortcuts: () => setShowShortcuts((prev) => !prev),
 	});
-
-	const dashboardNames = snapshot?.dashboard_names ?? [];
-	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
 
 	useEffect(() => {
 		if (typeof globalThis.window === "undefined") {
@@ -248,6 +329,7 @@ export function App() {
 					onSort={handleSort}
 					onDismiss={dismiss}
 					onOpenTarget={handleOpenTarget}
+					onRequestIgnoreRule={handleRequestIgnoreRule}
 					pendingDismissals={new Set(pending.keys())}
 				/>
 			);
@@ -309,6 +391,30 @@ export function App() {
 				/>
 			)}
 			<main class="board">{boardContent}</main>
+			{ignoreMenu && (
+				<div
+					class="row-context-menu"
+					style={{ left: `${ignoreMenu.x}px`, top: `${ignoreMenu.y}px` }}
+					role="menu"
+				>
+					<button
+						type="button"
+						role="menuitem"
+						onClick={() => openIgnoreDialog(ignoreMenu.item)}
+					>
+						Create ignore rule...
+					</button>
+				</div>
+			)}
+			<IgnoreRuleDialog
+				open={ignoreDialogItem !== null}
+				item={ignoreDialogItem}
+				dashboardName={currentDashboard}
+				snippets={ignoreSnippets}
+				loading={ignoreLoading}
+				error={ignoreError}
+				onClose={closeIgnoreDialog}
+			/>
 			{toastError && (
 				<div class="error-toast" role="alert">
 					{toastError}

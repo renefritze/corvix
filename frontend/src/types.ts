@@ -51,6 +51,16 @@ export interface SnapshotPayload {
 	notifications_config: NotificationsConfig | null;
 }
 
+export interface RuleSnippetsPayload {
+	dashboard_name: string;
+	dashboard_ignore_rule_snippet: string;
+	global_exclude_rule_snippet: string;
+	dashboard_ignore_rule_with_context_snippet: string | null;
+	global_exclude_rule_with_context_snippet: string | null;
+	context: Record<string, unknown>;
+	has_context: boolean;
+}
+
 export type SortColumn =
 	| "subject_title"
 	| "repository"

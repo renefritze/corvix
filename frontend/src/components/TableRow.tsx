@@ -14,6 +14,10 @@ interface TableRowProps {
 	readonly item: DashboardItem;
 	readonly onDismiss: (accountId: string, threadId: string) => void;
 	readonly onOpenTarget: (accountId: string, threadId: string) => void;
+	readonly onRequestIgnoreRule: (
+		item: DashboardItem,
+		position: { x: number; y: number },
+	) => void;
 	readonly isPendingDismissal: boolean;
 }
 
@@ -21,6 +25,7 @@ export function TableRow({
 	item,
 	onDismiss,
 	onOpenTarget,
+	onRequestIgnoreRule,
 	isPendingDismissal,
 }: TableRowProps) {
 	const scoreLabel = item.score.toFixed(1);
@@ -41,11 +46,25 @@ export function TableRow({
 		handleOpenTarget();
 	}
 
+	function handleContextMenu(e: MouseEvent) {
+		e.preventDefault();
+		onRequestIgnoreRule(item, { x: e.clientX, y: e.clientY });
+	}
+
+	function handleMenuButtonClick(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		const button = e.currentTarget as HTMLButtonElement;
+		const rect = button.getBoundingClientRect();
+		onRequestIgnoreRule(item, { x: rect.left, y: rect.bottom + 4 });
+	}
+
 	return (
 		<tr
 			data-account-id={item.account_id}
 			data-thread-id={item.thread_id}
 			tabIndex={0}
+			onContextMenu={handleContextMenu as unknown as (e: Event) => void}
 			class={[
 				"notification-row",
 				item.unread ? "unread" : "read",
@@ -95,6 +114,14 @@ export function TableRow({
 				<span title={item.updated_at}>{updatedLabel}</span>
 			</td>
 			<td class="col-actions">
+				<button
+					type="button"
+					class="row-menu-btn"
+					aria-label={`Notification actions for ${item.subject_title}`}
+					onClick={handleMenuButtonClick as unknown as (e: Event) => void}
+				>
+					⋯
+				</button>
 				<button
 					type="button"
 					class="dismiss-btn"

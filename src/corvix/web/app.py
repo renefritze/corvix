@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import asdict
 from importlib.resources import files
 from os import environ
 from pathlib import Path
+from typing import cast
 
 import uvicorn
 from litestar import Litestar, Response, get, post
@@ -18,6 +20,7 @@ from litestar.static_files import create_static_files_router
 
 from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, load_config
 from corvix.dashboarding import build_dashboard_data
+from corvix.domain import NotificationRecord
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
@@ -132,6 +135,47 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     return payload
 
 
+@get(
+    "/api/notifications/{account_id:str}/{thread_id:str}/rule-snippets",
+    sync_to_thread=False,
+)
+def notification_rule_snippets(
+    account_id: str,
+    thread_id: str,
+    dashboard: str | None = None,
+) -> dict[str, object]:
+    """Return prefilled ignore-rule snippets for a notification."""
+    config = _load_runtime_config()
+    selected_dashboard = _select_dashboard(config.dashboards, dashboard)
+    _require_account(config=config, account_id=account_id)
+    _generated_at, records = NotificationCache(path=config.resolve_cache_file()).load()
+    record = _find_record(records=records, account_id=account_id, thread_id=thread_id)
+    if record is None:
+        msg = f"Notification '{account_id}/{thread_id}' not found in cache."
+        raise HTTPException(status_code=404, detail=msg)
+
+    base_match = _rule_match_lines(record=record, include_context=False)
+    if base_match is None:
+        msg = "Failed to generate base rule match lines."
+        raise HTTPException(status_code=500, detail=msg)
+    context_match = _rule_match_lines(record=record, include_context=True)
+    return {
+        "dashboard_name": selected_dashboard.name,
+        "dashboard_ignore_rule_snippet": _dashboard_ignore_rule_snippet(base_match),
+        "global_exclude_rule_snippet": _global_exclude_rule_snippet(record=record, match_lines=base_match),
+        "dashboard_ignore_rule_with_context_snippet": (
+            _dashboard_ignore_rule_snippet(context_match) if context_match is not None else None
+        ),
+        "global_exclude_rule_with_context_snippet": (
+            _global_exclude_rule_snippet(record=record, match_lines=context_match)
+            if context_match is not None
+            else None
+        ),
+        "context": record.context,
+        "has_context": bool(record.context),
+    }
+
+
 @post("/api/notifications/{account_id:str}/{thread_id:str}/dismiss", sync_to_thread=True)
 def dismiss_notification(account_id: str, thread_id: str) -> Response[None]:
     """Dismiss a notification thread (removes it from the GitHub inbox).
@@ -224,6 +268,108 @@ def _default_account_id(config: AppConfig) -> str:
     return config.github.accounts[0].id
 
 
+def _find_record(
+    *,
+    records: list[NotificationRecord],
+    account_id: str,
+    thread_id: str,
+) -> NotificationRecord | None:
+    for record in records:
+        if record.notification.account_id == account_id and record.notification.thread_id == thread_id:
+            return record
+    return None
+
+
+def _yaml_quoted(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _yaml_scalar(value: object) -> str:
+    if isinstance(value, str):
+        return _yaml_quoted(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _slug_token(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "rule"
+
+
+def _rule_name_for_record(record: NotificationRecord) -> str:
+    notification = record.notification
+    repository = notification.repository
+    reason = notification.reason
+    subject_type = notification.subject_type
+    return f"ignore-{_slug_token(repository)}-{_slug_token(reason)}-{_slug_token(subject_type)}"
+
+
+def _rule_match_lines(*, record: NotificationRecord, include_context: bool) -> list[str] | None:
+    notification = record.notification
+    repository = notification.repository
+    reason = notification.reason
+    subject_type = notification.subject_type
+    lines = [
+        f"repository_in: [{_yaml_quoted(repository)}]",
+        f"reason_in: [{_yaml_quoted(reason)}]",
+        f"subject_type_in: [{_yaml_quoted(subject_type)}]",
+    ]
+    if not include_context:
+        return lines
+    context_predicates = _context_predicate_lines(record=record)
+    if not context_predicates:
+        return None
+    return [*lines, "context:", *context_predicates]
+
+
+def _context_predicate_lines(*, record: NotificationRecord) -> list[str]:
+    context = record.context
+    candidate_paths = (
+        "github.latest_comment.is_ci_only",
+        "github.pr_state.state",
+        "github.pr_state.draft",
+    )
+    output: list[str] = []
+    for path in candidate_paths:
+        found, value = _context_path_value(context=context, path=path)
+        if not found:
+            continue
+        if isinstance(value, bool | int | float | str):
+            output.extend(
+                [
+                    f"  - path: {_yaml_quoted(path)}",
+                    "    op: equals",
+                    f"    value: {_yaml_scalar(value)}",
+                ]
+            )
+    return output
+
+
+def _context_path_value(*, context: dict[str, object], path: str) -> tuple[bool, object | None]:
+    current: object = context
+    for segment in path.split("."):
+        if not isinstance(current, dict):
+            return False, None
+        current_map = cast(dict[str, object], current)
+        next_value = current_map.get(segment)
+        if next_value is None and segment not in current_map:
+            return False, None
+        current = next_value
+    return True, current
+
+
+def _dashboard_ignore_rule_snippet(match_lines: list[str]) -> str:
+    body = "\n".join(f"  {line}" for line in match_lines)
+    return f"- {body.lstrip()}"
+
+
+def _global_exclude_rule_snippet(*, record: NotificationRecord, match_lines: list[str]) -> str:
+    match_body = "\n".join(f"    {line}" for line in match_lines)
+    return f"- name: {_rule_name_for_record(record)}\n  match:\n{match_body}\n  exclude_from_dashboards: true"
+
+
 def _load_runtime_config() -> AppConfig:
     config_path = Path(environ.get("CORVIX_CONFIG", "corvix.yaml"))
     if not config_path.exists():
@@ -263,6 +409,7 @@ app = Litestar(
         api_themes,
         dashboards,
         snapshot,
+        notification_rule_snippets,
         dismiss_notification,
         dismiss_notification_default_account,
         mark_notification_read,

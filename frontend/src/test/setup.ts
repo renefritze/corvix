@@ -39,6 +39,11 @@ Object.defineProperty(globalThis, "open", {
 	value: vi.fn(),
 });
 
+Object.defineProperty(window.navigator, "clipboard", {
+	value: { writeText: vi.fn() },
+	configurable: true,
+});
+
 afterEach(() => {
 	cleanup();
 	localStorage.clear();

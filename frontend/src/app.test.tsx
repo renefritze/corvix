@@ -489,4 +489,81 @@ describe("App", () => {
 			}),
 		).toBeInTheDocument();
 	});
+
+	it("opens ignore-rule dialog from row context menu and loads both snippets", async () => {
+		setPath("/");
+		const snapshot = makeSnapshot({
+			groups: [
+				{
+					name: "group-a",
+					items: [
+						makeItem({
+							thread_id: "item-42",
+							subject_title: "Rule target",
+							repository: "org/repo-a",
+							reason: "mention",
+							subject_type: "PullRequest",
+						}),
+					],
+				},
+			],
+			total_items: 1,
+			dashboard_names: ["overview"],
+		});
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: FetchInput, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				const url = requestUrl(input);
+				if (url.includes("/rule-snippets")) {
+					return {
+						ok: true,
+						json: async () => ({
+							dashboard_name: "overview",
+							dashboard_ignore_rule_snippet:
+								'- repository_in: ["org/repo-a"]\n  reason_in: ["mention"]\n  subject_type_in: ["PullRequest"]',
+							global_exclude_rule_snippet:
+								'- name: ignore-org-repo-a-mention-pullrequest\n  match:\n    repository_in: ["org/repo-a"]\n    reason_in: ["mention"]\n    subject_type_in: ["PullRequest"]\n  exclude_from_dashboards: true',
+							dashboard_ignore_rule_with_context_snippet: null,
+							global_exclude_rule_with_context_snippet: null,
+							context: {},
+							has_context: false,
+						}),
+					} as Response;
+				}
+				return {
+					ok: true,
+					json: async () => snapshot,
+				} as Response;
+			},
+		);
+
+		render(<App />);
+		const user = userEvent.setup();
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Rule target" }),
+			).toBeInTheDocument();
+		});
+
+		const row = screen.getByRole("link", { name: "Rule target" }).closest("tr");
+		expect(row).not.toBeNull();
+		fireEvent.contextMenu(row as HTMLTableRowElement);
+
+		await user.click(
+			screen.getByRole("menuitem", { name: "Create ignore rule..." }),
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("heading", { name: "Dashboard ignore rule" }),
+			).toBeInTheDocument();
+		});
+		expect(
+			screen.getByRole("heading", { name: "Global exclude rule" }),
+		).toBeInTheDocument();
+		expect(screen.getAllByDisplayValue(/repository_in/)).toHaveLength(2);
+	});
 });

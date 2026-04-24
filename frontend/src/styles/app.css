@@ -223,7 +223,7 @@ button:disabled { opacity: 0.6; cursor: default; }
    Title is flexible (auto) and absorbs all remaining space. Other columns sized to their
    longest typical content value to minimise wasted whitespace. */
 .col-status { width: 28px; text-align: center; }         /* unread dot */
-.col-actions { width: 36px; text-align: center; }        /* dismiss button */
+.col-actions { width: 72px; text-align: center; }        /* row actions */
 .col-score { width: 75px; text-align: right; }           /* "Score" header + "72.9" data */
 .col-updated { width: 110px; }                           /* "Updated" header + up to "59m ago" data */
 .col-type { width: 110px; }                              /* longest common value: "PullRequest" */
@@ -356,6 +356,136 @@ kbd {
   line-height: 1;
 }
 .dismiss-btn:hover { color: var(--danger); border-color: transparent; }
+
+.row-menu-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 2px 6px;
+  font-size: 0.9rem;
+  border-radius: 2px;
+  line-height: 1;
+  margin-right: 2px;
+}
+
+.row-menu-btn:hover {
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.row-context-menu {
+  position: fixed;
+  z-index: 200;
+  background: var(--surface-elevated);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  min-width: 170px;
+  overflow: hidden;
+}
+
+.row-context-menu button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 8px 10px;
+  font-size: 0.8rem;
+}
+
+.row-context-menu button:hover {
+  background: var(--row-hover);
+}
+
+.ignore-rule-dialog {
+  position: fixed;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(900px, calc(100% - 24px));
+  max-height: 78dvh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 14px;
+  z-index: 220;
+}
+
+.ignore-rule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ignore-rule-header h2 {
+  font-size: 0.95rem;
+}
+
+.ignore-rule-subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.ignore-rule-status {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.ignore-rule-status.error {
+  color: var(--danger);
+}
+
+.ignore-rule-content {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.snippet-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-elevated);
+}
+
+.snippet-card h3 {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.snippet-card p {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.snippet-card textarea {
+  width: 100%;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: "Menlo", "Consolas", monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.snippet-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .col-resize-handle {
   position: absolute;
@@ -498,6 +628,7 @@ body.col-resizing * {
   }
   .title-meta { display: block; }
   .col-repository { width: 130px; }
+  .ignore-rule-content { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {

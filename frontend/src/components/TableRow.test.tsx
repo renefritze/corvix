@@ -16,6 +16,7 @@ describe("TableRow", () => {
 						item={makeItem({ thread_id: "t-1", subject_title: "My title" })}
 						onDismiss={onDismiss}
 						onOpenTarget={onOpenTarget}
+						onRequestIgnoreRule={vi.fn()}
 						isPendingDismissal={false}
 					/>
 				</tbody>
@@ -47,6 +48,7 @@ describe("TableRow", () => {
 						})}
 						onDismiss={vi.fn()}
 						onOpenTarget={onOpenTarget}
+						onRequestIgnoreRule={vi.fn()}
 						isPendingDismissal={false}
 					/>
 				</tbody>
