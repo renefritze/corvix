@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { DashboardItem, RuleSnippetsPayload } from "../types";
 
 interface IgnoreRuleDialogProps {
@@ -21,6 +21,14 @@ export function IgnoreRuleDialog({
 	onClose,
 }: IgnoreRuleDialogProps) {
 	const [copyStatus, setCopyStatus] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!open || !item) {
+			setCopyStatus(null);
+			return;
+		}
+		setCopyStatus(null);
+	}, [open, item]);
 
 	if (!open || !item) {
 		return null;

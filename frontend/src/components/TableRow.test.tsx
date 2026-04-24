@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/preact";
+import { fireEvent, render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { makeItem } from "../test/fixtures";
 import { TableRow } from "./TableRow";
@@ -69,6 +69,7 @@ describe("TableRow", () => {
 						item={makeItem({ thread_id: "t-3", subject_title: "Middle" })}
 						onDismiss={vi.fn()}
 						onOpenTarget={onOpenTarget}
+						onRequestIgnoreRule={vi.fn()}
 						isPendingDismissal={false}
 					/>
 				</tbody>
@@ -94,6 +95,7 @@ describe("TableRow", () => {
 						})}
 						onDismiss={vi.fn()}
 						onOpenTarget={vi.fn()}
+						onRequestIgnoreRule={vi.fn()}
 						isPendingDismissal={false}
 					/>
 				</tbody>
@@ -102,5 +104,54 @@ describe("TableRow", () => {
 
 		expect(screen.queryByRole("link", { name: "No Link" })).toBeNull();
 		expect(screen.getByText("No Link")).toBeInTheDocument();
+	});
+
+	it("opens row actions from context menu and actions button", async () => {
+		const onRequestIgnoreRule = vi.fn();
+		const user = userEvent.setup();
+
+		render(
+			<table>
+				<tbody>
+					<TableRow
+						item={makeItem({ thread_id: "t-3", subject_title: "Has menu" })}
+						onDismiss={vi.fn()}
+						onOpenTarget={vi.fn()}
+						onRequestIgnoreRule={onRequestIgnoreRule}
+						isPendingDismissal={false}
+					/>
+				</tbody>
+			</table>,
+		);
+
+		const row = screen.getByRole("row");
+		fireEvent.contextMenu(row, { clientX: 120, clientY: 140 });
+		expect(onRequestIgnoreRule).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ thread_id: "t-3" }),
+			{ x: 120, y: 140 },
+		);
+
+		const menuButton = screen.getByRole("button", {
+			name: "Notification actions for Has menu",
+		});
+		vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
+			left: 40,
+			right: 60,
+			top: 20,
+			bottom: 50,
+			width: 20,
+			height: 30,
+			x: 40,
+			y: 20,
+			toJSON: () => ({}),
+		} as DOMRect);
+
+		await user.click(menuButton);
+		expect(onRequestIgnoreRule).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ thread_id: "t-3" }),
+			{ x: 40, y: 54 },
+		);
 	});
 });

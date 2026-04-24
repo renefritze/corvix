@@ -9,7 +9,7 @@ from dataclasses import asdict
 from importlib.resources import files
 from os import environ
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast, overload
 
 import uvicorn
 from litestar import Litestar, Response, get, post
@@ -155,9 +155,6 @@ def notification_rule_snippets(
         raise HTTPException(status_code=404, detail=msg)
 
     base_match = _rule_match_lines(record=record, include_context=False)
-    if base_match is None:
-        msg = "Failed to generate base rule match lines."
-        raise HTTPException(status_code=500, detail=msg)
     context_match = _rule_match_lines(record=record, include_context=True)
     return {
         "dashboard_name": selected_dashboard.name,
@@ -304,6 +301,14 @@ def _rule_name_for_record(record: NotificationRecord) -> str:
     reason = notification.reason
     subject_type = notification.subject_type
     return f"ignore-{_slug_token(repository)}-{_slug_token(reason)}-{_slug_token(subject_type)}"
+
+
+@overload
+def _rule_match_lines(*, record: NotificationRecord, include_context: Literal[False]) -> list[str]: ...
+
+
+@overload
+def _rule_match_lines(*, record: NotificationRecord, include_context: Literal[True]) -> list[str] | None: ...
 
 
 def _rule_match_lines(*, record: NotificationRecord, include_context: bool) -> list[str] | None:
