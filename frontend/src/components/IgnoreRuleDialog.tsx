@@ -48,7 +48,16 @@ export function IgnoreRuleDialog({
 	}
 
 	return (
-		<dialog class="ignore-rule-dialog" aria-label="Ignore rule snippets" open>
+		<dialog
+			class="ignore-rule-dialog"
+			aria-label="Ignore rule snippets"
+			open
+			onCancel={(e) => {
+				e.preventDefault();
+				onClose();
+			}}
+			onClose={onClose}
+		>
 			<div class="ignore-rule-header">
 				<h2>Create ignore rule</h2>
 				<button

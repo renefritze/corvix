@@ -1,3 +1,4 @@
+import type { JSX } from "preact";
 import type { DashboardItem } from "../types";
 
 function relativeTime(iso: string): string {
@@ -37,25 +38,24 @@ export function TableRow({
 		onOpenTarget(item.account_id, item.thread_id);
 	}
 
-	function handleTitleClick() {
+	function handleTitleClick(_e: JSX.TargetedMouseEvent<HTMLAnchorElement>) {
 		handleOpenTarget();
 	}
 
-	function handleTitleAuxClick(e: MouseEvent) {
+	function handleTitleAuxClick(e: JSX.TargetedMouseEvent<HTMLAnchorElement>) {
 		if (e.button !== 1) return;
 		handleOpenTarget();
 	}
 
-	function handleContextMenu(e: MouseEvent) {
+	function handleContextMenu(e: JSX.TargetedMouseEvent<HTMLTableRowElement>) {
 		e.preventDefault();
 		onRequestIgnoreRule(item, { x: e.clientX, y: e.clientY });
 	}
 
-	function handleMenuButtonClick(e: MouseEvent) {
+	function handleMenuButtonClick(e: JSX.TargetedMouseEvent<HTMLButtonElement>) {
 		e.preventDefault();
 		e.stopPropagation();
-		const button = e.currentTarget as HTMLButtonElement;
-		const rect = button.getBoundingClientRect();
+		const rect = e.currentTarget.getBoundingClientRect();
 		onRequestIgnoreRule(item, { x: rect.left, y: rect.bottom + 4 });
 	}
 
@@ -64,7 +64,7 @@ export function TableRow({
 			data-account-id={item.account_id}
 			data-thread-id={item.thread_id}
 			tabIndex={0}
-			onContextMenu={handleContextMenu as unknown as (e: Event) => void}
+			onContextMenu={handleContextMenu}
 			class={[
 				"notification-row",
 				item.unread ? "unread" : "read",
@@ -86,8 +86,8 @@ export function TableRow({
 						target="_blank"
 						rel="noopener noreferrer"
 						class="title-link"
-						onClick={handleTitleClick as unknown as (e: Event) => void}
-						onAuxClick={handleTitleAuxClick as unknown as (e: Event) => void}
+						onClick={handleTitleClick}
+						onAuxClick={handleTitleAuxClick}
 					>
 						{item.subject_title}
 					</a>
@@ -118,7 +118,7 @@ export function TableRow({
 					type="button"
 					class="row-menu-btn"
 					aria-label={`Notification actions for ${item.subject_title}`}
-					onClick={handleMenuButtonClick as unknown as (e: Event) => void}
+					onClick={handleMenuButtonClick}
 				>
 					⋯
 				</button>
