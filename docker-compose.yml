@@ -4,6 +4,7 @@ version: "3.9"
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: corvix
       POSTGRES_USER: corvix
@@ -21,6 +22,7 @@ services:
   web:
     build:
       context: .
+    restart: unless-stopped
     command:
     - uvicorn
     - corvix.web.app:app
@@ -43,10 +45,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - from urllib.request import urlopen; import sys; sys.exit(0 if urlopen("http://127.0.0.1:8000/api/health", timeout=2).status
+        == 200 else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   poller:
     build:
       context: .
+    restart: unless-stopped
     command:
     - corvix
     - --config
@@ -66,6 +80,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - from pathlib import Path; import time, sys; p = Path("/data/notifications.json"); sys.exit(0 if p.exists() and time.time()
+        - p.stat().st_mtime < 300 else 1)
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 75s
 
 volumes:
   corvix_db:

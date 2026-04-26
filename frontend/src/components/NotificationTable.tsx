@@ -38,6 +38,10 @@ interface NotificationTableProps {
 	readonly onSort: (col: SortColumn) => void;
 	readonly onDismiss: (accountId: string, threadId: string) => void;
 	readonly onOpenTarget: (accountId: string, threadId: string) => void;
+	readonly onRequestIgnoreRule: (
+		item: DashboardItem,
+		position: { x: number; y: number },
+	) => void;
 	readonly pendingDismissals: Set<string>;
 }
 
@@ -48,6 +52,7 @@ export function NotificationTable({
 	onSort,
 	onDismiss,
 	onOpenTarget,
+	onRequestIgnoreRule,
 	pendingDismissals,
 }: NotificationTableProps) {
 	const COLS = 8;
@@ -82,6 +87,7 @@ export function NotificationTable({
 								item={item}
 								onDismiss={onDismiss}
 								onOpenTarget={onOpenTarget}
+								onRequestIgnoreRule={onRequestIgnoreRule}
 								isPendingDismissal={pendingDismissals.has(
 									notificationKey(item),
 								)}

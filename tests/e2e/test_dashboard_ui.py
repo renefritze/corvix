@@ -270,3 +270,21 @@ def test_dismiss_persists_on_reload(app_page: PageLike) -> None:
     app_page.reload()
     expect(app_page.locator("tr.notification-row")).to_have_count(2)
     expect(app_page.locator("tr.notification-row", has_text="Dependency update")).to_have_count(0)
+
+
+@pytest.mark.e2e
+def test_right_click_opens_row_menu_and_ignore_dialog(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    row = app_page.locator("tr.notification-row", has_text="Review API changes")
+    expect(row).to_have_count(1)
+
+    row.click(button="right")
+    menu = app_page.locator(".row-context-menu")
+    expect(menu).to_be_visible()
+    app_page.get_by_role("menuitem", name="Create ignore rule...").click()
+
+    dialog = app_page.locator("dialog.ignore-rule-dialog")
+    expect(dialog).to_be_visible()
+    expect(app_page.get_by_role("heading", name="Dashboard ignore rule")).to_be_visible()
+    expect(app_page.get_by_role("heading", name="Global exclude rule")).to_be_visible()

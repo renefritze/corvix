@@ -41,6 +41,12 @@ services:
     - --config=.lighthouserc.json
     environment:
       CHROME_PATH: /usr/bin/chromium
+    healthcheck:
+      test: ["CMD-SHELL", "command -v lhci >/dev/null && command -v chromium >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     volumes:
     - ./:/workspace
 
