@@ -104,6 +104,7 @@ notifications:
 - `GET /api/dashboards`
 - `GET /dashboards/{dashboard_name}`
 - `GET /api/snapshot?dashboard=<name>`
+- `GET /api/notifications/{account_id}/{thread_id}/rule-snippets?dashboard=<name>`
 - `POST /api/notifications/{account_id}/{thread_id}/dismiss`
 - `POST /api/notifications/{thread_id}/dismiss`
 - `POST /api/notifications/{account_id}/{thread_id}/mark-read`

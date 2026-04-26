@@ -1,3 +1,4 @@
+import type { JSX } from "preact";
 import type { DashboardItem } from "../types";
 
 function relativeTime(iso: string): string {
@@ -14,6 +15,10 @@ interface TableRowProps {
 	readonly item: DashboardItem;
 	readonly onDismiss: (accountId: string, threadId: string) => void;
 	readonly onOpenTarget: (accountId: string, threadId: string) => void;
+	readonly onRequestIgnoreRule: (
+		item: DashboardItem,
+		position: { x: number; y: number },
+	) => void;
 	readonly isPendingDismissal: boolean;
 }
 
@@ -21,6 +26,7 @@ export function TableRow({
 	item,
 	onDismiss,
 	onOpenTarget,
+	onRequestIgnoreRule,
 	isPendingDismissal,
 }: TableRowProps) {
 	const scoreLabel = item.score.toFixed(1);
@@ -32,13 +38,25 @@ export function TableRow({
 		onOpenTarget(item.account_id, item.thread_id);
 	}
 
-	function handleTitleClick() {
+	function handleTitleClick(_e: JSX.TargetedMouseEvent<HTMLAnchorElement>) {
 		handleOpenTarget();
 	}
 
-	function handleTitleAuxClick(e: MouseEvent) {
+	function handleTitleAuxClick(e: JSX.TargetedMouseEvent<HTMLAnchorElement>) {
 		if (e.button !== 1) return;
 		handleOpenTarget();
+	}
+
+	function handleContextMenu(e: JSX.TargetedMouseEvent<HTMLTableRowElement>) {
+		e.preventDefault();
+		onRequestIgnoreRule(item, { x: e.clientX, y: e.clientY });
+	}
+
+	function handleMenuButtonClick(e: JSX.TargetedMouseEvent<HTMLButtonElement>) {
+		e.preventDefault();
+		e.stopPropagation();
+		const rect = e.currentTarget.getBoundingClientRect();
+		onRequestIgnoreRule(item, { x: rect.left, y: rect.bottom + 4 });
 	}
 
 	return (
@@ -46,6 +64,7 @@ export function TableRow({
 			data-account-id={item.account_id}
 			data-thread-id={item.thread_id}
 			tabIndex={0}
+			onContextMenu={handleContextMenu}
 			class={[
 				"notification-row",
 				item.unread ? "unread" : "read",
@@ -67,8 +86,8 @@ export function TableRow({
 						target="_blank"
 						rel="noopener noreferrer"
 						class="title-link"
-						onClick={handleTitleClick as unknown as (e: Event) => void}
-						onAuxClick={handleTitleAuxClick as unknown as (e: Event) => void}
+						onClick={handleTitleClick}
+						onAuxClick={handleTitleAuxClick}
 					>
 						{item.subject_title}
 					</a>
@@ -95,6 +114,14 @@ export function TableRow({
 				<span title={item.updated_at}>{updatedLabel}</span>
 			</td>
 			<td class="col-actions">
+				<button
+					type="button"
+					class="row-menu-btn"
+					aria-label={`Notification actions for ${item.subject_title}`}
+					onClick={handleMenuButtonClick}
+				>
+					⋯
+				</button>
 				<button
 					type="button"
 					class="dismiss-btn"

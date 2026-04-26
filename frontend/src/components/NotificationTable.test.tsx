@@ -22,6 +22,7 @@ describe("NotificationTable", () => {
 				onSort={vi.fn()}
 				onDismiss={vi.fn()}
 				onOpenTarget={vi.fn()}
+				onRequestIgnoreRule={vi.fn()}
 				pendingDismissals={new Set(["1"])}
 			/>,
 		);
