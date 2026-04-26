@@ -27,7 +27,7 @@ Object.defineProperty(globalThis, "matchMedia", {
 	})),
 });
 
-if (typeof globalThis.window !== "undefined") {
+if (globalThis.window !== undefined) {
 	Object.defineProperty(globalThis.window, "matchMedia", {
 		writable: true,
 		value: globalThis.matchMedia,
@@ -39,14 +39,14 @@ Object.defineProperty(globalThis, "open", {
 	value: vi.fn(),
 });
 
-if (typeof globalThis.window !== "undefined") {
+if (globalThis.window !== undefined) {
 	Object.defineProperty(globalThis.window, "open", {
 		writable: true,
 		value: globalThis.open,
 	});
 }
 
-Object.defineProperty(window.navigator, "clipboard", {
+Object.defineProperty(globalThis.navigator, "clipboard", {
 	value: { writeText: vi.fn() },
 	configurable: true,
 });

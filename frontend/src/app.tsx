@@ -199,11 +199,11 @@ export function App() {
 				setIgnoreMenu(null);
 			}
 		};
-		window.addEventListener("click", handleClickAway);
-		window.addEventListener("keydown", handleEscape);
+		globalThis.addEventListener("click", handleClickAway);
+		globalThis.addEventListener("keydown", handleEscape);
 		return () => {
-			window.removeEventListener("click", handleClickAway);
-			window.removeEventListener("keydown", handleEscape);
+			globalThis.removeEventListener("click", handleClickAway);
+			globalThis.removeEventListener("keydown", handleEscape);
 		};
 	}, [ignoreMenu]);
 

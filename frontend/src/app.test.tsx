@@ -527,7 +527,6 @@ describe("App", () => {
 								'- name: ignore-org-repo-a-mention-pullrequest\n  match:\n    repository_in: ["org/repo-a"]\n    reason_in: ["mention"]\n    subject_type_in: ["PullRequest"]\n  exclude_from_dashboards: true',
 							dashboard_ignore_rule_with_context_snippet: null,
 							global_exclude_rule_with_context_snippet: null,
-							context: {},
 							has_context: false,
 						}),
 					} as Response;

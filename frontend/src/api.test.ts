@@ -78,7 +78,6 @@ describe("api", () => {
 				"- name: ignore-org-repo-a-mention-pullrequest",
 			dashboard_ignore_rule_with_context_snippet: null,
 			global_exclude_rule_with_context_snippet: null,
-			context: {},
 			has_context: false,
 		};
 		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({

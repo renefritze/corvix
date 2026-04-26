@@ -57,7 +57,6 @@ export interface RuleSnippetsPayload {
 	global_exclude_rule_snippet: string;
 	dashboard_ignore_rule_with_context_snippet: string | null;
 	global_exclude_rule_with_context_snippet: string | null;
-	context: Record<string, unknown>;
 	has_context: boolean;
 }
 

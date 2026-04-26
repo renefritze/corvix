@@ -168,7 +168,6 @@ def notification_rule_snippets(
             if context_match is not None
             else None
         ),
-        "context": record.context,
         "has_context": bool(record.context),
     }
 
