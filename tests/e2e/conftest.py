@@ -25,6 +25,16 @@ HTTP_OK = 200
 FIXED_TIMESTAMP = "2024-01-01T00:00:00Z"
 
 
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args: dict[str, object]) -> dict[str, object]:
+    """Pin locale and timezone so visual output is deterministic across environments."""
+    return {
+        **browser_context_args,
+        "locale": "en-US",
+        "timezone_id": "UTC",
+    }
+
+
 class _MockGitHubHandler(BaseHTTPRequestHandler):
     def _handle_thread_mutation(self) -> None:
         if self.path.startswith("/notifications/threads/"):
