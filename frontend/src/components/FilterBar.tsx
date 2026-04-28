@@ -57,7 +57,8 @@ export function FilterBar({
 				</option>
 			</select>
 			<select
-			multiple
+				multiple
+				value={filters.reason}
 				onChange={(e) => {
 					const selected = Array.from(
 						(e.target as HTMLSelectElement).selectedOptions,
@@ -67,7 +68,7 @@ export function FilterBar({
 				aria-label="Reason filter"
 			>
 				{reasons.map((r) => (
-					<option key={r} value={r} selected={filters.reason.includes(r)}>
+					<option key={r} value={r}>
 						{r}
 					</option>
 				))}
