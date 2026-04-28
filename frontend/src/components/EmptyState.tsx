@@ -2,7 +2,7 @@ import type { FilterState } from "../types";
 
 interface EmptyStateFilterContext {
 	readonly unread: FilterState["unread"];
-	readonly reason: string;
+	readonly reason: string[];
 	readonly repository: string;
 }
 

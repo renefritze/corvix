@@ -57,13 +57,16 @@ export function FilterBar({
 				</option>
 			</select>
 			<select
+				multiple
 				value={filters.reason}
-				onChange={(e) =>
-					onFilterChange("reason", (e.target as HTMLSelectElement).value)
-				}
+				onChange={(e) => {
+					const selected = Array.from(
+						(e.target as HTMLSelectElement).selectedOptions,
+					).map((o) => o.value);
+					onFilterChange("reason", selected);
+				}}
 				aria-label="Reason filter"
 			>
-				<option value="">All reasons</option>
 				{reasons.map((r) => (
 					<option key={r} value={r}>
 						{r}
