@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from dataclasses import asdict
@@ -102,32 +103,40 @@ def health() -> dict[str, object]:
     try:
         config = _load_runtime_config()
     except HTTPException:
-        return {"status": "unhealthy", "reason": "config unavailable"}
+        return {"status": "unhealthy", "reason": "config_unavailable"}
+
+    result: dict[str, object] = {"status": "ok"}
     cache = NotificationCache(path=config.resolve_cache_file())
-    poller_status = cache.load_status()
+    try:
+        poller_status = cache.load_status()
+    except (OSError, json.JSONDecodeError):
+        return {"status": "unhealthy", "reason": "invalid_cache"}
+
     status = poller_status.get("status", "unknown")
     if status == "error":
-        return {
+        result = {
             "status": "unhealthy",
             "reason": "poller_error",
             "detail": poller_status.get("last_error"),
         }
-    if status in {"unknown", "starting"}:
-        return {"status": "unhealthy", "reason": "poller_not_running"}
-    last_poll_str = poller_status.get("last_poll_time")
-    if last_poll_str:
-        try:
-            last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
-        except ValueError:
-            return {"status": "unhealthy", "reason": "invalid_poll_time"}
-        staleness = datetime.now(tz=UTC) - last_poll
-        if staleness > timedelta(minutes=5):
-            return {
-                "status": "unhealthy",
-                "reason": "stale",
-                "last_poll_seconds_ago": int(staleness.total_seconds()),
-            }
-    return {"status": "ok"}
+    elif status in {"unknown", "starting"}:
+        result = {"status": "unhealthy", "reason": "poller_not_running"}
+    else:
+        last_poll_str = poller_status.get("last_poll_time")
+        if last_poll_str:
+            try:
+                last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
+            except ValueError:
+                result = {"status": "unhealthy", "reason": "invalid_poll_time"}
+            else:
+                staleness = datetime.now(tz=UTC) - last_poll
+                if staleness > timedelta(minutes=5):
+                    result = {
+                        "status": "unhealthy",
+                        "reason": "stale",
+                        "last_poll_seconds_ago": int(staleness.total_seconds()),
+                    }
+    return result
 
 
 @get("/api/themes", sync_to_thread=False)
@@ -169,10 +178,13 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
         stale = True
     payload = asdict(data)
     payload["dashboard_names"] = _dashboard_names(config.dashboards)
+    raw_last_error = poller_status.get("last_error")
+    if isinstance(raw_last_error, str):
+        raw_last_error = raw_last_error.split("\n")[-1].strip() or raw_last_error
     payload["poller"] = {
         "status": poller_status.get("status", "unknown"),
         "last_poll_time": last_poll_str,
-        "last_error": poller_status.get("last_error"),
+        "last_error": raw_last_error,
         "last_error_time": poller_status.get("last_error_time"),
         "stale": stale,
     }

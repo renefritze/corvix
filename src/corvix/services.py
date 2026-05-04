@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -26,6 +27,8 @@ from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
 from corvix.storage import NotificationCache
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationsClient(MarkReadGateway, JsonFetchClient, Protocol):
@@ -266,6 +269,8 @@ def run_watch_loop(  # noqa: PLR0913
         except Exception:
             error_time = datetime.now(tz=UTC)
             error_msg = traceback.format_exc()
+            logger.exception("Poll cycle failed on iteration %d", iteration)
+            runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
             try:
                 cache.save_status(
                     PollerStatus(

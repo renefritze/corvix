@@ -51,8 +51,8 @@ services:
       - CMD
       - python
       - -c
-      - from urllib.request import urlopen; import sys; sys.exit(0 if urlopen("http://127.0.0.1:8000/api/health", timeout=2).status
-        == 200 else 1)
+      - from urllib.request import urlopen; import json, sys; r = urlopen("http://127.0.0.1:8000/api/health", timeout=2);
+        sys.exit(0 if r.status == 200 and json.loads(r.read()).get("status") == "ok" else 1)
       interval: 10s
       timeout: 5s
       retries: 5

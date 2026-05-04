@@ -6,9 +6,9 @@ interface PollerWarningProps {
 
 function lastPollText(lastPollTime: string | null): string {
 	if (!lastPollTime) return "";
-	const delta = Math.round(
-		(Date.now() - new Date(lastPollTime).getTime()) / 1000,
-	);
+	const timestamp = new Date(lastPollTime).getTime();
+	if (Number.isNaN(timestamp)) return "";
+	const delta = Math.round((Date.now() - timestamp) / 1000);
 	if (delta < 60) return `${delta}s ago`;
 	if (delta < 3600) return `${Math.round(delta / 60)}m ago`;
 	return `${Math.round(delta / 3600)}h ago`;
