@@ -38,6 +38,14 @@ export interface NotificationsConfig {
 	browser_tab: BrowserTabNotificationsConfig;
 }
 
+export interface PollerStatus {
+	status: string;
+	last_poll_time: string | null;
+	last_error: string | null;
+	last_error_time: string | null;
+	stale: boolean;
+}
+
 export interface SnapshotPayload {
 	name: string;
 	include_read: boolean;
@@ -48,6 +56,7 @@ export interface SnapshotPayload {
 	total_items: number;
 	summary: DashboardSummary;
 	dashboard_names: string[];
+	poller: PollerStatus;
 	notifications_config: NotificationsConfig | null;
 }
 

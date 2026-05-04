@@ -11,6 +11,7 @@ import { FilterBar } from "./components/FilterBar";
 import { IgnoreRuleDialog } from "./components/IgnoreRuleDialog";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { NotificationTable } from "./components/NotificationTable";
+import { PollerWarning } from "./components/PollerWarning";
 import { Toolbar } from "./components/Toolbar";
 import { UndoToast } from "./components/UndoToast";
 import { useBrowserNotifications } from "./hooks/useBrowserNotifications";
@@ -389,6 +390,12 @@ export function App() {
 					generatedAt={snapshot.generated_at}
 					filterBarRef={filterBarRef}
 				/>
+			)}
+			{snapshot?.poller && snapshot.poller.status !== "ok" && (
+				<PollerWarning poller={snapshot.poller} />
+			)}
+			{snapshot?.poller?.stale && snapshot.poller.status === "ok" && (
+				<PollerWarning poller={snapshot.poller} />
 			)}
 			<main class="board">{boardContent}</main>
 			{ignoreMenu && (

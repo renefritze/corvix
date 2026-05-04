@@ -673,6 +673,39 @@ body.col-resizing * {
 }
 
 /* ============================================================
+   POLLER WARNING BANNER
+   ============================================================ */
+.poller-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.poller-warning--error {
+  background: var(--surface-elevated);
+  color: var(--danger);
+}
+.poller-warning--pending {
+  background: var(--surface-elevated);
+  color: var(--accent);
+}
+.poller-warning--stale {
+  background: var(--surface-elevated);
+  color: var(--muted);
+}
+.poller-warning__icon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+.poller-warning__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
    REDUCED MOTION
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {

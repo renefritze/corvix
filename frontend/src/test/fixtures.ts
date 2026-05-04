@@ -41,6 +41,13 @@ export function makeSnapshot(
 			reason_count: 1,
 		},
 		dashboard_names: ["overview", "triage"],
+		poller: {
+			status: "ok",
+			last_poll_time: "2026-04-09T10:00:00Z",
+			last_error: null,
+			last_error_time: null,
+			stale: false,
+		},
 		notifications_config: null,
 		...overrides,
 	};
