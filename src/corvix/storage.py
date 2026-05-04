@@ -109,9 +109,13 @@ class NotificationCache:
     def save_status(self, status: PollerStatus) -> None:
         """Persist only the poller status without touching notifications."""
         with self._exclusive_lock():
-            _, records = self._load_unlocked()
-            generated_raw = self._load_raw_generated_at()
-            generated_at = parse_timestamp(generated_raw) if generated_raw else datetime.now(tz=UTC)
+            try:
+                _, records = self._load_unlocked()
+                generated_raw = self._load_raw_generated_at()
+                generated_at = parse_timestamp(generated_raw) if generated_raw else datetime.now(tz=UTC)
+            except (json.JSONDecodeError, ValueError, OSError):
+                records: list[NotificationRecord] = []
+                generated_at = datetime.now(tz=UTC)
             self._save_unlocked(records=records, generated_at=generated_at, poller_status=status)
 
     def load_status(self) -> PollerStatus:
@@ -230,7 +234,11 @@ class NotificationCache:
                     updated = True
             if updated:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
-                self._save_unlocked(records=records, generated_at=timestamp)
+                try:
+                    existing_status = self._load_status_unlocked()
+                except (json.JSONDecodeError, ValueError, OSError):
+                    existing_status = None
+                self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
     def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
         """Mark a record as read by account/thread id in the JSON file."""
@@ -248,7 +256,11 @@ class NotificationCache:
                     updated = True
             if updated:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
-                self._save_unlocked(records=records, generated_at=timestamp)
+                try:
+                    existing_status = self._load_status_unlocked()
+                except (json.JSONDecodeError, ValueError, OSError):
+                    existing_status = None
+                self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
     def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
         """Return account-scoped keys of dismissed records."""

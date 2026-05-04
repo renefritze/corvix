@@ -131,7 +131,7 @@ def test_health(client: TestClient) -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["status"] == "unhealthy"
-    assert payload["reason"] == "config unavailable"
+    assert payload["reason"] == "config_unavailable"
 
 
 def test_health_when_poller_unknown(configured_client: TestClient) -> None:
