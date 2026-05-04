@@ -137,7 +137,11 @@ export function App() {
 							return false;
 						if (effectiveUnreadFilter === "read" && item.unread) return false;
 					}
-					if (filters.reason && item.reason !== filters.reason) return false;
+					if (
+						filters.reason.length > 0 &&
+						!filters.reason.includes(item.reason)
+					)
+						return false;
 					if (filters.repository && item.repository !== filters.repository)
 						return false;
 					return true;
@@ -148,7 +152,7 @@ export function App() {
 
 	const hasFilters =
 		effectiveUnreadFilter !== "all" ||
-		filters.reason !== "" ||
+		filters.reason.length > 0 ||
 		filters.repository !== "";
 
 	const handleDismissFocused = useCallback(() => {
