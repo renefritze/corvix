@@ -6,6 +6,7 @@ import hashlib
 import logging
 import re
 from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from os import environ
 from pathlib import Path
@@ -91,8 +92,41 @@ def dashboard_index(dashboard_name: str) -> Response[str]:
 
 
 @get("/api/health", sync_to_thread=False)
-def health() -> dict[str, str]:
-    """Health endpoint for container checks."""
+def health() -> dict[str, object]:
+    """Health endpoint for container checks.
+
+    Returns 200 with {"status": "unhealthy"} when the poller is in error or
+    the cache has not been updated in the last 5 minutes.  Returns
+    {"status": "ok"} otherwise.
+    """
+    try:
+        config = _load_runtime_config()
+    except HTTPException:
+        return {"status": "unhealthy", "reason": "config unavailable"}
+    cache = NotificationCache(path=config.resolve_cache_file())
+    poller_status = cache.load_status()
+    status = poller_status.get("status", "unknown")
+    if status == "error":
+        return {
+            "status": "unhealthy",
+            "reason": "poller_error",
+            "detail": poller_status.get("last_error"),
+        }
+    if status in {"unknown", "starting"}:
+        return {"status": "unhealthy", "reason": "poller_not_running"}
+    last_poll_str = poller_status.get("last_poll_time")
+    if last_poll_str:
+        try:
+            last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
+        except ValueError:
+            return {"status": "unhealthy", "reason": "invalid_poll_time"}
+        staleness = datetime.now(tz=UTC) - last_poll
+        if staleness > timedelta(minutes=5):
+            return {
+                "status": "unhealthy",
+                "reason": "stale",
+                "last_poll_seconds_ago": int(staleness.total_seconds()),
+            }
     return {"status": "ok"}
 
 
@@ -114,15 +148,34 @@ def dashboards() -> dict[str, object]:
 def snapshot(dashboard: str | None = None) -> dict[str, object]:
     """Return the selected dashboard data from cache."""
     config = _load_runtime_config()
-    generated_at, records = NotificationCache(path=config.resolve_cache_file()).load()
+    cache = NotificationCache(path=config.resolve_cache_file())
+    generated_at, records = cache.load()
+    poller_status = cache.load_status()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     data = build_dashboard_data(
         records=records,
         dashboard=selected_dashboard,
         generated_at=generated_at,
     )
+    last_poll_str = poller_status.get("last_poll_time")
+    stale = False
+    if last_poll_str:
+        try:
+            last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
+            stale = (datetime.now(tz=UTC) - last_poll) > timedelta(minutes=5)
+        except ValueError:
+            stale = True
+    else:
+        stale = True
     payload = asdict(data)
     payload["dashboard_names"] = _dashboard_names(config.dashboards)
+    payload["poller"] = {
+        "status": poller_status.get("status", "unknown"),
+        "last_poll_time": last_poll_str,
+        "last_error": poller_status.get("last_error"),
+        "last_error_time": poller_status.get("last_error_time"),
+        "stale": stale,
+    }
     notif_cfg = config.notifications
     payload["notifications_config"] = {
         "enabled": notif_cfg.enabled,

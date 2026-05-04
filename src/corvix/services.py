@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import traceback
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol, cast
@@ -11,7 +12,7 @@ from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import AppConfig, DashboardSpec, PollingConfig
-from corvix.domain import Notification, NotificationRecord, notification_key
+from corvix.domain import Notification, NotificationRecord, PollerStatus, format_timestamp, notification_key
 from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
@@ -103,7 +104,16 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         contexts_by_notification_key=enrichment_result.contexts_by_notification_key,
     )
     errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
-    input.cache.save(records=records, generated_at=current_time)
+    input.cache.save(
+        records=records,
+        generated_at=current_time,
+        poller_status=PollerStatus(
+            status="ok",
+            last_poll_time=format_timestamp(current_time),
+            last_error=None,
+            last_error_time=None,
+        ),
+    )
 
     dispatch = _dispatch_notification_events(input, previous_records, records)
 
@@ -242,16 +252,31 @@ def run_watch_loop(  # noqa: PLR0913
     active_clients = clients or ((client,) if client is not None else ())
     iteration = 0
     while iterations is None or iteration < iterations:
-        runs.append(
-            run_poll_cycle(
-                PollCycleInput(
-                    config=config,
-                    clients=active_clients,
-                    cache=cache,
-                    apply_actions=apply_actions,
+        try:
+            runs.append(
+                run_poll_cycle(
+                    PollCycleInput(
+                        config=config,
+                        clients=active_clients,
+                        cache=cache,
+                        apply_actions=apply_actions,
+                    )
+                ),
+            )
+        except Exception:
+            error_time = datetime.now(tz=UTC)
+            error_msg = traceback.format_exc()
+            try:
+                cache.save_status(
+                    PollerStatus(
+                        status="error",
+                        last_poll_time=cache.load_status().get("last_poll_time"),
+                        last_error=error_msg,
+                        last_error_time=format_timestamp(error_time),
+                    )
                 )
-            ),
-        )
+            except Exception:
+                pass
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break
