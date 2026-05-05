@@ -20,7 +20,14 @@ from typing import Protocol
 import psycopg
 from psycopg.types.json import Jsonb
 
-from corvix.domain import Notification, NotificationRecord, format_timestamp, notification_key, parse_timestamp
+from corvix.domain import (
+    Notification,
+    NotificationRecord,
+    PollerStatus,
+    format_timestamp,
+    notification_key,
+    parse_timestamp,
+)
 from corvix.types import UserId
 
 _NOTIFICATION_RECORD_COLUMNS = 18
@@ -58,7 +65,13 @@ class NotificationCache:
 
     path: Path
 
-    def save(self, records: list[NotificationRecord], generated_at: datetime | None = None) -> None:
+    def save(
+        self,
+        records: list[NotificationRecord],
+        generated_at: datetime | None = None,
+        *,
+        poller_status: PollerStatus | None = None,
+    ) -> None:
         """Persist records to disk."""
         timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
         with self._exclusive_lock():
@@ -66,7 +79,15 @@ class NotificationCache:
                 _, existing_records = self._load_unlocked()
             except ValueError:
                 existing_records = []
+            if poller_status is None:
+                try:
+                    existing_status = self._load_status_unlocked()
+                except (json.JSONDecodeError, ValueError, OSError):
+                    existing_status = None
+            else:
+                existing_status = None
             dismissed_ids = {notification_key(record.notification) for record in existing_records if record.dismissed}
+            status_to_save = poller_status if poller_status is not None else existing_status
             records_to_save = [
                 NotificationRecord(
                     notification=record.notification,
@@ -79,11 +100,53 @@ class NotificationCache:
                 )
                 for record in records
             ]
-            self._save_unlocked(records=records_to_save, generated_at=timestamp)
+            self._save_unlocked(records=records_to_save, generated_at=timestamp, poller_status=status_to_save)
 
     def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
         """Load snapshot from disk if available."""
         return self._load_unlocked()
+
+    def save_status(self, status: PollerStatus) -> None:
+        """Persist only the poller status without touching notifications."""
+        with self._exclusive_lock():
+            try:
+                _, records = self._load_unlocked()
+                generated_raw = self._load_raw_generated_at()
+                generated_at = parse_timestamp(generated_raw) if generated_raw else datetime.now(tz=UTC)
+            except (json.JSONDecodeError, ValueError, OSError):
+                records: list[NotificationRecord] = []
+                generated_at = datetime.now(tz=UTC)
+            self._save_unlocked(records=records, generated_at=generated_at, poller_status=status)
+
+    def load_status(self) -> PollerStatus:
+        """Load the poller status from the cache file."""
+        return self._load_status_unlocked()
+
+    def _load_raw_generated_at(self) -> str | None:
+        if not self.path.exists():
+            return None
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            raw = payload.get("generated_at")
+            if isinstance(raw, str):
+                return raw
+        return None
+
+    def _load_status_unlocked(self) -> PollerStatus:
+        if not self.path.exists():
+            return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            raw = payload.get("poller_status")
+            if isinstance(raw, dict):
+                status_value = raw.get("status")
+                return PollerStatus(
+                    status=status_value if isinstance(status_value, str) else "unknown",
+                    last_poll_time=raw.get("last_poll_time") if isinstance(raw.get("last_poll_time"), str) else None,
+                    last_error=raw.get("last_error") if isinstance(raw.get("last_error"), str) else None,
+                    last_error_time=raw.get("last_error_time") if isinstance(raw.get("last_error_time"), str) else None,
+                )
+        return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
 
     def _load_unlocked(self) -> tuple[datetime | None, list[NotificationRecord]]:
         """Load snapshot from disk without acquiring a file lock."""
@@ -102,11 +165,15 @@ class NotificationCache:
         records = [NotificationRecord.from_dict(item) for item in raw_notifications if isinstance(item, dict)]
         return generated_at, records
 
-    def _save_unlocked(self, records: list[NotificationRecord], generated_at: datetime) -> None:
-        payload = {
+    def _save_unlocked(
+        self, records: list[NotificationRecord], generated_at: datetime, *, poller_status: PollerStatus | None = None
+    ) -> None:
+        payload: dict[str, object] = {
             "generated_at": format_timestamp(generated_at),
             "notifications": [record.to_dict() for record in records],
         }
+        if poller_status is not None:
+            payload["poller_status"] = dict(poller_status)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         content = json.dumps(payload, indent=2)
         temp_path: Path | None = None
@@ -167,7 +234,11 @@ class NotificationCache:
                     updated = True
             if updated:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
-                self._save_unlocked(records=records, generated_at=timestamp)
+                try:
+                    existing_status = self._load_status_unlocked()
+                except (json.JSONDecodeError, ValueError, OSError):
+                    existing_status = None
+                self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
     def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
         """Mark a record as read by account/thread id in the JSON file."""
@@ -185,7 +256,11 @@ class NotificationCache:
                     updated = True
             if updated:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
-                self._save_unlocked(records=records, generated_at=timestamp)
+                try:
+                    existing_status = self._load_status_unlocked()
+                except (json.JSONDecodeError, ValueError, OSError):
+                    existing_status = None
+                self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
     def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
         """Return account-scoped keys of dismissed records."""

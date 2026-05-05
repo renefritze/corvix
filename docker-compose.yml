@@ -33,10 +33,11 @@ services:
     environment:
       CORVIX_CONFIG: /app/config/corvix.yaml
       DATABASE_URL_FILE: /run/secrets/database_url
-      GITHUB_TOKEN_FILE: /run/secrets/github_token
     secrets:
     - database_url
-    - github_token
+
+    # Load environment variables from a `.env` file (multiple named tokens allowed)
+    env_file: .env
     ports:
     - "8000:8000"
     volumes:
@@ -50,8 +51,8 @@ services:
       - CMD
       - python
       - -c
-      - from urllib.request import urlopen; import sys; sys.exit(0 if urlopen("http://127.0.0.1:8000/api/health", timeout=2).status
-        == 200 else 1)
+      - from urllib.request import urlopen; import json, sys; r = urlopen("http://127.0.0.1:8000/api/health", timeout=2);
+        sys.exit(0 if r.status == 200 and json.loads(r.read()).get("status") == "ok" else 1)
       interval: 10s
       timeout: 5s
       retries: 5
@@ -68,12 +69,13 @@ services:
     - watch
     - --dry-run
     environment:
-      GITHUB_TOKEN_FILE: /run/secrets/github_token
       CORVIX_CONFIG: /app/config/corvix.yaml
       DATABASE_URL_FILE: /run/secrets/database_url
     secrets:
-    - github_token
     - database_url
+
+    # Load environment variables from a `.env` file (multiple named tokens allowed)
+    env_file: .env
     volumes:
     - ./config:/app/config
     - corvix_state:/data
@@ -99,7 +101,5 @@ volumes:
 secrets:
   postgres_password:
     file: ./secrets/postgres_password.txt
-  github_token:
-    file: ./secrets/github_token.txt
   database_url:
     file: ./secrets/database_url.txt

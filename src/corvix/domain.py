@@ -5,7 +5,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import TypedDict
 from urllib.parse import urlparse
+
+
+class PollerStatus(TypedDict, total=False):
+    """Status written to the cache by the poller/watch loop."""
+
+    status: str
+    last_poll_time: str | None
+    last_error: str | None
+    last_error_time: str | None
+
 
 _MIN_API_REPO_SEGMENTS = 4
 _MIN_RESOURCE_SEGMENTS = 2
