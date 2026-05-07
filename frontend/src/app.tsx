@@ -391,12 +391,7 @@ export function App() {
 					filterBarRef={filterBarRef}
 				/>
 			)}
-			{snapshot?.poller && snapshot.poller.status !== "ok" && (
-				<PollerWarning poller={snapshot.poller} />
-			)}
-			{snapshot?.poller?.stale && snapshot.poller.status === "ok" && (
-				<PollerWarning poller={snapshot.poller} />
-			)}
+			{snapshot?.poller && <PollerWarning poller={snapshot.poller} />}
 			<main class="board">{boardContent}</main>
 			{ignoreMenu && (
 				<div
