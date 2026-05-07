@@ -126,7 +126,8 @@ dashboards:
 # --- /api/health ---
 
 
-def test_health(client: TestClient) -> None:
+def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
     response = client.get("/api/health")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()

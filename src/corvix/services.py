@@ -268,20 +268,25 @@ def run_watch_loop(  # noqa: PLR0913
             )
         except Exception:
             error_time = datetime.now(tz=UTC)
-            error_msg = traceback.format_exc()
+            error_trace = traceback.format_exc()
+            error_msg = error_trace.splitlines()[-1].strip() if error_trace.strip() else "poll cycle failed"
             logger.exception("Poll cycle failed on iteration %d", iteration)
             runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
             try:
+                try:
+                    last_poll_time = cache.load_status().get("last_poll_time")
+                except (OSError, ValueError):
+                    last_poll_time = None
                 cache.save_status(
                     PollerStatus(
                         status="error",
-                        last_poll_time=cache.load_status().get("last_poll_time"),
+                        last_poll_time=last_poll_time,
                         last_error=error_msg,
                         last_error_time=format_timestamp(error_time),
                     )
                 )
             except Exception:
-                pass
+                logger.warning("Failed to persist poller error status", exc_info=True)
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break

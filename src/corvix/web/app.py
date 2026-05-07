@@ -114,10 +114,13 @@ def health() -> dict[str, object]:
 
     status = poller_status.get("status", "unknown")
     if status == "error":
+        raw_detail = poller_status.get("last_error")
+        if isinstance(raw_detail, str):
+            raw_detail = raw_detail.split("\n")[-1].strip() or raw_detail
         result = {
             "status": "unhealthy",
             "reason": "poller_error",
-            "detail": poller_status.get("last_error"),
+            "detail": raw_detail,
         }
     elif status in {"unknown", "starting"}:
         result = {"status": "unhealthy", "reason": "poller_not_running"}
@@ -136,6 +139,8 @@ def health() -> dict[str, object]:
                         "reason": "stale",
                         "last_poll_seconds_ago": int(staleness.total_seconds()),
                     }
+        else:
+            result = {"status": "unhealthy", "reason": "invalid_poll_time"}
     return result
 
 
@@ -159,7 +164,15 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     config = _load_runtime_config()
     cache = NotificationCache(path=config.resolve_cache_file())
     generated_at, records = cache.load()
-    poller_status = cache.load_status()
+    try:
+        poller_status = cache.load_status()
+    except (OSError, json.JSONDecodeError):
+        poller_status = {
+            "status": "unknown",
+            "last_poll_time": None,
+            "last_error": None,
+            "last_error_time": None,
+        }
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     data = build_dashboard_data(
         records=records,

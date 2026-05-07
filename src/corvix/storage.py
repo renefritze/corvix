@@ -65,6 +65,12 @@ class NotificationCache:
 
     path: Path
 
+    @staticmethod
+    def _opt_str(value: object) -> str | None:
+        if isinstance(value, str):
+            return value
+        return None
+
     def save(
         self,
         records: list[NotificationRecord],
@@ -77,12 +83,12 @@ class NotificationCache:
         with self._exclusive_lock():
             try:
                 _, existing_records = self._load_unlocked()
-            except ValueError:
+            except (json.JSONDecodeError, ValueError, OSError):
                 existing_records = []
             if poller_status is None:
                 try:
                     existing_status = self._load_status_unlocked()
-                except (json.JSONDecodeError, ValueError, OSError):
+                except (ValueError, OSError):
                     existing_status = None
             else:
                 existing_status = None
@@ -113,7 +119,7 @@ class NotificationCache:
                 _, records = self._load_unlocked()
                 generated_raw = self._load_raw_generated_at()
                 generated_at = parse_timestamp(generated_raw) if generated_raw else datetime.now(tz=UTC)
-            except (json.JSONDecodeError, ValueError, OSError):
+            except (ValueError, OSError):
                 records: list[NotificationRecord] = []
                 generated_at = datetime.now(tz=UTC)
             self._save_unlocked(records=records, generated_at=generated_at, poller_status=status)
@@ -139,12 +145,11 @@ class NotificationCache:
         if isinstance(payload, dict):
             raw = payload.get("poller_status")
             if isinstance(raw, dict):
-                status_value = raw.get("status")
                 return PollerStatus(
-                    status=status_value if isinstance(status_value, str) else "unknown",
-                    last_poll_time=raw.get("last_poll_time") if isinstance(raw.get("last_poll_time"), str) else None,
-                    last_error=raw.get("last_error") if isinstance(raw.get("last_error"), str) else None,
-                    last_error_time=raw.get("last_error_time") if isinstance(raw.get("last_error_time"), str) else None,
+                    status=self._opt_str(raw.get("status")) or "unknown",
+                    last_poll_time=self._opt_str(raw.get("last_poll_time")),
+                    last_error=self._opt_str(raw.get("last_error")),
+                    last_error_time=self._opt_str(raw.get("last_error_time")),
                 )
         return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
 
@@ -168,12 +173,18 @@ class NotificationCache:
     def _save_unlocked(
         self, records: list[NotificationRecord], generated_at: datetime, *, poller_status: PollerStatus | None = None
     ) -> None:
+        status_to_save = poller_status
+        if status_to_save is None:
+            try:
+                status_to_save = self._load_status_unlocked()
+            except (json.JSONDecodeError, ValueError, OSError):
+                status_to_save = None
         payload: dict[str, object] = {
             "generated_at": format_timestamp(generated_at),
             "notifications": [record.to_dict() for record in records],
         }
-        if poller_status is not None:
-            payload["poller_status"] = dict(poller_status)
+        if status_to_save is not None:
+            payload["poller_status"] = dict(status_to_save)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         content = json.dumps(payload, indent=2)
         temp_path: Path | None = None
@@ -236,7 +247,7 @@ class NotificationCache:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
                 try:
                     existing_status = self._load_status_unlocked()
-                except (json.JSONDecodeError, ValueError, OSError):
+                except (ValueError, OSError):
                     existing_status = None
                 self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
@@ -258,7 +269,7 @@ class NotificationCache:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
                 try:
                     existing_status = self._load_status_unlocked()
-                except (json.JSONDecodeError, ValueError, OSError):
+                except (ValueError, OSError):
                     existing_status = None
                 self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
