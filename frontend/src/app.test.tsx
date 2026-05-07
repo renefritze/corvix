@@ -490,6 +490,62 @@ describe("App", () => {
 		).toBeInTheDocument();
 	});
 
+	it("shows poller warning banner when poller status is error", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					poller: {
+						status: "error",
+						last_poll_time: "2026-04-09T10:00:00Z",
+						last_error: "Something failed",
+						last_error_time: "2026-04-09T10:00:00Z",
+						stale: false,
+					},
+					groups: [{ name: "g", items: [makeItem()] }],
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert", { name: undefined })).toHaveTextContent(
+				"Something failed",
+			);
+		});
+		expect(
+			screen.getByRole("alert").classList.contains("poller-warning--error"),
+		).toBe(true);
+	});
+
+	it("shows poller warning banner when poller is ok but stale", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					poller: {
+						status: "ok",
+						last_poll_time: null,
+						last_error: null,
+						last_error_time: null,
+						stale: true,
+					},
+					groups: [{ name: "g", items: [makeItem()] }],
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert")).toHaveTextContent("Data may be stale");
+		});
+		expect(
+			screen.getByRole("alert").classList.contains("poller-warning--stale"),
+		).toBe(true);
+	});
+
 	it("opens ignore-rule dialog from row context menu and loads both snippets", async () => {
 		setPath("/");
 		const snapshot = makeSnapshot({

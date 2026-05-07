@@ -13,6 +13,7 @@ uv run pytest tests/test_services.py::test_foo       # run a single test
 uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run ty check src/corvix/                          # type check
+make frontend-build                                  # build frontend assets
 npm --prefix frontend run test -- --run              # run native frontend tests
 npm --prefix frontend run test:coverage              # frontend coverage (>=80%)
 
@@ -40,23 +41,29 @@ This starts three services sharing a `corvix_state` volume:
 
 1. `config/corvix.yaml` must exist (copy from `config/corvix.example.yaml`)
 2. `.env` must exist at the repository root containing one or more GitHub token
-   environment variables. For a single account setup, use ``GITHUB_TOKEN``
-   unless you have set ``token_env`` to a different name in your
-   ``config/corvix.yaml``. For multiple accounts, ensure the variable names
-   match the ``token_env`` entries in your ``config/corvix.yaml``. Example:
+   environment variables.  For a single account setup use
+   ``GITHUB_TOKEN_PRIMARY``; for multiple accounts ensure the variable
+   names match the ``token_env`` entries in your ``config/corvix.yaml``.
+   Example:
 
    ```bash
-   GITHUB_TOKEN=ghp_...yourtoken...
+   GITHUB_TOKEN_PRIMARY=ghp_...yourtoken...
    GITHUB_TOKEN_ACCOUNT2=ghp_...anothertoken...
    ```
 
 3. `secrets/postgres_password.txt` and `secrets/database_url.txt` must exist
 
-Ensure the `token_env` entries in your `config/corvix.yaml` match the variable names
-in `.env` (for example `GITHUB_TOKEN` or `GITHUB_TOKEN_ACCOUNT2`, unless you
-override `token_env` to use a different variable name such as
-`GITHUB_TOKEN_PRIMARY`). The Docker Compose setup loads `.env` into containers
-so Corvix can resolve each account token by name.
+If you have multiple GitHub tokens, instead create a `.env` file at the repository root
+containing one or more token environment variables (do not commit this file). Example:
+
+```bash
+GITHUB_TOKEN_ACCOUNT1=ghp_...yourtoken...
+GITHUB_TOKEN_ACCOUNT2=ghp_...anothertoken...
+```
+
+Ensure the `token_env` entries in your `config/corvix.yaml` match these variable names
+(for example `GITHUB_TOKEN_ACCOUNT1`). The Docker Compose setup will load `.env` into
+the containers so Corvix can resolve each account's token by name.
 
 Frontend assets are generated during image build and are not committed to git. Rebuild images (`docker compose up --build`) after frontend changes.
 
