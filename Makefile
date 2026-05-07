@@ -1,4 +1,4 @@
-.PHONY: frontend-build docs-build build downup rebuild updown lighthouse ui-screenshot
+.PHONY: frontend-build docs-build build downup rebuild updown lighthouse ui-screenshot reset-state
 
 frontend-build:
 	./scripts/frontend_build.sh
@@ -25,3 +25,6 @@ ui-screenshot:
 		-w /workspace \
 		mcr.microsoft.com/playwright/python:v1.58.0-noble \
 		bash -lc 'python -m pip install --quiet uv && export PATH="$$(python -m site --user-base)/bin:$$PATH" && uv sync --extra e2e && uv run pytest -m e2e tests/e2e/test_ui_screenshot.py -q'
+
+reset-state:
+	bash scripts/reset-state.sh
