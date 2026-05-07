@@ -8,7 +8,7 @@ function lastPollText(lastPollTime: string | null): string {
 	if (!lastPollTime) return "";
 	const timestamp = new Date(lastPollTime).getTime();
 	if (Number.isNaN(timestamp)) return "";
-	const delta = Math.round((Date.now() - timestamp) / 1000);
+	const delta = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
 	if (delta < 60) return `${delta}s ago`;
 	if (delta < 3600) return `${Math.round(delta / 60)}m ago`;
 	return `${Math.round(delta / 3600)}h ago`;
