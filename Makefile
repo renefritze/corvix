@@ -1,4 +1,4 @@
-.PHONY: docs-build build downup rebuild updown lighthouse ui-screenshot reset-state
+.PHONY: frontend-build docs-build build downup rebuild updown lighthouse ui-screenshot reset-state
 
 frontend-build:
 	./scripts/frontend_build.sh
