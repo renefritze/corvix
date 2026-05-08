@@ -76,7 +76,46 @@ describe("useBrowserNotifications", () => {
 		Object.defineProperty(globalThis.window, "Notification", {
 			value: NotificationMock,
 			writable: true,
+			configurable: true,
 		});
+	});
+
+	it("does not activate when permission is denied", async () => {
+		const user = userEvent.setup();
+		NotificationMock.requestPermission.mockImplementation(async () => {
+			NotificationMock.setPermission("denied");
+			return "denied";
+		});
+
+		render(
+			<Harness
+				items={[makeItem()]}
+				config={{ enabled: true, max_per_cycle: 3, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "enable" }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("permission")).toHaveTextContent("denied");
+		});
+		expect(screen.getByTestId("active")).toHaveTextContent("false");
+		expect(NotificationMock.instances).toHaveLength(0);
+	});
+
+	it("reports unsupported when Notification API is unavailable", () => {
+		Reflect.deleteProperty(globalThis.window, "Notification");
+
+		render(
+			<Harness
+				items={[makeItem()]}
+				config={{ enabled: true, max_per_cycle: 3, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		expect(screen.getByTestId("supported")).toHaveTextContent("false");
+		expect(screen.getByTestId("permission")).toHaveTextContent("unsupported");
+		expect(screen.getByTestId("active")).toHaveTextContent("false");
 	});
 
 	it("enables notifications and respects max_per_cycle", async () => {
@@ -157,5 +196,88 @@ describe("useBrowserNotifications", () => {
 			"_blank",
 			"noopener,noreferrer",
 		);
+	});
+
+	it("dedupes notifications using persisted seen ids", async () => {
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+		localStorage.setItem(
+			"corvix.notifications.browser.seen",
+			JSON.stringify(["primary:1"]),
+		);
+
+		const items = [
+			makeItem({ thread_id: "1", subject_title: "Seen" }),
+			makeItem({ thread_id: "2", subject_title: "New" }),
+		];
+
+		const { rerender } = render(
+			<Harness
+				items={items}
+				config={{ enabled: true, max_per_cycle: 5, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(NotificationMock.instances).toHaveLength(1);
+		});
+		expect(NotificationMock.instances[0]?.title).toBe("New");
+
+		rerender(
+			<Harness
+				items={[...items]}
+				config={{ enabled: true, max_per_cycle: 5, cooldown_seconds: 2 }}
+			/>,
+		);
+		expect(NotificationMock.instances).toHaveLength(1);
+	});
+
+	it("suppresses new bursts until cooldown expires", async () => {
+		vi.useFakeTimers();
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+
+		const config: BrowserTabNotificationsConfig = {
+			enabled: true,
+			max_per_cycle: 5,
+			cooldown_seconds: 1,
+		};
+		const { rerender } = render(
+			<Harness
+				items={[makeItem({ thread_id: "1", subject_title: "One" })]}
+				config={config}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(NotificationMock.instances).toHaveLength(1);
+		});
+
+		rerender(
+			<Harness
+				items={[
+					makeItem({ thread_id: "1", subject_title: "One" }),
+					makeItem({ thread_id: "2", subject_title: "Two" }),
+				]}
+				config={config}
+			/>,
+		);
+		expect(NotificationMock.instances).toHaveLength(1);
+
+		await vi.advanceTimersByTimeAsync(1_100);
+		rerender(
+			<Harness
+				items={[
+					makeItem({ thread_id: "1", subject_title: "One" }),
+					makeItem({ thread_id: "2", subject_title: "Two" }),
+				]}
+				config={{ ...config }}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(NotificationMock.instances).toHaveLength(2);
+		});
+		expect(NotificationMock.instances[1]?.title).toBe("Two");
 	});
 });

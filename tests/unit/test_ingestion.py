@@ -6,12 +6,19 @@ import io
 from datetime import UTC, datetime
 from unittest.mock import patch
 from urllib import error as url_error
+from urllib import request
 
 import pytest
 
 from corvix.config import PollingConfig
 from corvix.domain import Notification
-from corvix.ingestion import GitHubNotificationsClient, resolve_web_urls
+from corvix.ingestion import (
+    GitHubNotificationsClient,
+    _coerce_json_value,
+    _http_error_detail,
+    _retry_delay_seconds,
+    resolve_web_urls,
+)
 
 
 def _client() -> GitHubNotificationsClient:
@@ -152,6 +159,26 @@ def test_dismiss_thread_surfaces_error_message() -> None:
             client.dismiss_thread("789")
 
 
+def test_dismiss_thread_non_retryable_error_does_not_retry() -> None:
+    client = _client()
+    err = url_error.HTTPError(
+        url="https://api.example.com/notifications/threads/789",
+        code=404,
+        msg="Not Found",
+        hdrs={},
+        fp=io.BytesIO(b"{}"),
+    )
+    with (
+        patch.object(GitHubNotificationsClient, "_request_no_content", side_effect=err) as mock_req,
+        patch("corvix.ingestion.time.sleep") as mock_sleep,
+    ):
+        with pytest.raises(RuntimeError, match="status 404"):
+            client.dismiss_thread("789")
+
+    assert mock_req.call_count == 1
+    mock_sleep.assert_not_called()
+
+
 def test_build_url_with_query() -> None:
     client = _client()
     url = client._build_url("/notifications", {"page": "1", "per_page": "50"})
@@ -171,6 +198,108 @@ def test_headers_contain_bearer_token() -> None:
     client = _client()
     headers = client._headers()
     assert headers["Authorization"] == "Bearer test-token"
+
+
+def test_coerce_json_value_supports_nested_structures() -> None:
+    value = _coerce_json_value({"items": [1, "two", {"ok": True}, None]})
+
+    assert value == {"items": [1, "two", {"ok": True}, None]}
+
+
+def test_coerce_json_value_rejects_non_string_dict_keys() -> None:
+    with pytest.raises(ValueError, match="non-string key"):
+        _coerce_json_value({1: "bad"})
+
+
+def test_coerce_json_value_rejects_unsupported_types() -> None:
+    with pytest.raises(ValueError, match="Unsupported JSON value type"):
+        _coerce_json_value({"items": {1, 2, 3}})
+
+
+def test_request_json_reads_and_decodes_payload() -> None:
+    client = _client()
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"ok": true}'
+
+    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+        payload = client._request_json("https://api.example.com/notifications", method="GET", timeout_seconds=1.5)
+
+    assert payload == {"ok": True}
+    assert mock_urlopen.call_args.kwargs["timeout"] == 1.5
+
+
+def test_request_no_content_uses_empty_request_body() -> None:
+    client = _client()
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+        client._request_no_content("https://api.example.com/notifications/threads/1", method="PATCH")
+
+    req = mock_urlopen.call_args.args[0]
+    assert req.data == b""
+    assert req.get_method() == "PATCH"
+
+
+def test_http_error_detail_falls_back_for_non_json_payload() -> None:
+    err = url_error.HTTPError(
+        url="https://api.example.com/x",
+        code=500,
+        msg="boom",
+        hdrs={},
+        fp=io.BytesIO(b"not json"),
+    )
+
+    assert _http_error_detail(err) == "boom"
+
+
+def test_http_error_detail_falls_back_when_message_is_missing() -> None:
+    err = url_error.HTTPError(
+        url="https://api.example.com/x",
+        code=500,
+        msg="boom",
+        hdrs={},
+        fp=io.BytesIO(b'{"documentation_url":"https://docs.example.com"}'),
+    )
+
+    assert _http_error_detail(err) == "boom"
+
+
+def test_retry_delay_seconds_uses_retry_after_header() -> None:
+    err = url_error.HTTPError(
+        url="https://api.example.com/x",
+        code=429,
+        msg="boom",
+        hdrs={"Retry-After": "15"},
+        fp=io.BytesIO(b"{}"),
+    )
+
+    assert _retry_delay_seconds(err, attempt=1) == 10.0
+
+
+def test_retry_delay_seconds_falls_back_for_invalid_retry_after() -> None:
+    err = url_error.HTTPError(
+        url="https://api.example.com/x",
+        code=429,
+        msg="boom",
+        hdrs={"Retry-After": "soon"},
+        fp=io.BytesIO(b"{}"),
+    )
+
+    assert _retry_delay_seconds(err, attempt=3) == 2.0
 
 
 # --- resolve_web_urls ---
@@ -334,6 +463,30 @@ def test_enrich_release_missing_html_url_returns_none() -> None:
         web_url=None,
     )
     with patch.object(GitHubNotificationsClient, "_request_json", return_value={"id": 12345}):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_release_non_dict_api_response_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value=[]):
+        result = client.enrich_web_url(n)
+    assert result is None
+
+
+def test_enrich_release_api_error_returns_none() -> None:
+    client = _client()
+    n = _make_notification(
+        subject_type="Release",
+        subject_url="https://api.example.com/repos/org/repo/releases/12345",
+        web_url=None,
+    )
+    with patch.object(GitHubNotificationsClient, "_request_json", side_effect=OSError("timeout")):
         result = client.enrich_web_url(n)
     assert result is None
 

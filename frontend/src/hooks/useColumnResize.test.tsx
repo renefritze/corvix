@@ -97,4 +97,60 @@ describe("useColumnResize", () => {
 
 		expect(document.body.classList.contains("col-resizing")).toBe(false);
 	});
+
+	it("ignores mousemove events before resizing starts", () => {
+		render(<Harness />);
+
+		globalThis.window.dispatchEvent(
+			new MouseEvent("mousemove", { clientX: 999 }),
+		);
+
+		expect(screen.getByTestId("repo-width")).toHaveTextContent("185");
+	});
+
+	it("does not change width when the pointer does not move", async () => {
+		const user = userEvent.setup();
+		render(<Harness />);
+
+		await user.pointer([
+			{
+				target: screen.getByRole("button", { name: "start" }),
+				keys: "[MouseLeft>]",
+			},
+		]);
+		globalThis.window.dispatchEvent(
+			new MouseEvent("mousemove", { clientX: 100 }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("repo-width")).toHaveTextContent("185");
+		});
+	});
+
+	it("swallows localStorage write errors while resizing", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(globalThis.window.localStorage, "setItem").mockImplementation(
+			() => {
+				throw new Error("quota");
+			},
+		);
+
+		render(<Harness />);
+
+		await user.pointer([
+			{
+				target: screen.getByRole("button", { name: "start" }),
+				keys: "[MouseLeft>]",
+			},
+		]);
+		expect(() => {
+			globalThis.window.dispatchEvent(
+				new MouseEvent("mousemove", { clientX: 150 }),
+			);
+		}).not.toThrow();
+
+		await waitFor(() => {
+			expect(screen.getByTestId("repo-width")).toHaveTextContent("235");
+		});
+	});
 });

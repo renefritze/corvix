@@ -621,4 +621,125 @@ describe("App", () => {
 		).toBeInTheDocument();
 		expect(screen.getAllByDisplayValue(/repository_in/)).toHaveLength(2);
 	});
+
+	it("keeps encoded dashboard paths stable when the current path already matches", async () => {
+		setPath("/dashboards/Triage%20Board");
+		const pushState = vi.spyOn(globalThis.history, "pushState");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					name: "Triage Board",
+					dashboard_names: ["Triage Board"],
+					groups: [
+						{ name: "g", items: [makeItem({ subject_title: "Encoded" })] },
+					],
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "Encoded" })).toBeInTheDocument();
+		});
+		expect(globalThis.location.pathname).toBe("/dashboards/Triage%20Board");
+		expect(pushState).not.toHaveBeenCalled();
+	});
+
+	it("closes the row context menu on escape and outside click", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					groups: [
+						{ name: "g", items: [makeItem({ subject_title: "Menu target" })] },
+					],
+				}),
+		} as Response);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Menu target" }),
+			).toBeInTheDocument();
+		});
+
+		const row = screen.getByRole("link", { name: "Menu target" }).closest("tr");
+		expect(row).not.toBeNull();
+		fireEvent.contextMenu(row as HTMLTableRowElement);
+		expect(screen.getByRole("menu")).toBeInTheDocument();
+
+		globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		fireEvent.contextMenu(row as HTMLTableRowElement);
+		expect(screen.getByRole("menu")).toBeInTheDocument();
+		globalThis.dispatchEvent(new MouseEvent("click"));
+		await waitFor(() => {
+			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+		});
+	});
+
+	it("shows ignore-rule loading and error states when snippet fetch fails", async () => {
+		setPath("/");
+		let rejectSnippets: ((reason?: unknown) => void) | null = null;
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: FetchInput, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				const url = requestUrl(input);
+				if (url.includes("/rule-snippets")) {
+					return {
+						ok: true,
+						json: () =>
+							new Promise((_, reject) => {
+								rejectSnippets = reject;
+							}),
+					} as Response;
+				}
+				return {
+					ok: true,
+					json: async () =>
+						makeSnapshot({
+							groups: [
+								{
+									name: "g",
+									items: [makeItem({ subject_title: "Rule target" })],
+								},
+							],
+						}),
+				} as Response;
+			},
+		);
+
+		const user = userEvent.setup();
+		render(<App />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Rule target" }),
+			).toBeInTheDocument();
+		});
+
+		const row = screen.getByRole("link", { name: "Rule target" }).closest("tr");
+		expect(row).not.toBeNull();
+		fireEvent.contextMenu(row as HTMLTableRowElement);
+		await user.click(
+			screen.getByRole("menuitem", { name: "Create ignore rule..." }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("Loading snippets...")).toBeInTheDocument();
+		});
+		rejectSnippets?.(new Error("snippet boom"));
+
+		await waitFor(() => {
+			expect(screen.getByText("snippet boom")).toBeInTheDocument();
+		});
+	});
 });
