@@ -122,7 +122,7 @@ describe("App", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: false,
 			status: 500,
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -148,7 +148,7 @@ describe("App", () => {
 						reason_count: 0,
 					},
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -175,7 +175,7 @@ describe("App", () => {
 		resolveFetch?.({
 			ok: true,
 			json: async () => makeSnapshot(),
-		} as Response);
+		});
 
 		await waitFor(() => {
 			expect(
@@ -232,7 +232,7 @@ describe("App", () => {
 			ok: true,
 			json: async () =>
 				makeSnapshot({ dashboard_names: ["overview", "triage"] }),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -276,7 +276,7 @@ describe("App", () => {
 						reason_count: 1,
 					},
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -310,7 +310,7 @@ describe("App", () => {
 					descending: false,
 					groups: [{ name: "g", items: [makeItem({ thread_id: "1" })] }],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -350,7 +350,7 @@ describe("App", () => {
 						},
 					},
 				}),
-		} as Response);
+		});
 
 		const user = userEvent.setup();
 		render(<App />);
@@ -389,7 +389,7 @@ describe("App", () => {
 						},
 					],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -505,7 +505,7 @@ describe("App", () => {
 					},
 					groups: [{ name: "g", items: [makeItem()] }],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -534,7 +534,7 @@ describe("App", () => {
 					},
 					groups: [{ name: "g", items: [makeItem()] }],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -635,7 +635,7 @@ describe("App", () => {
 						{ name: "g", items: [makeItem({ subject_title: "Encoded" })] },
 					],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -656,7 +656,7 @@ describe("App", () => {
 						{ name: "g", items: [makeItem({ subject_title: "Menu target" })] },
 					],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 

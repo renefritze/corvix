@@ -68,7 +68,11 @@ def test_load_runtime_config_raises_for_invalid_config_value(tmp_path: Path, mon
     config_path = tmp_path / "corvix.yaml"
     config_path.write_text("github: {}\n", encoding="utf-8")
     monkeypatch.setenv("CORVIX_CONFIG", str(config_path))
-    monkeypatch.setattr(web_app, "load_config", lambda _path: (_ for _ in ()).throw(ValueError("bad config")))
+
+    def _raise_bad_config(_path: Path) -> None:
+        raise ValueError("bad config")
+
+    monkeypatch.setattr(web_app, "load_config", _raise_bad_config)
 
     with pytest.raises(HTTPException, match="Invalid config"):
         web_app._load_runtime_config()
