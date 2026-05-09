@@ -23,6 +23,7 @@ from corvix.config import (
     StateConfig,
 )
 from corvix.domain import Notification
+from corvix.notifications.models import DeliveryResult, NotificationEvent
 from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache
 from corvix.types import JsonValue
@@ -64,6 +65,23 @@ class FakeClientWithDismiss(FakeClient):
 
     def dismiss_thread(self, thread_id: str) -> None:
         self.dismissed_thread_ids.append(thread_id)
+
+
+class RecordingTarget:
+    def __init__(self) -> None:
+        self.received: list[NotificationEvent] = []
+
+    @property
+    def name(self) -> str:
+        return "recording"
+
+    def deliver(self, events: list[NotificationEvent]) -> DeliveryResult:
+        self.received.extend(events)
+        return DeliveryResult(
+            target=self.name,
+            events_attempted=len(events),
+            events_delivered=len(events),
+        )
 
 
 def _build_config(cache_path: Path) -> AppConfig:
@@ -140,6 +158,65 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
     assert len(records) == EXPECTED_FETCHED
     assert len([record for record in records if record.excluded]) == EXPECTED_EXCLUDED
     assert records[1].actions_taken == ["mark_read"]
+
+
+def test_poll_cycle_requires_at_least_one_client(tmp_path: Path) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    cache = NotificationCache(path=cache_path)
+
+    with pytest.raises(ValueError, match="At least one notifications client"):
+        run_poll_cycle(PollCycleInput(config=config, cache=cache))
+
+
+def test_poll_cycle_dispatches_only_new_unread_non_excluded_notifications(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClient(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+    target = RecordingTarget()
+
+    summary = run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+            notification_targets=[target],
+        )
+    )
+
+    assert summary.dispatch is not None
+    assert [event.thread_id for event in target.received] == ["1"]
+    assert summary.dispatch.total_delivered == 1
+
+
+def test_poll_cycle_reports_missing_account_client(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    notifications = _build_notifications(now)
+    notifications[1].account_id = "secondary"
+    notifications[1].account_label = "Secondary"
+    client = FakeClient(notifications)
+    cache = NotificationCache(path=cache_path)
+
+    summary = run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
+    )
+    _, records = cache.load()
+
+    assert summary.fetched == EXPECTED_FETCHED
+    assert summary.errors == ["No client found for account 'secondary'."]
+    assert [record.notification.thread_id for record in records] == ["1"]
 
 
 def test_poll_cycle_persists_dismissed_records(tmp_path: Path) -> None:
@@ -380,15 +457,66 @@ def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     summaries = run_watch_loop(
-        config=config,
-        client=client,
-        cache=cache,
-        apply_actions=False,
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+        ),
         iterations=2,
     )
 
     assert len(summaries) == EXPECTED_WATCH_ITERATIONS
     assert all(s.fetched == EXPECTED_FETCHED for s in summaries)
+
+
+def test_watch_loop_persists_error_status_when_poll_cycle_fails(tmp_path: Path) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    cache = NotificationCache(path=cache_path)
+
+    summaries = run_watch_loop(
+        PollCycleInput(
+            config=config,
+            cache=cache,
+            apply_actions=False,
+        ),
+        iterations=1,
+    )
+    poller_status = cache.load_status()
+
+    assert len(summaries) == 1
+    assert "At least one notifications client is required for polling." in summaries[0].errors[0]
+    assert poller_status["status"] == "error"
+    assert poller_status["last_error"] is not None
+
+
+def test_watch_loop_logs_warning_when_error_status_cannot_be_persisted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    cache = NotificationCache(path=cache_path)
+
+    def _raise_save_status(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(NotificationCache, "save_status", _raise_save_status)
+
+    with caplog.at_level("WARNING"):
+        summaries = run_watch_loop(
+            PollCycleInput(
+                config=config,
+                cache=cache,
+                apply_actions=False,
+            ),
+            iterations=1,
+        )
+
+    assert len(summaries) == 1
+    assert "Failed to persist poller error status" in caplog.text
 
 
 def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:

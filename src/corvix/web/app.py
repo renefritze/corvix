@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from os import environ
 from pathlib import Path
@@ -20,7 +22,7 @@ from litestar.static_files import create_static_files_router
 
 from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, load_config
 from corvix.dashboarding import build_dashboard_data
-from corvix.domain import NotificationRecord
+from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
@@ -90,10 +92,57 @@ def dashboard_index(dashboard_name: str) -> Response[str]:
     return Response(content=INDEX_HTML, media_type="text/html")
 
 
-@get("/api/health", sync_to_thread=False)
-def health() -> dict[str, str]:
-    """Health endpoint for container checks."""
+def _health_error(poller_status: PollerStatus) -> dict[str, object]:
+    raw_detail = poller_status.get("last_error")
+    if isinstance(raw_detail, str):
+        raw_detail = raw_detail.split("\n")[-1].strip() or raw_detail
+    return {"status": "unhealthy", "reason": "poller_error", "detail": raw_detail}
+
+
+def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
+    try:
+        last_poll = parse_timestamp(last_poll_str)
+    except ValueError:
+        return {"status": "unhealthy", "reason": "invalid_poll_time"}
+    staleness = datetime.now(tz=UTC) - last_poll
+    if staleness > timedelta(minutes=5):
+        return {
+            "status": "unhealthy",
+            "reason": "stale",
+            "last_poll_seconds_ago": int(staleness.total_seconds()),
+        }
     return {"status": "ok"}
+
+
+@get("/api/health", sync_to_thread=False)
+def health() -> dict[str, object]:
+    """Health endpoint for container checks.
+
+    Returns 200 with {"status": "ok"} when config and cache are readable,
+    the poller is running, and the poller's last poll time is not stale.
+
+    Returns 200 with {"status": "unhealthy"} and one of these reasons:
+    "config_unavailable", "invalid_cache", "poller_not_running",
+    "poller_error", "invalid_poll_time", or "stale".
+    """
+    try:
+        config = _load_runtime_config()
+    except HTTPException:
+        return {"status": "unhealthy", "reason": "config_unavailable"}
+    cache = NotificationCache(path=config.resolve_cache_file())
+    try:
+        poller_status = cache.load_status()
+    except (OSError, json.JSONDecodeError):
+        return {"status": "unhealthy", "reason": "invalid_cache"}
+    status = poller_status.get("status", "unknown")
+    if status == "error":
+        return _health_error(poller_status)
+    if status in {"unknown", "starting"}:
+        return {"status": "unhealthy", "reason": "poller_not_running"}
+    last_poll_str = poller_status.get("last_poll_time")
+    if not last_poll_str:
+        return {"status": "unhealthy", "reason": "invalid_poll_time"}
+    return _health_check_staleness(last_poll_str)
 
 
 @get("/api/themes", sync_to_thread=False)
@@ -114,15 +163,45 @@ def dashboards() -> dict[str, object]:
 def snapshot(dashboard: str | None = None) -> dict[str, object]:
     """Return the selected dashboard data from cache."""
     config = _load_runtime_config()
-    generated_at, records = NotificationCache(path=config.resolve_cache_file()).load()
+    cache = NotificationCache(path=config.resolve_cache_file())
+    generated_at, records = cache.load()
+    try:
+        poller_status = cache.load_status()
+    except (OSError, json.JSONDecodeError):
+        poller_status = {
+            "status": "unknown",
+            "last_poll_time": None,
+            "last_error": None,
+            "last_error_time": None,
+        }
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     data = build_dashboard_data(
         records=records,
         dashboard=selected_dashboard,
         generated_at=generated_at,
     )
+    last_poll_str = poller_status.get("last_poll_time")
+    stale = False
+    if last_poll_str:
+        try:
+            last_poll = parse_timestamp(last_poll_str)
+            stale = (datetime.now(tz=UTC) - last_poll) > timedelta(minutes=5)
+        except ValueError:
+            stale = True
+    else:
+        stale = True
     payload = asdict(data)
     payload["dashboard_names"] = _dashboard_names(config.dashboards)
+    raw_last_error = poller_status.get("last_error")
+    if isinstance(raw_last_error, str):
+        raw_last_error = raw_last_error.split("\n")[-1].strip() or raw_last_error
+    payload["poller"] = {
+        "status": poller_status.get("status", "unknown"),
+        "last_poll_time": last_poll_str,
+        "last_error": raw_last_error,
+        "last_error_time": poller_status.get("last_error_time"),
+        "stale": stale,
+    }
     notif_cfg = config.notifications
     payload["notifications_config"] = {
         "enabled": notif_cfg.enabled,
@@ -390,6 +469,9 @@ def _load_runtime_config() -> AppConfig:
         return load_config(config_path)
     except ValueError as error:
         msg = f"Invalid config at '{config_path}': {error}"
+        raise HTTPException(status_code=500, detail=msg) from error
+    except OSError as error:
+        msg = f"Unable to read config at '{config_path}': {error}"
         raise HTTPException(status_code=500, detail=msg) from error
 
 

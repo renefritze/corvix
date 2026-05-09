@@ -31,7 +31,7 @@ def _as_json_object(value: JsonValue) -> JsonObject | None:
 
 
 def _coerce_json_value(value: object) -> JsonValue:
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, str | int | float | bool):
         return value
     if isinstance(value, list):
         return [_coerce_json_value(item) for item in value]

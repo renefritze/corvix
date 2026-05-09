@@ -120,4 +120,100 @@ describe("useSnapshot", () => {
 
 		vi.useRealTimers();
 	});
+
+	it("falls back to an unknown error message for non-Error rejections", async () => {
+		const mockedFetch = vi.mocked(fetchSnapshot);
+		mockedFetch.mockRejectedValue("boom");
+
+		render(<Harness dashboard="overview" />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("error")).toHaveTextContent("Unknown error");
+		});
+	});
+
+	it("prefers a queued manual refresh over an auto refresh", async () => {
+		vi.useFakeTimers();
+		const mockedFetch = vi.mocked(fetchSnapshot);
+		let autoResolver:
+			| ((value: ReturnType<typeof makeSnapshot>) => void)
+			| null = null;
+		let manualResolver:
+			| ((value: ReturnType<typeof makeSnapshot>) => void)
+			| null = null;
+		mockedFetch
+			.mockResolvedValueOnce(makeSnapshot({ name: "overview" }))
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						autoResolver = resolve;
+					}),
+			)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						manualResolver = resolve;
+					}),
+			);
+
+		render(<Harness dashboard="overview" />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("name")).toHaveTextContent("overview");
+		});
+
+		await vi.advanceTimersByTimeAsync(15_000);
+		await waitFor(() => {
+			expect(screen.getByTestId("refreshing")).toHaveTextContent("true");
+		});
+
+		const user = userEvent.setup({
+			advanceTimers: vi.advanceTimersByTimeAsync,
+		});
+		await user.click(screen.getByRole("button", { name: "refresh" }));
+		expect(mockedFetch).toHaveBeenCalledTimes(2);
+
+		autoResolver?.(makeSnapshot({ name: "auto" }));
+		await waitFor(() => {
+			expect(mockedFetch).toHaveBeenCalledTimes(3);
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("manual-refreshing")).toHaveTextContent("true");
+		});
+
+		manualResolver?.(makeSnapshot({ name: "manual" }));
+		await waitFor(() => {
+			expect(screen.getByTestId("name")).toHaveTextContent("manual");
+		});
+		await waitFor(() => {
+			expect(screen.getByTestId("manual-refreshing")).toHaveTextContent(
+				"false",
+			);
+		});
+	});
+
+	it("reloads when the dashboard changes and stops polling after unmount", async () => {
+		vi.useFakeTimers();
+		const mockedFetch = vi.mocked(fetchSnapshot);
+		mockedFetch
+			.mockResolvedValueOnce(makeSnapshot({ name: "overview" }))
+			.mockResolvedValueOnce(makeSnapshot({ name: "triage" }));
+
+		const { rerender, unmount } = render(<Harness dashboard="overview" />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("name")).toHaveTextContent("overview");
+		});
+
+		rerender(<Harness dashboard="triage" />);
+		await waitFor(() => {
+			expect(screen.getByTestId("name")).toHaveTextContent("triage");
+		});
+		expect(mockedFetch).toHaveBeenNthCalledWith(1, "overview");
+		expect(mockedFetch).toHaveBeenNthCalledWith(2, "triage");
+
+		unmount();
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(mockedFetch).toHaveBeenCalledTimes(2);
+	});
 });

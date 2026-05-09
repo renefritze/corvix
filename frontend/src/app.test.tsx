@@ -122,7 +122,7 @@ describe("App", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: false,
 			status: 500,
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -148,7 +148,7 @@ describe("App", () => {
 						reason_count: 0,
 					},
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -175,7 +175,7 @@ describe("App", () => {
 		resolveFetch?.({
 			ok: true,
 			json: async () => makeSnapshot(),
-		} as Response);
+		});
 
 		await waitFor(() => {
 			expect(
@@ -232,7 +232,7 @@ describe("App", () => {
 			ok: true,
 			json: async () =>
 				makeSnapshot({ dashboard_names: ["overview", "triage"] }),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -276,7 +276,7 @@ describe("App", () => {
 						reason_count: 1,
 					},
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -310,7 +310,7 @@ describe("App", () => {
 					descending: false,
 					groups: [{ name: "g", items: [makeItem({ thread_id: "1" })] }],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -350,7 +350,7 @@ describe("App", () => {
 						},
 					},
 				}),
-		} as Response);
+		});
 
 		const user = userEvent.setup();
 		render(<App />);
@@ -389,7 +389,7 @@ describe("App", () => {
 						},
 					],
 				}),
-		} as Response);
+		});
 
 		render(<App />);
 
@@ -490,6 +490,62 @@ describe("App", () => {
 		).toBeInTheDocument();
 	});
 
+	it("shows poller warning banner when poller status is error", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					poller: {
+						status: "error",
+						last_poll_time: "2026-04-09T10:00:00Z",
+						last_error: "Something failed",
+						last_error_time: "2026-04-09T10:00:00Z",
+						stale: false,
+					},
+					groups: [{ name: "g", items: [makeItem()] }],
+				}),
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert", { name: undefined })).toHaveTextContent(
+				"Something failed",
+			);
+		});
+		expect(
+			screen.getByRole("alert").classList.contains("poller-warning--error"),
+		).toBe(true);
+	});
+
+	it("shows poller warning banner when poller is ok but stale", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					poller: {
+						status: "ok",
+						last_poll_time: null,
+						last_error: null,
+						last_error_time: null,
+						stale: true,
+					},
+					groups: [{ name: "g", items: [makeItem()] }],
+				}),
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("status")).toHaveTextContent("Data may be stale");
+		});
+		expect(
+			screen.getByRole("status").classList.contains("poller-warning--stale"),
+		).toBe(true);
+	});
+
 	it("opens ignore-rule dialog from row context menu and loads both snippets", async () => {
 		setPath("/");
 		const snapshot = makeSnapshot({
@@ -549,7 +605,7 @@ describe("App", () => {
 
 		const row = screen.getByRole("link", { name: "Rule target" }).closest("tr");
 		expect(row).not.toBeNull();
-		fireEvent.contextMenu(row as HTMLTableRowElement);
+		fireEvent.contextMenu(row as Element);
 
 		await user.click(
 			screen.getByRole("menuitem", { name: "Create ignore rule..." }),
@@ -564,5 +620,126 @@ describe("App", () => {
 			screen.getByRole("heading", { name: "Global exclude rule" }),
 		).toBeInTheDocument();
 		expect(screen.getAllByDisplayValue(/repository_in/)).toHaveLength(2);
+	});
+
+	it("keeps encoded dashboard paths stable when the current path already matches", async () => {
+		setPath("/dashboards/Triage%20Board");
+		const pushState = vi.spyOn(globalThis.history, "pushState");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					name: "Triage Board",
+					dashboard_names: ["Triage Board"],
+					groups: [
+						{ name: "g", items: [makeItem({ subject_title: "Encoded" })] },
+					],
+				}),
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "Encoded" })).toBeInTheDocument();
+		});
+		expect(globalThis.location.pathname).toBe("/dashboards/Triage%20Board");
+		expect(pushState).not.toHaveBeenCalled();
+	});
+
+	it("closes the row context menu on escape and outside click", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					groups: [
+						{ name: "g", items: [makeItem({ subject_title: "Menu target" })] },
+					],
+				}),
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Menu target" }),
+			).toBeInTheDocument();
+		});
+
+		const row = screen.getByRole("link", { name: "Menu target" }).closest("tr");
+		expect(row).not.toBeNull();
+		fireEvent.contextMenu(row as Element);
+		expect(screen.getByRole("menu")).toBeInTheDocument();
+
+		globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		fireEvent.contextMenu(row as Element);
+		expect(screen.getByRole("menu")).toBeInTheDocument();
+		globalThis.dispatchEvent(new MouseEvent("click"));
+		await waitFor(() => {
+			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+		});
+	});
+
+	it("shows ignore-rule loading and error states when snippet fetch fails", async () => {
+		setPath("/");
+		let rejectSnippets: ((reason?: unknown) => void) | null = null;
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: FetchInput, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				const url = requestUrl(input);
+				if (url.includes("/rule-snippets")) {
+					return {
+						ok: true,
+						json: () =>
+							new Promise((_, reject) => {
+								rejectSnippets = reject;
+							}),
+					} as Response;
+				}
+				return {
+					ok: true,
+					json: async () =>
+						makeSnapshot({
+							groups: [
+								{
+									name: "g",
+									items: [makeItem({ subject_title: "Rule target" })],
+								},
+							],
+						}),
+				} as Response;
+			},
+		);
+
+		const user = userEvent.setup();
+		render(<App />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Rule target" }),
+			).toBeInTheDocument();
+		});
+
+		const row = screen.getByRole("link", { name: "Rule target" }).closest("tr");
+		expect(row).not.toBeNull();
+		fireEvent.contextMenu(row as Element);
+		await user.click(
+			screen.getByRole("menuitem", { name: "Create ignore rule..." }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("Loading snippets...")).toBeInTheDocument();
+		});
+		rejectSnippets?.(new Error("snippet boom"));
+
+		await waitFor(() => {
+			expect(screen.getByText("snippet boom")).toBeInTheDocument();
+		});
 	});
 });

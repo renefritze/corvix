@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import time
+import traceback
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol, cast
@@ -11,7 +13,7 @@ from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import AppConfig, DashboardSpec, PollingConfig
-from corvix.domain import Notification, NotificationRecord, notification_key
+from corvix.domain import Notification, NotificationRecord, PollerStatus, format_timestamp, notification_key
 from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
@@ -25,6 +27,8 @@ from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
 from corvix.storage import NotificationCache
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationsClient(MarkReadGateway, JsonFetchClient, Protocol):
@@ -103,7 +107,16 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         contexts_by_notification_key=enrichment_result.contexts_by_notification_key,
     )
     errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
-    input.cache.save(records=records, generated_at=current_time)
+    input.cache.save(
+        records=records,
+        generated_at=current_time,
+        poller_status=PollerStatus(
+            status="ok",
+            last_poll_time=format_timestamp(current_time),
+            last_error=None,
+            last_error_time=None,
+        ),
+    )
 
     dispatch = _dispatch_notification_events(input, previous_records, records)
 
@@ -229,33 +242,46 @@ def _dispatch_notification_events(
     return dispatcher.dispatch(events)
 
 
-def run_watch_loop(  # noqa: PLR0913
-    config: AppConfig,
-    cache: NotificationCache,
-    apply_actions: bool,
-    clients: tuple[NotificationsClient, ...] | None = None,
-    client: NotificationsClient | None = None,
+def _handle_cycle_error(iteration: int, cache: NotificationCache, runs: list[PollingSummary]) -> None:
+    """Record a poll-cycle failure and persist the error status."""
+    error_time = datetime.now(tz=UTC)
+    error_trace = traceback.format_exc()
+    error_msg = error_trace.splitlines()[-1].strip() if error_trace.strip() else "poll cycle failed"
+    logger.exception("Poll cycle failed on iteration %d", iteration)
+    runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
+    try:
+        last_poll_time = cache.load_status().get("last_poll_time")
+    except (OSError, ValueError):
+        last_poll_time = None
+    try:
+        cache.save_status(
+            PollerStatus(
+                status="error",
+                last_poll_time=last_poll_time,
+                last_error=error_msg,
+                last_error_time=format_timestamp(error_time),
+            )
+        )
+    except Exception:
+        logger.warning("Failed to persist poller error status", exc_info=True)
+
+
+def run_watch_loop(
+    input: PollCycleInput,
     iterations: int | None = None,
 ) -> list[PollingSummary]:
     """Run polling loop suitable for local daemon usage."""
     runs: list[PollingSummary] = []
-    active_clients = clients or ((client,) if client is not None else ())
     iteration = 0
     while iterations is None or iteration < iterations:
-        runs.append(
-            run_poll_cycle(
-                PollCycleInput(
-                    config=config,
-                    clients=active_clients,
-                    cache=cache,
-                    apply_actions=apply_actions,
-                )
-            ),
-        )
+        try:
+            runs.append(run_poll_cycle(input))
+        except Exception:
+            _handle_cycle_error(iteration, input.cache, runs)
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break
-        time.sleep(config.polling.interval_seconds)
+        time.sleep(input.config.polling.interval_seconds)
     return runs
 
 

@@ -11,6 +11,7 @@ import { FilterBar } from "./components/FilterBar";
 import { IgnoreRuleDialog } from "./components/IgnoreRuleDialog";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { NotificationTable } from "./components/NotificationTable";
+import { PollerWarning } from "./components/PollerWarning";
 import { Toolbar } from "./components/Toolbar";
 import { UndoToast } from "./components/UndoToast";
 import { useBrowserNotifications } from "./hooks/useBrowserNotifications";
@@ -152,7 +153,7 @@ export function App() {
 		filters.repository !== "";
 
 	const handleDismissFocused = useCallback(() => {
-		const focused = document.activeElement as HTMLElement | null;
+		const focused = document.activeElement;
 		const row = focused?.closest<HTMLTableRowElement>("tr[data-thread-id]");
 		const accountId = row?.dataset.accountId;
 		const threadId = row?.dataset.threadId;
@@ -390,6 +391,7 @@ export function App() {
 					filterBarRef={filterBarRef}
 				/>
 			)}
+			{snapshot?.poller && <PollerWarning poller={snapshot.poller} />}
 			<main class="board">{boardContent}</main>
 			{ignoreMenu && (
 				<div

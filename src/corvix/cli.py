@@ -109,10 +109,12 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
     clients = _build_clients(app_config.github.accounts)
     cache = NotificationCache(path=app_config.resolve_cache_file())
     summaries = run_watch_loop(
-        config=app_config,
-        clients=clients,
-        cache=cache,
-        apply_actions=apply_actions,
+        PollCycleInput(
+            config=app_config,
+            clients=clients,
+            cache=cache,
+            apply_actions=apply_actions,
+        ),
         iterations=iterations,
     )
     for index, summary in enumerate(summaries, start=1):

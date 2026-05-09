@@ -11,7 +11,17 @@ import pytest
 from pytest import MonkeyPatch
 
 from corvix.domain import Notification, NotificationRecord
-from corvix.storage import NotificationCache, StorageBackend
+from corvix.storage import (
+    NotificationCache,
+    StorageBackend,
+    _coerce_context,
+    _coerce_str_list,
+    _optional_str,
+    _require_bool,
+    _require_datetime,
+    _require_float,
+    _require_str,
+)
 
 
 def _make_record(thread_id: str, dismissed: bool = False) -> NotificationRecord:
@@ -264,3 +274,88 @@ def test_load_generated_at_non_string_is_none(tmp_path: Path) -> None:
 
     assert generated_at is None
     assert records == []
+
+
+def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    cache.path.parent.mkdir(parents=True, exist_ok=True)
+    cache.path.write_text('{"notifications": invalid', encoding="utf-8")
+
+    cache.save_status(
+        {
+            "status": "error",
+            "last_poll_time": None,
+            "last_error": "boom",
+            "last_error_time": "2024-01-01T00:00:00Z",
+        }
+    )
+
+    payload = json.loads(cache.path.read_text(encoding="utf-8"))
+    assert payload["notifications"] == []
+    assert payload["poller_status"]["status"] == "error"
+
+
+def test_load_raw_generated_at_reads_string_only(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    cache.path.write_text('{"generated_at":"2024-01-01T00:00:00Z","notifications":[]}', encoding="utf-8")
+
+    assert cache._load_raw_generated_at() == "2024-01-01T00:00:00Z"
+
+
+def test_load_raw_generated_at_ignores_non_string_value(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    cache.path.write_text('{"generated_at":42,"notifications":[]}', encoding="utf-8")
+
+    assert cache._load_raw_generated_at() is None
+
+
+def test_coerce_context_accepts_json_string_payload() -> None:
+    assert _coerce_context('{"github":{"latest_comment":{"is_ci_only":true}}}') == {
+        "github": {"latest_comment": {"is_ci_only": True}}
+    }
+
+
+def test_coerce_context_rejects_invalid_json_string() -> None:
+    assert _coerce_context("{broken") == {}
+
+
+def test_coerce_context_filters_non_string_keys() -> None:
+    assert _coerce_context({1: "bad", "good": True}) == {"good": True}
+
+
+def test_coerce_str_list_defaults_none_to_empty() -> None:
+    assert _coerce_str_list(None, "matched_rules") == []
+
+
+def test_coerce_str_list_rejects_non_list_values() -> None:
+    with pytest.raises(ValueError, match="expected list of strings"):
+        _coerce_str_list("bad", "matched_rules")
+
+
+def test_coerce_str_list_rejects_non_string_items() -> None:
+    with pytest.raises(ValueError, match="expected string"):
+        _coerce_str_list(["ok", 1], "matched_rules")
+
+
+def test_optional_str_returns_none_for_none() -> None:
+    assert _optional_str(None, "thread_url") is None
+
+
+def test_require_str_rejects_non_string_values() -> None:
+    with pytest.raises(ValueError, match="expected string"):
+        _require_str(1, "thread_id")
+
+
+def test_require_bool_rejects_non_boolean_values() -> None:
+    with pytest.raises(ValueError, match="expected boolean"):
+        _require_bool("true", "unread")
+
+
+def test_require_float_rejects_boolean_values() -> None:
+    with pytest.raises(ValueError, match="expected number"):
+        _require_float(True, "score")
+
+
+def test_require_datetime_rejects_non_datetime_values() -> None:
+    with pytest.raises(ValueError, match="expected datetime"):
+        _require_datetime("2024-01-01T00:00:00Z", "updated_at")

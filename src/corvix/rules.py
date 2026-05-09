@@ -156,12 +156,12 @@ def _contains(path_value: object | None, expected: object | None, case_insensiti
         left = path_value.casefold() if case_insensitive else path_value
         right = expected.casefold() if case_insensitive else expected
         return right in left
-    if isinstance(path_value, (list, tuple, set, frozenset)):
+    if isinstance(path_value, list | tuple | set | frozenset):
         return any(_equals(item, expected, case_insensitive) for item in path_value)
     return False
 
 
 def _in_values(path_value: object | None, expected: object | None, case_insensitive: bool) -> bool:
-    if not isinstance(expected, (list, tuple, set, frozenset)):
+    if not isinstance(expected, list | tuple | set | frozenset):
         return False
     return any(_equals(path_value, candidate, case_insensitive) for candidate in expected)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
 
@@ -125,10 +126,129 @@ dashboards:
 # --- /api/health ---
 
 
-def test_health(client: TestClient) -> None:
+def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
     response = client.get("/api/health")
     assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["status"] == "unhealthy"
+    assert payload["reason"] == "config_unavailable"
+
+
+def test_health_when_poller_unknown(configured_client: TestClient) -> None:
+    response = configured_client.get("/api/health")
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["status"] == "unhealthy"
+    assert payload["reason"] == "poller_not_running"
+
+
+def test_health_when_poller_healthy(configured_client: TestClient) -> None:
+    now = datetime.now(tz=UTC).isoformat().replace("+00:00", "Z")
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": now,
+                "poller_status": {
+                    "status": "ok",
+                    "last_poll_time": now,
+                },
+                "notifications": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    response = configured_client.get("/api/health")
+    assert response.status_code == HTTPStatus.OK
     assert response.json() == {"status": "ok"}
+
+
+def test_health_when_poller_stale(configured_client: TestClient) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": "2000-01-01T00:00:00Z",
+                "poller_status": {
+                    "status": "ok",
+                    "last_poll_time": "2000-01-01T00:00:00Z",
+                },
+                "notifications": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    response = configured_client.get("/api/health")
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["status"] == "unhealthy"
+    assert payload["reason"] == "stale"
+    assert "last_poll_seconds_ago" in payload
+
+
+def test_health_when_cache_is_invalid(configured_client: TestClient) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text('{"poller_status": invalid', encoding="utf-8")
+
+    response = configured_client.get("/api/health")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"status": "unhealthy", "reason": "invalid_cache"}
+
+
+def test_health_when_poller_error_trims_last_line(configured_client: TestClient) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "poller_status": {
+                    "status": "error",
+                    "last_poll_time": GENERATED_AT,
+                    "last_error": "Traceback\nRuntimeError: boom",
+                },
+                "notifications": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = configured_client.get("/api/health")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        "status": "unhealthy",
+        "reason": "poller_error",
+        "detail": "RuntimeError: boom",
+    }
+
+
+def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "poller_status": {
+                    "status": "ok",
+                    "last_poll_time": "not-a-timestamp",
+                },
+                "notifications": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = configured_client.get("/api/health")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"status": "unhealthy", "reason": "invalid_poll_time"}
 
 
 # --- /api/themes ---
@@ -236,6 +356,10 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
     assert "total_items" in payload
     assert "dashboard_names" in payload
     assert "triage" in payload["dashboard_names"]
+    assert "poller" in payload
+    poller = payload["poller"]
+    assert poller["status"] == "unknown"
+    assert poller["stale"] is True
 
 
 def test_snapshot_selects_by_name(configured_client: TestClient) -> None:
@@ -353,6 +477,51 @@ def test_rule_snippets_endpoint_unknown_thread_returns_404(populated_client: Tes
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
+def test_rule_snippets_endpoint_escapes_special_characters(
+    configured_client: TestClient,
+) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "notifications": [
+                    {
+                        **_record_payload(
+                            thread_id="escape-1",
+                            repository="Org Repo/Name",
+                            reason='review"requested',
+                            score=5.0,
+                        ),
+                        "subject_title": 'Path .* [test] "quoted" \\ slash?',
+                        "subject_type": "Check Suite",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = configured_client.get("/api/notifications/primary/escape-1/rule-snippets?dashboard=triage")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    snippet = payload["dashboard_ignore_rule_snippet"]
+    assert 'title_regex: "^Path ' in snippet
+    assert "\\\\*" in snippet
+    assert "\\\\[test\\\\]" in snippet
+    assert '\\"quoted\\"' in snippet
+    assert "\\\\\\\\ slash" in snippet
+    assert "- name: ignore-org-repo-name-review-requested-check-suite" in payload["global_exclude_rule_snippet"]
+
+
+def test_rule_snippets_endpoint_unknown_account_returns_404(populated_client: TestClient) -> None:
+    response = populated_client.get("/api/notifications/missing/101/rule-snippets?dashboard=overview")
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
 # --- /api/notifications/{thread_id}/dismiss ---
 
 
@@ -375,6 +544,23 @@ def test_dismiss_success(configured_client: TestClient, monkeypatch: pytest.Monk
     )
 
     response = configured_client.post("/api/notifications/abc123/dismiss")
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert calls == ["abc123"]
+
+
+def test_dismiss_success_with_explicit_account_route(
+    configured_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(
+        "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
+        lambda _self, thread_id: calls.append(thread_id),
+    )
+
+    response = configured_client.post("/api/notifications/primary/abc123/dismiss")
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert calls == ["abc123"]
@@ -424,6 +610,23 @@ def test_mark_read_success(configured_client: TestClient, monkeypatch: pytest.Mo
     )
 
     response = configured_client.post("/api/notifications/abc123/mark-read")
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert calls == ["abc123"]
+
+
+def test_mark_read_success_with_explicit_account_route(
+    configured_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(
+        "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
+        lambda _self, thread_id: calls.append(thread_id),
+    )
+
+    response = configured_client.post("/api/notifications/primary/abc123/mark-read")
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert calls == ["abc123"]

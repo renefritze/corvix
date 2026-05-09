@@ -106,7 +106,7 @@ def test_watch_command_iterations(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(
         cli,
         "run_watch_loop",
-        lambda **_: [PollingSummary(fetched=3, excluded=1, actions_taken=0, errors=[])],
+        lambda input, iterations=None: [PollingSummary(fetched=3, excluded=1, actions_taken=0, errors=[])],
     )
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "watch", "--iterations", "1"])

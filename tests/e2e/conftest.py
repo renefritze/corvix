@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Generator
+from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -91,6 +92,12 @@ def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str
         json.dumps(
             {
                 "generated_at": FIXED_TIMESTAMP,
+                "poller_status": {
+                    "status": "ok",
+                    "last_poll_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    "last_error": None,
+                    "last_error_time": None,
+                },
                 "notifications": [
                     {
                         "thread_id": "101",
