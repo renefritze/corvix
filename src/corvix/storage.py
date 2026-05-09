@@ -118,10 +118,17 @@ class NotificationCache:
             try:
                 _, records = self._load_unlocked()
                 generated_raw = self._load_raw_generated_at()
-                generated_at = parse_timestamp(generated_raw) if generated_raw else datetime.now(tz=UTC)
             except (ValueError, OSError):
                 records: list[NotificationRecord] = []
                 generated_at = datetime.now(tz=UTC)
+            else:
+                if generated_raw:
+                    try:
+                        generated_at = parse_timestamp(generated_raw)
+                    except ValueError:
+                        generated_at = datetime.now(tz=UTC)
+                else:
+                    generated_at = datetime.now(tz=UTC)
             self._save_unlocked(records=records, generated_at=generated_at, poller_status=status)
 
     def load_status(self) -> PollerStatus:
