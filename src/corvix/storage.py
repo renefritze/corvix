@@ -83,7 +83,7 @@ class NotificationCache:
         with self._exclusive_lock():
             try:
                 _, existing_records = self._load_unlocked()
-            except (json.JSONDecodeError, ValueError, OSError):
+            except (ValueError, OSError):
                 existing_records = []
             if poller_status is None:
                 try:
@@ -177,7 +177,7 @@ class NotificationCache:
         if status_to_save is None:
             try:
                 status_to_save = self._load_status_unlocked()
-            except (json.JSONDecodeError, ValueError, OSError):
+            except (ValueError, OSError):
                 status_to_save = None
         payload: dict[str, object] = {
             "generated_at": format_timestamp(generated_at),
