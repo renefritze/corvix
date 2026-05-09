@@ -153,7 +153,7 @@ export function App() {
 		filters.repository !== "";
 
 	const handleDismissFocused = useCallback(() => {
-		const focused = document.activeElement as HTMLElement | null;
+		const focused = document.activeElement;
 		const row = focused?.closest<HTMLTableRowElement>("tr[data-thread-id]");
 		const accountId = row?.dataset.accountId;
 		const threadId = row?.dataset.threadId;

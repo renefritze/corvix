@@ -605,7 +605,7 @@ describe("App", () => {
 
 		const row = screen.getByRole("link", { name: "Rule target" }).closest("tr");
 		expect(row).not.toBeNull();
-		fireEvent.contextMenu(row as HTMLTableRowElement);
+		fireEvent.contextMenu(row as Element);
 
 		await user.click(
 			screen.getByRole("menuitem", { name: "Create ignore rule..." }),
@@ -668,7 +668,7 @@ describe("App", () => {
 
 		const row = screen.getByRole("link", { name: "Menu target" }).closest("tr");
 		expect(row).not.toBeNull();
-		fireEvent.contextMenu(row as HTMLTableRowElement);
+		fireEvent.contextMenu(row as Element);
 		expect(screen.getByRole("menu")).toBeInTheDocument();
 
 		globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
@@ -676,7 +676,7 @@ describe("App", () => {
 			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 		});
 
-		fireEvent.contextMenu(row as HTMLTableRowElement);
+		fireEvent.contextMenu(row as Element);
 		expect(screen.getByRole("menu")).toBeInTheDocument();
 		globalThis.dispatchEvent(new MouseEvent("click"));
 		await waitFor(() => {
@@ -728,7 +728,7 @@ describe("App", () => {
 
 		const row = screen.getByRole("link", { name: "Rule target" }).closest("tr");
 		expect(row).not.toBeNull();
-		fireEvent.contextMenu(row as HTMLTableRowElement);
+		fireEvent.contextMenu(row as Element);
 		await user.click(
 			screen.getByRole("menuitem", { name: "Create ignore rule..." }),
 		);

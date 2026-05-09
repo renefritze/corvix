@@ -13,130 +13,97 @@ function makePoller(overrides: Partial<PollerStatus> = {}): PollerStatus {
 	};
 }
 
+function renderAlert(poller: PollerStatus) {
+	render(<PollerWarning poller={poller} />);
+	return screen.getByRole("alert");
+}
+
+function renderStatus(poller: PollerStatus) {
+	render(<PollerWarning poller={poller} />);
+	return screen.getByRole("status");
+}
+
+function makeStalePoller(overrides: Partial<PollerStatus> = {}) {
+	return makePoller({ status: "ok", stale: true, ...overrides });
+}
+
 describe("PollerWarning", () => {
 	it("renders null when status is ok and not stale", () => {
-		const { container } = render(
-			<PollerWarning poller={makePoller({ status: "ok", stale: false })} />,
-		);
+		const { container } = render(<PollerWarning poller={makePoller()} />);
 		expect(container.firstChild).toBeNull();
 	});
 
-	it("renders error alert with last_error message", () => {
-		render(
-			<PollerWarning
-				poller={makePoller({
-					status: "error",
-					last_error: "line1\nline2\nline3\nlast two lines",
-				})}
-			/>,
+	describe("error status", () => {
+		it.each([
+			[
+				"uses last_error message when present",
+				"line1\nline2\nline3\nlast two lines",
+				"line3 last two lines",
+			],
+			[
+				"uses default message when last_error is null",
+				null,
+				"Poller encountered an error.",
+			],
+		])("%s", (_, lastError, expectedText) => {
+			const alert = renderAlert(
+				makePoller({ status: "error", last_error: lastError }),
+			);
+			expect(alert).toHaveClass("poller-warning--error");
+			expect(alert).toHaveTextContent(expectedText);
+		});
+	});
+
+	describe("pending status", () => {
+		it.each(["unknown", "starting"])(
+			"renders pending alert for status %s",
+			(status) => {
+				const el = renderStatus(makePoller({ status }));
+				expect(el).toHaveClass("poller-warning--pending");
+				expect(el).toHaveTextContent("Waiting for poller to start...");
+			},
 		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveClass("poller-warning--error");
-		expect(alert).toHaveTextContent("line3 last two lines");
 	});
 
-	it("renders error alert with default message when last_error is null", () => {
-		render(
-			<PollerWarning
-				poller={makePoller({ status: "error", last_error: null })}
-			/>,
-		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveClass("poller-warning--error");
-		expect(alert).toHaveTextContent("Poller encountered an error.");
-	});
+	describe("stale status", () => {
+		it("renders stale alert without timestamp when last_poll_time is null", () => {
+			const el = renderStatus(makeStalePoller({ last_poll_time: null }));
+			expect(el).toHaveClass("poller-warning--stale");
+			expect(el).toHaveTextContent("Data may be stale.");
+		});
 
-	it("renders pending alert for unknown status", () => {
-		render(<PollerWarning poller={makePoller({ status: "unknown" })} />);
-		const status = screen.getByRole("status");
-		expect(status).toHaveClass("poller-warning--pending");
-		expect(status).toHaveTextContent("Waiting for poller to start...");
-	});
+		it("renders stale alert without timestamp when last_poll_time is invalid", () => {
+			const el = renderStatus(
+				makeStalePoller({ last_poll_time: "not-a-date" }),
+			);
+			expect(el).toHaveClass("poller-warning--stale");
+			expect(el).toHaveTextContent("Data may be stale.");
+		});
 
-	it("renders pending alert for starting status", () => {
-		render(<PollerWarning poller={makePoller({ status: "starting" })} />);
-		const status = screen.getByRole("status");
-		expect(status).toHaveClass("poller-warning--pending");
-		expect(status).toHaveTextContent("Waiting for poller to start...");
-	});
-
-	it("renders stale alert when ok but stale without last_poll_time", () => {
-		render(
-			<PollerWarning
-				poller={makePoller({
-					status: "ok",
-					stale: true,
-					last_poll_time: null,
-				})}
-			/>,
-		);
-		const status = screen.getByRole("status");
-		expect(status).toHaveClass("poller-warning--stale");
-		expect(status).toHaveTextContent("Data may be stale.");
-	});
-
-	it("renders stale alert with seconds-ago timestamp", () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-04-09T10:01:30Z"));
-		render(
-			<PollerWarning
-				poller={makePoller({
-					status: "ok",
-					stale: true,
-					last_poll_time: "2026-04-09T10:01:00Z",
-				})}
-			/>,
-		);
-		const status = screen.getByRole("status");
-		expect(status).toHaveTextContent("(last update 30s ago)");
-		vi.useRealTimers();
-	});
-
-	it("renders stale alert with minutes-ago timestamp", () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-04-09T10:05:00Z"));
-		render(
-			<PollerWarning
-				poller={makePoller({
-					status: "ok",
-					stale: true,
-					last_poll_time: "2026-04-09T10:00:00Z",
-				})}
-			/>,
-		);
-		const status = screen.getByRole("status");
-		expect(status).toHaveTextContent("(last update 5m ago)");
-		vi.useRealTimers();
-	});
-
-	it("renders stale alert with hours-ago timestamp", () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-04-09T12:00:00Z"));
-		render(
-			<PollerWarning
-				poller={makePoller({
-					status: "ok",
-					stale: true,
-					last_poll_time: "2026-04-09T10:00:00Z",
-				})}
-			/>,
-		);
-		const status = screen.getByRole("status");
-		expect(status).toHaveTextContent("(last update 2h ago)");
-		vi.useRealTimers();
-	});
-
-	it("handles invalid last_poll_time gracefully", () => {
-		render(
-			<PollerWarning
-				poller={makePoller({
-					status: "ok",
-					stale: true,
-					last_poll_time: "not-a-date",
-				})}
-			/>,
-		);
-		const status = screen.getByRole("status");
-		expect(status).toHaveTextContent("Data may be stale.");
+		it.each([
+			[
+				new Date("2026-04-09T10:01:30Z"),
+				"2026-04-09T10:01:00Z",
+				"(last update 30s ago)",
+			],
+			[
+				new Date("2026-04-09T10:05:00Z"),
+				"2026-04-09T10:00:00Z",
+				"(last update 5m ago)",
+			],
+			[
+				new Date("2026-04-09T12:00:00Z"),
+				"2026-04-09T10:00:00Z",
+				"(last update 2h ago)",
+			],
+		])("renders timestamp %s", (now, lastPollTime, expectedText) => {
+			vi.useFakeTimers();
+			vi.setSystemTime(now);
+			const el = renderStatus(
+				makeStalePoller({ last_poll_time: lastPollTime }),
+			);
+			expect(el).toHaveTextContent(expectedText);
+			vi.useRealTimers();
+		});
 	});
 });

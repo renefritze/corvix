@@ -21,7 +21,7 @@ function focusRelativeRow(delta: number) {
 	);
 	if (rows.length === 0) return;
 
-	const active = document.activeElement as HTMLElement | null;
+	const active = document.activeElement;
 	const current = active?.closest(
 		"tr.notification-row",
 	) as HTMLTableRowElement | null;
@@ -38,7 +38,7 @@ function focusRelativeRow(delta: number) {
 }
 
 function openFocusedRow() {
-	const active = document.activeElement as HTMLElement | null;
+	const active = document.activeElement;
 	const row = active?.closest(
 		"tr.notification-row",
 	) as HTMLTableRowElement | null;
