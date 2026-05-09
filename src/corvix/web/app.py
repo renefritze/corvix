@@ -22,7 +22,7 @@ from litestar.static_files import create_static_files_router
 
 from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, load_config
 from corvix.dashboarding import build_dashboard_data
-from corvix.domain import NotificationRecord, PollerStatus
+from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
@@ -101,7 +101,7 @@ def _health_error(poller_status: PollerStatus) -> dict[str, object]:
 
 def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
     try:
-        last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
+        last_poll = parse_timestamp(last_poll_str)
     except ValueError:
         return {"status": "unhealthy", "reason": "invalid_poll_time"}
     staleness = datetime.now(tz=UTC) - last_poll
@@ -181,7 +181,7 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     stale = False
     if last_poll_str:
         try:
-            last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
+            last_poll = parse_timestamp(last_poll_str)
             stale = (datetime.now(tz=UTC) - last_poll) > timedelta(minutes=5)
         except ValueError:
             stale = True
@@ -466,6 +466,9 @@ def _load_runtime_config() -> AppConfig:
         return load_config(config_path)
     except ValueError as error:
         msg = f"Invalid config at '{config_path}': {error}"
+        raise HTTPException(status_code=500, detail=msg) from error
+    except OSError as error:
+        msg = f"Unable to read config at '{config_path}': {error}"
         raise HTTPException(status_code=500, detail=msg) from error
 
 

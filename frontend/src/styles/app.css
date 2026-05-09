@@ -700,6 +700,8 @@ body.col-resizing * {
   font-size: 0.9rem;
 }
 .poller-warning__text {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

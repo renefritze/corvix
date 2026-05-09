@@ -16,6 +16,7 @@ function lastPollText(lastPollTime: string | null): string {
 
 export function PollerWarning({ poller }: PollerWarningProps) {
 	const { status, last_error: lastError, stale, last_poll_time } = poller;
+	const lastUpdateText = lastPollText(last_poll_time);
 
 	if (status === "error") {
 		const message = lastError
@@ -50,10 +51,7 @@ export function PollerWarning({ poller }: PollerWarningProps) {
 				</span>
 				<span class="poller-warning__text">
 					Data may be stale
-					{last_poll_time
-						? ` (last update ${lastPollText(last_poll_time)})`
-						: ""}
-					.
+					{lastUpdateText ? ` (last update ${lastUpdateText})` : ""}.
 				</span>
 			</div>
 		);

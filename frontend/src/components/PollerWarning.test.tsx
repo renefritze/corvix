@@ -137,6 +137,6 @@ describe("PollerWarning", () => {
 			/>,
 		);
 		const alert = screen.getByRole("alert");
-		expect(alert).toHaveTextContent("Data may be stale (last update ).");
+		expect(alert).toHaveTextContent("Data may be stale.");
 	});
 });
