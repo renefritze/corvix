@@ -83,12 +83,12 @@ class NotificationCache:
         with self._exclusive_lock():
             try:
                 _, existing_records = self._load_unlocked()
-            except (json.JSONDecodeError, ValueError, OSError):
+            except (ValueError, OSError):
                 existing_records = []
             if poller_status is None:
                 try:
                     existing_status = self._load_status_unlocked()
-                except (json.JSONDecodeError, ValueError, OSError):
+                except (ValueError, OSError):
                     existing_status = None
             else:
                 existing_status = None
@@ -118,7 +118,7 @@ class NotificationCache:
             try:
                 _, records = self._load_unlocked()
                 generated_raw = self._load_raw_generated_at()
-            except (json.JSONDecodeError, ValueError, OSError):
+            except (ValueError, OSError):
                 records: list[NotificationRecord] = []
                 generated_at = datetime.now(tz=UTC)
             else:
@@ -190,7 +190,7 @@ class NotificationCache:
         if status_to_save is None:
             try:
                 status_to_save = self._load_status_unlocked()
-            except (json.JSONDecodeError, ValueError, OSError):
+            except (ValueError, OSError):
                 status_to_save = None
         payload: dict[str, object] = {
             "generated_at": format_timestamp(generated_at),
@@ -260,7 +260,7 @@ class NotificationCache:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
                 try:
                     existing_status = self._load_status_unlocked()
-                except (json.JSONDecodeError, ValueError, OSError):
+                except (ValueError, OSError):
                     existing_status = None
                 self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
@@ -282,7 +282,7 @@ class NotificationCache:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
                 try:
                     existing_status = self._load_status_unlocked()
-                except (json.JSONDecodeError, ValueError, OSError):
+                except (ValueError, OSError):
                     existing_status = None
                 self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
