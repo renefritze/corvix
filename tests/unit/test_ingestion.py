@@ -233,7 +233,7 @@ def test_request_json_reads_and_decodes_payload() -> None:
         payload = client._request_json("https://api.example.com/notifications", method="GET", timeout_seconds=1.5)
 
     assert payload == {"ok": True}
-    assert mock_urlopen.call_args.kwargs["timeout"] == 1.5
+    assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(1.5)
 
 
 def test_request_no_content_uses_empty_request_body() -> None:
@@ -287,7 +287,7 @@ def test_retry_delay_seconds_uses_retry_after_header() -> None:
         fp=io.BytesIO(b"{}"),
     )
 
-    assert _retry_delay_seconds(err, attempt=1) == 10.0
+    assert _retry_delay_seconds(err, attempt=1) == pytest.approx(10.0)
 
 
 def test_retry_delay_seconds_falls_back_for_invalid_retry_after() -> None:
@@ -299,7 +299,7 @@ def test_retry_delay_seconds_falls_back_for_invalid_retry_after() -> None:
         fp=io.BytesIO(b"{}"),
     )
 
-    assert _retry_delay_seconds(err, attempt=3) == 2.0
+    assert _retry_delay_seconds(err, attempt=3) == pytest.approx(2.0)
 
 
 # --- resolve_web_urls ---
