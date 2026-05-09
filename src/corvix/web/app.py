@@ -119,7 +119,7 @@ def health() -> dict[str, object]:
     """Health endpoint for container checks.
 
     Returns 200 with {"status": "unhealthy"} when the poller is in error or
-    the cache has not been updated in the last 5 minutes.  Returns
+    the poller's last poll time is older than 5 minutes. Returns
     {"status": "ok"} otherwise.
     """
     try:
