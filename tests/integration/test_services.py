@@ -287,6 +287,36 @@ def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
     assert results[0].rows == 1
 
 
+def test_no_filters_dashboard_renders_excluded_cached_records(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    client = FakeClient(_build_notifications(now))
+    cache = NotificationCache(path=cache_path)
+
+    run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
+    )
+
+    console = Console(record=True)
+    results = render_cached_dashboards(
+        config=config,
+        cache=cache,
+        console=console,
+        dashboard_name="no filters",
+    )
+
+    assert len(results) == 1
+    assert results[0].dashboard_name == "no filters"
+    assert results[0].rows == 2
+
+
 def test_poll_with_global_and_repository_rules(tmp_path: Path) -> None:
     now = datetime.now(tz=UTC)
     cache_path = tmp_path / "notifications.json"
@@ -565,8 +595,9 @@ def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:
 def test_select_dashboards_returns_all_when_none(tmp_path: Path) -> None:
     config = _build_config(tmp_path / "cache.json")
     selected = _select_dashboards(config, None)
-    assert len(selected) == 1
+    assert len(selected) == 2
     assert selected[0].name == "triage"
+    assert selected[1].name == "no filters"
 
 
 def test_select_dashboards_returns_named(tmp_path: Path) -> None:
@@ -574,6 +605,13 @@ def test_select_dashboards_returns_named(tmp_path: Path) -> None:
     selected = _select_dashboards(config, "triage")
     assert len(selected) == 1
     assert selected[0].name == "triage"
+
+
+def test_select_dashboards_returns_built_in_no_filters_dashboard(tmp_path: Path) -> None:
+    config = _build_config(tmp_path / "cache.json")
+    selected = _select_dashboards(config, "no filters")
+    assert len(selected) == 1
+    assert selected[0].name == "no filters"
 
 
 def test_select_dashboards_raises_for_missing(tmp_path: Path) -> None:
@@ -586,5 +624,6 @@ def test_select_dashboards_default_when_no_config_dashboards(tmp_path: Path) -> 
     config = _build_config(tmp_path / "cache.json")
     config.dashboards.clear()
     selected = _select_dashboards(config, None)
-    assert len(selected) == 1
+    assert len(selected) == 2
     assert selected[0].name == "default"
+    assert selected[1].name == "no filters"

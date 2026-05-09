@@ -12,7 +12,7 @@ from typing import Protocol, cast
 from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
-from corvix.config import AppConfig, DashboardSpec, PollingConfig
+from corvix.config import AppConfig, DashboardSpec, PollingConfig, available_dashboards
 from corvix.domain import Notification, NotificationRecord, PollerStatus, format_timestamp, notification_key
 from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
 from corvix.enrichment.engine import EnrichmentEngine
@@ -303,9 +303,7 @@ def render_cached_dashboards(
 
 
 def _select_dashboards(config: AppConfig, dashboard_name: str | None) -> list[DashboardSpec]:
-    dashboards = config.dashboards or [
-        DashboardSpec(name="default", group_by="repository", sort_by="score"),
-    ]
+    dashboards = available_dashboards(config.dashboards)
     if dashboard_name is None:
         return dashboards
     selected = [dashboard for dashboard in dashboards if dashboard.name == dashboard_name]

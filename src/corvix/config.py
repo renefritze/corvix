@@ -12,6 +12,7 @@ _POLLING_PER_PAGE_MIN = 1
 _POLLING_PER_PAGE_MAX = 50
 _CONTEXT_OPERATORS = {"equals", "not_equals", "contains", "regex", "in", "exists"}
 DEFAULT_GITHUB_API_BASE_URL = "https://api.github.com"
+NO_FILTERS_DASHBOARD_NAME = "no filters"
 
 
 @dataclass(slots=True)
@@ -77,6 +78,38 @@ class DashboardSpec:
     max_items: int = 100
     match: MatchCriteria = field(default_factory=MatchCriteria)
     ignore_rules: list[MatchCriteria] = field(default_factory=list)
+
+
+def default_dashboard() -> DashboardSpec:
+    """Return the fallback dashboard used when config defines none."""
+    return DashboardSpec(name="default", group_by="repository", sort_by="score")
+
+
+def no_filters_dashboard() -> DashboardSpec:
+    """Return the hardcoded dashboard that bypasses config-driven filtering."""
+    return DashboardSpec(
+        name=NO_FILTERS_DASHBOARD_NAME,
+        group_by="repository",
+        sort_by="score",
+        descending=True,
+        include_read=True,
+        max_items=0,
+    )
+
+
+def available_dashboards(dashboards: list[DashboardSpec]) -> list[DashboardSpec]:
+    """Return configured dashboards plus the built-in rule-free dashboard."""
+    configured_dashboards = [dashboard for dashboard in dashboards if dashboard.name != NO_FILTERS_DASHBOARD_NAME]
+    if configured_dashboards:
+        return [*configured_dashboards, no_filters_dashboard()]
+    if dashboards:
+        return [no_filters_dashboard()]
+    return [default_dashboard(), no_filters_dashboard()]
+
+
+def is_no_filters_dashboard(dashboard: DashboardSpec) -> bool:
+    """Return whether the dashboard is the hardcoded rule-free dashboard."""
+    return dashboard.name == NO_FILTERS_DASHBOARD_NAME
 
 
 @dataclass(slots=True)

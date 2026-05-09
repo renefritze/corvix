@@ -61,6 +61,7 @@ def _record_payload(
     reason: str,
     score: float,
     unread: bool = True,
+    excluded: bool = False,
     context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return {
@@ -74,7 +75,7 @@ def _record_payload(
         "thread_url": f"https://api.github.com/notifications/threads/{thread_id}",
         "web_url": f"https://github.com/{repository}/pull/{thread_id}",
         "score": score,
-        "excluded": False,
+        "excluded": excluded,
         "matched_rules": [],
         "actions_taken": [],
         "dismissed": False,
@@ -397,7 +398,7 @@ def test_snapshot_multiple_dashboards(populated_client: TestClient) -> None:
     response = populated_client.get("/api/dashboards")
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()["dashboard_names"] == ["overview", "triage"]
+    assert response.json()["dashboard_names"] == ["overview", "triage", "no filters"]
 
 
 def test_snapshot_respects_dashboard_filters(populated_client: TestClient) -> None:
@@ -410,6 +411,40 @@ def test_snapshot_respects_dashboard_filters(populated_client: TestClient) -> No
     reasons = [item["reason"] for group in payload["groups"] for item in group["items"]]
     assert reasons
     assert set(reasons) == {"mention"}
+
+
+def test_snapshot_no_filters_bypasses_excluded_flag(configured_client: TestClient) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    cache_file.write_text(
+        json.dumps(
+            {
+                "generated_at": GENERATED_AT,
+                "notifications": [
+                    _record_payload(thread_id="101", repository="org/repo-a", reason="mention", score=90.0),
+                    _record_payload(
+                        thread_id="102",
+                        repository="org/repo-b",
+                        reason="subscribed",
+                        score=30.0,
+                        excluded=True,
+                        unread=False,
+                    ),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = configured_client.get("/api/snapshot?dashboard=no%20filters")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["name"] == "no filters"
+    assert payload["include_read"] is True
+    assert payload["total_items"] == 2
+    assert payload["dashboard_names"] == ["triage", "no filters"]
+    assert {item["thread_id"] for group in payload["groups"] for item in group["items"]} == {"101", "102"}
 
 
 def test_snapshot_sorting_order(populated_client: TestClient) -> None:

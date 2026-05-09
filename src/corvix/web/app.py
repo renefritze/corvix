@@ -20,7 +20,7 @@ from litestar.datastructures.headers import CacheControlHeader
 from litestar.exceptions import HTTPException
 from litestar.static_files import create_static_files_router
 
-from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, load_config
+from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, available_dashboards, load_config
 from corvix.dashboarding import build_dashboard_data
 from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
@@ -479,7 +479,7 @@ def _select_dashboard(
     dashboards: list[DashboardSpec],
     selected_name: str | None,
 ) -> DashboardSpec:
-    available = dashboards or [DashboardSpec(name="default", group_by="repository", sort_by="score")]
+    available = available_dashboards(dashboards)
     if selected_name is None:
         return available[0]
     for dashboard in available:
@@ -490,7 +490,7 @@ def _select_dashboard(
 
 
 def _dashboard_names(dashboards: list[DashboardSpec]) -> list[str]:
-    available = dashboards or [DashboardSpec(name="default", group_by="repository", sort_by="score")]
+    available = available_dashboards(dashboards)
     return [dashboard.name for dashboard in available]
 
 
