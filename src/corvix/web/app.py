@@ -22,7 +22,7 @@ from litestar.static_files import create_static_files_router
 
 from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, load_config
 from corvix.dashboarding import build_dashboard_data
-from corvix.domain import NotificationRecord
+from corvix.domain import NotificationRecord, PollerStatus
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
@@ -92,6 +92,28 @@ def dashboard_index(dashboard_name: str) -> Response[str]:
     return Response(content=INDEX_HTML, media_type="text/html")
 
 
+def _health_error(poller_status: PollerStatus) -> dict[str, object]:
+    raw_detail = poller_status.get("last_error")
+    if isinstance(raw_detail, str):
+        raw_detail = raw_detail.split("\n")[-1].strip() or raw_detail
+    return {"status": "unhealthy", "reason": "poller_error", "detail": raw_detail}
+
+
+def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
+    try:
+        last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
+    except ValueError:
+        return {"status": "unhealthy", "reason": "invalid_poll_time"}
+    staleness = datetime.now(tz=UTC) - last_poll
+    if staleness > timedelta(minutes=5):
+        return {
+            "status": "unhealthy",
+            "reason": "stale",
+            "last_poll_seconds_ago": int(staleness.total_seconds()),
+        }
+    return {"status": "ok"}
+
+
 @get("/api/health", sync_to_thread=False)
 def health() -> dict[str, object]:
     """Health endpoint for container checks.
@@ -104,44 +126,20 @@ def health() -> dict[str, object]:
         config = _load_runtime_config()
     except HTTPException:
         return {"status": "unhealthy", "reason": "config_unavailable"}
-
-    result: dict[str, object] = {"status": "ok"}
     cache = NotificationCache(path=config.resolve_cache_file())
     try:
         poller_status = cache.load_status()
     except (OSError, json.JSONDecodeError):
         return {"status": "unhealthy", "reason": "invalid_cache"}
-
     status = poller_status.get("status", "unknown")
     if status == "error":
-        raw_detail = poller_status.get("last_error")
-        if isinstance(raw_detail, str):
-            raw_detail = raw_detail.split("\n")[-1].strip() or raw_detail
-        result = {
-            "status": "unhealthy",
-            "reason": "poller_error",
-            "detail": raw_detail,
-        }
-    elif status in {"unknown", "starting"}:
-        result = {"status": "unhealthy", "reason": "poller_not_running"}
-    else:
-        last_poll_str = poller_status.get("last_poll_time")
-        if last_poll_str:
-            try:
-                last_poll = datetime.fromisoformat(last_poll_str.replace("Z", "+00:00"))
-            except ValueError:
-                result = {"status": "unhealthy", "reason": "invalid_poll_time"}
-            else:
-                staleness = datetime.now(tz=UTC) - last_poll
-                if staleness > timedelta(minutes=5):
-                    result = {
-                        "status": "unhealthy",
-                        "reason": "stale",
-                        "last_poll_seconds_ago": int(staleness.total_seconds()),
-                    }
-        else:
-            result = {"status": "unhealthy", "reason": "invalid_poll_time"}
-    return result
+        return _health_error(poller_status)
+    if status in {"unknown", "starting"}:
+        return {"status": "unhealthy", "reason": "poller_not_running"}
+    last_poll_str = poller_status.get("last_poll_time")
+    if not last_poll_str:
+        return {"status": "unhealthy", "reason": "invalid_poll_time"}
+    return _health_check_staleness(last_poll_str)
 
 
 @get("/api/themes", sync_to_thread=False)
