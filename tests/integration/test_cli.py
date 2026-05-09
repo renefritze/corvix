@@ -18,10 +18,6 @@ def test_version() -> None:
     assert corvix.__version__
 
 
-def test_import() -> None:
-    pass
-
-
 def test_command_line_interface() -> None:
     runner = CliRunner()
     result = runner.invoke(cli.main)

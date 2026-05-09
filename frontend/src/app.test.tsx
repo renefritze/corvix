@@ -539,10 +539,10 @@ describe("App", () => {
 		render(<App />);
 
 		await waitFor(() => {
-			expect(screen.getByRole("alert")).toHaveTextContent("Data may be stale");
+			expect(screen.getByRole("status")).toHaveTextContent("Data may be stale");
 		});
 		expect(
-			screen.getByRole("alert").classList.contains("poller-warning--stale"),
+			screen.getByRole("status").classList.contains("poller-warning--stale"),
 		).toBe(true);
 	});
 

@@ -118,9 +118,12 @@ def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
 def health() -> dict[str, object]:
     """Health endpoint for container checks.
 
-    Returns 200 with {"status": "unhealthy"} when the poller is in error or
-    the poller's last poll time is older than 5 minutes. Returns
-    {"status": "ok"} otherwise.
+    Returns 200 with {"status": "ok"} when config and cache are readable,
+    the poller is running, and the poller's last poll time is not stale.
+
+    Returns 200 with {"status": "unhealthy"} and one of these reasons:
+    "config_unavailable", "invalid_cache", "poller_not_running",
+    "poller_error", "invalid_poll_time", or "stale".
     """
     try:
         config = _load_runtime_config()

@@ -34,7 +34,11 @@ export function PollerWarning({ poller }: PollerWarningProps) {
 
 	if (status === "unknown" || status === "starting") {
 		return (
-			<div class="poller-warning poller-warning--pending" role="alert">
+			<div
+				class="poller-warning poller-warning--pending"
+				role="status"
+				aria-live="polite"
+			>
 				<span class="poller-warning__icon" aria-hidden="true">
 					⏳
 				</span>
@@ -45,7 +49,11 @@ export function PollerWarning({ poller }: PollerWarningProps) {
 
 	if (stale) {
 		return (
-			<div class="poller-warning poller-warning--stale" role="alert">
+			<div
+				class="poller-warning poller-warning--stale"
+				role="status"
+				aria-live="polite"
+			>
 				<span class="poller-warning__icon" aria-hidden="true">
 					🕐
 				</span>

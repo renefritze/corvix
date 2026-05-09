@@ -48,16 +48,16 @@ describe("PollerWarning", () => {
 
 	it("renders pending alert for unknown status", () => {
 		render(<PollerWarning poller={makePoller({ status: "unknown" })} />);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveClass("poller-warning--pending");
-		expect(alert).toHaveTextContent("Waiting for poller to start...");
+		const status = screen.getByRole("status");
+		expect(status).toHaveClass("poller-warning--pending");
+		expect(status).toHaveTextContent("Waiting for poller to start...");
 	});
 
 	it("renders pending alert for starting status", () => {
 		render(<PollerWarning poller={makePoller({ status: "starting" })} />);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveClass("poller-warning--pending");
-		expect(alert).toHaveTextContent("Waiting for poller to start...");
+		const status = screen.getByRole("status");
+		expect(status).toHaveClass("poller-warning--pending");
+		expect(status).toHaveTextContent("Waiting for poller to start...");
 	});
 
 	it("renders stale alert when ok but stale without last_poll_time", () => {
@@ -70,9 +70,9 @@ describe("PollerWarning", () => {
 				})}
 			/>,
 		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveClass("poller-warning--stale");
-		expect(alert).toHaveTextContent("Data may be stale.");
+		const status = screen.getByRole("status");
+		expect(status).toHaveClass("poller-warning--stale");
+		expect(status).toHaveTextContent("Data may be stale.");
 	});
 
 	it("renders stale alert with seconds-ago timestamp", () => {
@@ -87,8 +87,8 @@ describe("PollerWarning", () => {
 				})}
 			/>,
 		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveTextContent("(last update 30s ago)");
+		const status = screen.getByRole("status");
+		expect(status).toHaveTextContent("(last update 30s ago)");
 		vi.useRealTimers();
 	});
 
@@ -104,8 +104,8 @@ describe("PollerWarning", () => {
 				})}
 			/>,
 		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveTextContent("(last update 5m ago)");
+		const status = screen.getByRole("status");
+		expect(status).toHaveTextContent("(last update 5m ago)");
 		vi.useRealTimers();
 	});
 
@@ -121,8 +121,8 @@ describe("PollerWarning", () => {
 				})}
 			/>,
 		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveTextContent("(last update 2h ago)");
+		const status = screen.getByRole("status");
+		expect(status).toHaveTextContent("(last update 2h ago)");
 		vi.useRealTimers();
 	});
 
@@ -136,7 +136,7 @@ describe("PollerWarning", () => {
 				})}
 			/>,
 		);
-		const alert = screen.getByRole("alert");
-		expect(alert).toHaveTextContent("Data may be stale.");
+		const status = screen.getByRole("status");
+		expect(status).toHaveTextContent("Data may be stale.");
 	});
 });

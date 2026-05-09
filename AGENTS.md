@@ -41,9 +41,9 @@ This starts three services sharing a `corvix_state` volume:
 
 1. `config/corvix.yaml` must exist (copy from `config/corvix.example.yaml`)
 2. `.env` must exist at the repository root containing one or more GitHub token
-   environment variables. For a single account setup use
-   ``GITHUB_TOKEN``; for multiple accounts ensure the variable
-   names match the ``token_env`` entries in your ``config/corvix.yaml``.
+   environment variables. For a single account setup use `GITHUB_TOKEN`; for
+   multiple accounts ensure each variable name matches the corresponding
+   `token_env` entry in `config/corvix.yaml`.
    Example:
 
    ```bash
@@ -53,9 +53,8 @@ This starts three services sharing a `corvix_state` volume:
 
 3. `secrets/postgres_password.txt` and `secrets/database_url.txt` must exist
 
-Ensure the `token_env` entries in your `config/corvix.yaml` match these variable names.
-The Docker Compose setup will load `.env` into the containers so Corvix can resolve
-each account's token by name.
+The Docker Compose setup loads `.env` into the containers so Corvix can resolve
+each account token by its configured `token_env` name.
 
 Frontend assets are generated during image build and are not committed to git. Rebuild images (`docker compose up --build`) after frontend changes.
 
