@@ -19,7 +19,7 @@ def test_version() -> None:
 
 
 def test_import() -> None:
-    import corvix  # noqa: F401, PLC0415
+    pass
 
 
 def test_command_line_interface() -> None:

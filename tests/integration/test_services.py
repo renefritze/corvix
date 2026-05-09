@@ -457,10 +457,12 @@ def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
     cache = NotificationCache(path=cache_path)
 
     summaries = run_watch_loop(
-        config=config,
-        client=client,
-        cache=cache,
-        apply_actions=False,
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+        ),
         iterations=2,
     )
 
@@ -474,9 +476,11 @@ def test_watch_loop_persists_error_status_when_poll_cycle_fails(tmp_path: Path) 
     cache = NotificationCache(path=cache_path)
 
     summaries = run_watch_loop(
-        config=config,
-        cache=cache,
-        apply_actions=False,
+        PollCycleInput(
+            config=config,
+            cache=cache,
+            apply_actions=False,
+        ),
         iterations=1,
     )
     poller_status = cache.load_status()
@@ -503,9 +507,11 @@ def test_watch_loop_logs_warning_when_error_status_cannot_be_persisted(
 
     with caplog.at_level("WARNING"):
         summaries = run_watch_loop(
-            config=config,
-            cache=cache,
-            apply_actions=False,
+            PollCycleInput(
+                config=config,
+                cache=cache,
+                apply_actions=False,
+            ),
             iterations=1,
         )
 

@@ -266,36 +266,22 @@ def _handle_cycle_error(iteration: int, cache: NotificationCache, runs: list[Pol
         logger.warning("Failed to persist poller error status", exc_info=True)
 
 
-def run_watch_loop(  # noqa: PLR0913
-    config: AppConfig,
-    cache: NotificationCache,
-    apply_actions: bool,
-    clients: tuple[NotificationsClient, ...] | None = None,
-    client: NotificationsClient | None = None,
+def run_watch_loop(
+    input: PollCycleInput,
     iterations: int | None = None,
 ) -> list[PollingSummary]:
     """Run polling loop suitable for local daemon usage."""
     runs: list[PollingSummary] = []
-    active_clients = clients or ((client,) if client is not None else ())
     iteration = 0
     while iterations is None or iteration < iterations:
         try:
-            runs.append(
-                run_poll_cycle(
-                    PollCycleInput(
-                        config=config,
-                        clients=active_clients,
-                        cache=cache,
-                        apply_actions=apply_actions,
-                    )
-                ),
-            )
+            runs.append(run_poll_cycle(input))
         except Exception:
-            _handle_cycle_error(iteration, cache, runs)
+            _handle_cycle_error(iteration, input.cache, runs)
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break
-        time.sleep(config.polling.interval_seconds)
+        time.sleep(input.config.polling.interval_seconds)
     return runs
 
 
