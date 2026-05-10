@@ -30,7 +30,9 @@ def _random_password(length: int = 32) -> str:
         secrets.choice(string.digits),
     ]
     password_chars += [secrets.choice(alphabet) for _ in range(length - min_length)]
-    secrets.SystemRandom().shuffle(password_chars)
+    for i in range(len(password_chars) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        password_chars[i], password_chars[j] = password_chars[j], password_chars[i]
     return "".join(password_chars)
 
 
