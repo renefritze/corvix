@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from corvix.config import DashboardSpec
+from corvix.config import DashboardSpec, is_no_filters_dashboard
 from corvix.domain import NotificationRecord
 from corvix.rules import matches_criteria
 
@@ -157,9 +157,11 @@ def _included_by_dashboard(
     dashboard: DashboardSpec,
     now: datetime,
 ) -> bool:
-    if record.excluded:
-        return False
     if record.dismissed:
+        return False
+    if is_no_filters_dashboard(dashboard):
+        return True
+    if record.excluded:
         return False
     if not dashboard.include_read and not record.notification.unread:
         return False

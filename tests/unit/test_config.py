@@ -331,6 +331,20 @@ def test_ensure_list_raises_for_non_list(tmp_path: Path) -> None:
         load_config(config_file)
 
 
+def test_dashboard_name_no_filters_is_reserved(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+dashboards:
+  - name: no filters
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"dashboards\[\]\.name.*reserved"):
+        load_config(config_file)
+
+
 def test_to_str_list_raises_for_non_list(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text(

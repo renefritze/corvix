@@ -53,7 +53,7 @@ def test_dashboard_selector_lists_and_switches(app_page: PageLike) -> None:
 
     selector = app_page.get_by_label("Select dashboard")
     expect(selector).to_be_visible()
-    expect(selector.locator("option")).to_have_count(3)
+    expect(selector.locator("option")).to_have_count(4)
     selector.select_option("triage")
     expect(app_page.locator("tr.notification-row")).to_have_count(2)
     expect(app_page.locator("tr.group-header-row")).to_contain_text(["mention"])

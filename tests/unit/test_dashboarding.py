@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from corvix.config import ContextPredicate, DashboardSpec, MatchCriteria
+from corvix.config import ContextPredicate, DashboardSpec, MatchCriteria, no_filters_dashboard
 from corvix.dashboarding import DashboardItem, build_dashboard_data
 from corvix.domain import Notification, NotificationRecord
 
@@ -79,6 +79,16 @@ def test_excluded_records_filtered_out() -> None:
     assert data.groups[0].items[0].thread_id == "1"
 
 
+def test_no_filters_dashboard_includes_excluded_records() -> None:
+    records = [
+        _make_record(thread_id="1", excluded=False),
+        _make_record(thread_id="2", excluded=True, unread=False),
+    ]
+    data = build_dashboard_data(records=records, dashboard=no_filters_dashboard(), generated_at=NOW)
+    assert data.total_items == 2
+    assert [item.thread_id for item in data.groups[0].items] == ["1", "2"]
+
+
 def test_dismissed_records_filtered_out() -> None:
     records = [
         _make_record(thread_id="1", dismissed=False),
@@ -105,6 +115,18 @@ def test_dashboard_ignore_rules_filter_records() -> None:
     )
     assert data.total_items == 1
     assert data.groups[0].items[0].thread_id == "1"
+
+
+def test_no_filters_dashboard_bypasses_dashboard_match_and_ignore_rules() -> None:
+    records = [
+        _make_record(thread_id="1", reason="mention"),
+        _make_record(thread_id="2", reason="subscribed"),
+    ]
+    dashboard = no_filters_dashboard()
+    dashboard.match = MatchCriteria(reason_in=["mention"])
+    dashboard.ignore_rules = [MatchCriteria(reason_in=["subscribed"])]
+    data = build_dashboard_data(records=records, dashboard=dashboard, generated_at=NOW)
+    assert data.total_items == 2
 
 
 def test_read_records_excluded_when_include_read_false() -> None:
