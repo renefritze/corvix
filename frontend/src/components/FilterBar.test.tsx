@@ -115,4 +115,33 @@ describe("FilterBar", () => {
 			}),
 		).toBeInTheDocument();
 	});
+
+	it("keeps selected reasons visible when they no longer exist in the current items", () => {
+		render(
+			<FilterBar
+				filters={{
+					unread: "unread",
+					reason: ["mention", "author"],
+					repository: "",
+				}}
+				includeRead={false}
+				items={[makeItem({ reason: "review_requested" })]}
+				onFilterChange={vi.fn()}
+				onClearFilters={vi.fn()}
+				generatedAt={null}
+			/>,
+		);
+
+		const reasonFilter = screen.getByLabelText("Reason filter");
+		expect(
+			within(reasonFilter).getByRole("option", {
+				name: "mention (no unread notifications)",
+			}),
+		).toBeDisabled();
+		expect(
+			within(reasonFilter).getByRole("option", {
+				name: "author (no unread notifications)",
+			}),
+		).toBeDisabled();
+	});
 });

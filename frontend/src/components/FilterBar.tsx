@@ -25,15 +25,19 @@ export function FilterBar({
 	const reasons = Array.from(new Set(items.map((i) => i.reason))).sort((a, b) =>
 		a.localeCompare(b),
 	);
+	const missingReasons = Array.from(
+		new Set(filters.reason.filter((reason) => !reasons.includes(reason))),
+	);
 	const repositories = Array.from(new Set(items.map((i) => i.repository))).sort(
 		(a, b) => a.localeCompare(b),
 	);
 	const selectedRepositoryMissing =
 		filters.repository !== "" && !repositories.includes(filters.repository);
-	const selectedRepositoryLabel =
+	const missingFilterLabel =
 		filters.unread === "unread"
-			? `${filters.repository} (no unread notifications)`
-			: `${filters.repository} (no matching notifications)`;
+			? "no unread notifications"
+			: "no matching notifications";
+	const selectedRepositoryLabel = `${filters.repository} (${missingFilterLabel})`;
 
 	return (
 		<div class="filter-row">
@@ -67,6 +71,11 @@ export function FilterBar({
 				}}
 				aria-label="Reason filter"
 			>
+				{missingReasons.map((reason) => (
+					<option key={reason} value={reason} selected={true} disabled>
+						{`${reason} (${missingFilterLabel})`}
+					</option>
+				))}
 				{reasons.map((r) => (
 					<option key={r} value={r}>
 						{r}
