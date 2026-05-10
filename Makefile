@@ -1,4 +1,4 @@
-.PHONY: frontend-build docs-build build downup rebuild updown lighthouse ui-screenshot reset-state
+.PHONY: frontend-build docs-build build downup rebuild updown lighthouse ui-screenshot reset-state first-run
 
 frontend-build:
 	./scripts/frontend_build.sh
@@ -28,3 +28,6 @@ ui-screenshot:
 
 reset-state:
 	bash scripts/reset-state.sh
+
+first-run:
+	uv run scripts/first_run.py
