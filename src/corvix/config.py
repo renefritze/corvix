@@ -648,9 +648,16 @@ def _parse_dashboards(value: object) -> list[DashboardSpec]:
     parsed: list[DashboardSpec] = []
     for raw_dashboard in dashboards:
         dashboard = _ensure_map(raw_dashboard, "dashboard entry")
+        dashboard_name = _get_str(dashboard, "name", "default", "dashboards[].name")
+        if dashboard_name == NO_FILTERS_DASHBOARD_NAME:
+            msg = (
+                f"Config field 'dashboards[].name' cannot be '{NO_FILTERS_DASHBOARD_NAME}' "
+                "because that dashboard name is reserved."
+            )
+            raise ValueError(msg)
         parsed.append(
             DashboardSpec(
-                name=_get_str(dashboard, "name", "default", "dashboards[].name"),
+                name=dashboard_name,
                 group_by=_get_str(dashboard, "group_by", "none", "dashboards[].group_by"),
                 sort_by=_get_str(dashboard, "sort_by", "score", "dashboards[].sort_by"),
                 descending=_get_bool(dashboard, "descending", True, "dashboards[].descending"),
