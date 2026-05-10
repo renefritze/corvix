@@ -18,8 +18,20 @@ CONFIG_FILE = CONFIG_DIR / "corvix.yaml"
 
 
 def _random_password(length: int = 32) -> str:
+    min_length = 3
+    if length < min_length:
+        msg = f"Password length must be at least {min_length}"
+        raise ValueError(msg)
     alphabet = string.ascii_letters + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(length))
+    # Guarantee at least one lowercase, uppercase, and digit
+    password_chars = [
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.digits),
+    ]
+    password_chars += [secrets.choice(alphabet) for _ in range(length - min_length)]
+    secrets.SystemRandom().shuffle(password_chars)
+    return "".join(password_chars)
 
 
 def _gh_auth_token() -> str:
