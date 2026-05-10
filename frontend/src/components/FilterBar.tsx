@@ -62,7 +62,6 @@ export function FilterBar({
 			</select>
 			<select
 				multiple
-				value={filters.reason}
 				onChange={(e) => {
 					const selected = Array.from(
 						(e.target as HTMLSelectElement).selectedOptions,
@@ -77,7 +76,7 @@ export function FilterBar({
 					</option>
 				))}
 				{reasons.map((r) => (
-					<option key={r} value={r}>
+					<option key={r} value={r} selected={filters.reason.includes(r)}>
 						{r}
 					</option>
 				))}
