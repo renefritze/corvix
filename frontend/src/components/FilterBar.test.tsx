@@ -137,11 +137,11 @@ describe("FilterBar", () => {
 			within(reasonFilter).getByRole("option", {
 				name: "mention (no unread notifications)",
 			}),
-		).toBeDisabled();
+		).not.toBeDisabled();
 		expect(
 			within(reasonFilter).getByRole("option", {
 				name: "author (no unread notifications)",
 			}),
-		).toBeDisabled();
+		).not.toBeDisabled();
 	});
 });

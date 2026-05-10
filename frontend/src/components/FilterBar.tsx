@@ -72,7 +72,7 @@ export function FilterBar({
 				aria-label="Reason filter"
 			>
 				{missingReasons.map((reason) => (
-					<option key={reason} value={reason} selected={true} disabled>
+					<option key={reason} value={reason} selected={true}>
 						{`${reason} (${missingFilterLabel})`}
 					</option>
 				))}

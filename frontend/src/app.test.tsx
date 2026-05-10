@@ -105,7 +105,10 @@ describe("App", () => {
 		);
 		expect(screen.getByRole("link", { name: "Two" })).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: "One" })).not.toBeInTheDocument();
-		await user.deselectOptions(screen.getByLabelText("Reason filter"), "subscribed");
+		await user.deselectOptions(
+			screen.getByLabelText("Reason filter"),
+			"subscribed",
+		);
 
 		await user.selectOptions(
 			screen.getByLabelText("Select dashboard"),
@@ -115,6 +118,102 @@ describe("App", () => {
 			expect(screen.getByRole("link", { name: "Three" })).toBeInTheDocument();
 		});
 		expect(globalThis.location.pathname).toBe("/dashboards/triage");
+	});
+
+	it("lets users clear missing reason filters after switching dashboards", async () => {
+		setPath("/");
+		const overview = makeSnapshot({
+			name: "overview",
+			groups: [
+				{
+					name: "group-a",
+					items: [
+						makeItem({
+							thread_id: "1",
+							reason: "mention",
+							subject_title: "One",
+						}),
+						makeItem({
+							thread_id: "2",
+							reason: "subscribed",
+							subject_title: "Two",
+						}),
+					],
+				},
+			],
+			total_items: 2,
+			dashboard_names: ["overview", "triage"],
+		});
+
+		const triage = makeSnapshot({
+			name: "triage",
+			groups: [
+				{
+					name: "group-b",
+					items: [
+						makeItem({
+							thread_id: "3",
+							reason: "review_requested",
+							subject_title: "Three",
+						}),
+					],
+				},
+			],
+			total_items: 1,
+			dashboard_names: ["overview", "triage"],
+		});
+
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: FetchInput, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				const url = requestUrl(input);
+				const payload = url.includes("dashboard=triage") ? triage : overview;
+				return {
+					ok: true,
+					json: async () => payload,
+				} as Response;
+			},
+		);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "One" })).toBeInTheDocument();
+		});
+
+		const user = userEvent.setup();
+		const reasonFilter = screen.getByLabelText("Reason filter");
+		await user.selectOptions(reasonFilter, "subscribed");
+		expect(screen.getByRole("link", { name: "Two" })).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: "One" })).not.toBeInTheDocument();
+
+		await user.selectOptions(
+			screen.getByLabelText("Select dashboard"),
+			"triage",
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText("No notifications match the current filters."),
+			).toBeInTheDocument();
+		});
+
+		expect(
+			within(screen.getByLabelText("Reason filter")).getByRole("option", {
+				name: "subscribed (no matching notifications)",
+			}),
+		).toBeInTheDocument();
+
+		await user.deselectOptions(
+			screen.getByLabelText("Reason filter"),
+			"subscribed",
+		);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "Three" })).toBeInTheDocument();
+		});
 	});
 
 	it("shows error state when snapshot fetch fails", async () => {
