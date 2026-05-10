@@ -99,15 +99,14 @@ describe("App", () => {
 		expect(fetchMock).toHaveBeenCalledWith("/api/snapshot");
 
 		const user = userEvent.setup();
-		await user.selectOptions(
-			screen.getByLabelText("Reason filter"),
-			"subscribed",
-		);
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "subscribed" }));
 		expect(screen.getByRole("link", { name: "Two" })).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: "One" })).not.toBeInTheDocument();
-		await user.deselectOptions(
-			screen.getByLabelText("Reason filter"),
-			"subscribed",
+		await user.click(
+			screen.getByRole("button", {
+				name: "Remove subscribed reason filter",
+			}),
 		);
 
 		await user.selectOptions(
@@ -184,8 +183,8 @@ describe("App", () => {
 		});
 
 		const user = userEvent.setup();
-		const reasonFilter = screen.getByLabelText("Reason filter");
-		await user.selectOptions(reasonFilter, "subscribed");
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "subscribed" }));
 		expect(screen.getByRole("link", { name: "Two" })).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: "One" })).not.toBeInTheDocument();
 
@@ -200,15 +199,17 @@ describe("App", () => {
 			).toBeInTheDocument();
 		});
 
+		await user.click(screen.getByLabelText("Reason filter"));
 		expect(
-			within(screen.getByLabelText("Reason filter")).getByRole("option", {
+			screen.getByRole("button", {
 				name: "subscribed (no matching notifications)",
 			}),
 		).toBeInTheDocument();
 
-		await user.deselectOptions(
-			screen.getByLabelText("Reason filter"),
-			"subscribed",
+		await user.click(
+			screen.getByRole("button", {
+				name: "subscribed (no matching notifications)",
+			}),
 		);
 
 		await waitFor(() => {

@@ -27,8 +27,8 @@ describe("FilterBar", () => {
 			/>,
 		);
 
-		const reason = screen.getByLabelText("Reason filter");
-		await user.selectOptions(reason, "subscribed");
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "subscribed" }));
 		expect(onFilterChange).toHaveBeenCalledWith("reason", ["subscribed"]);
 
 		await user.click(screen.getByRole("button", { name: "Clear" }));
@@ -42,7 +42,7 @@ describe("FilterBar", () => {
 
 		render(
 			<FilterBar
-				filters={{ unread: "all", reason: [], repository: "" }}
+				filters={{ unread: "all", reason: ["mention"], repository: "" }}
 				includeRead={true}
 				items={[
 					makeItem({ reason: "mention", repository: "org/a" }),
@@ -63,12 +63,34 @@ describe("FilterBar", () => {
 			/>,
 		);
 
-		const reason = screen.getByLabelText("Reason filter");
-		await user.selectOptions(reason, ["mention", "subscribed"]);
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "subscribed" }));
 		expect(onFilterChange).toHaveBeenLastCalledWith("reason", [
 			"mention",
 			"subscribed",
 		]);
+	});
+
+	it("shows chips and allows removing selected reason", async () => {
+		const onFilterChange = vi.fn();
+		const user = userEvent.setup();
+
+		render(
+			<FilterBar
+				filters={{ unread: "all", reason: ["mention"], repository: "" }}
+				includeRead={true}
+				items={[makeItem({ reason: "mention" })]}
+				onFilterChange={onFilterChange}
+				onClearFilters={vi.fn()}
+				generatedAt={null}
+			/>,
+		);
+
+		expect(screen.getByText("mention")).toBeInTheDocument();
+		await user.click(
+			screen.getByRole("button", { name: "Remove mention reason filter" }),
+		);
+		expect(onFilterChange).toHaveBeenCalledWith("reason", []);
 	});
 
 	it("disables read-state options when dashboard excludes read items", () => {
@@ -116,7 +138,8 @@ describe("FilterBar", () => {
 		).toBeInTheDocument();
 	});
 
-	it("keeps selected reasons visible when they no longer exist in the current items", () => {
+	it("keeps selected reasons visible when they no longer exist in the current items", async () => {
+		const user = userEvent.setup();
 		render(
 			<FilterBar
 				filters={{
@@ -133,15 +156,16 @@ describe("FilterBar", () => {
 		);
 
 		const reasonFilter = screen.getByLabelText("Reason filter");
+		await user.click(reasonFilter);
 		expect(
-			within(reasonFilter).getByRole("option", {
+			screen.getByRole("button", {
 				name: "mention (no unread notifications)",
 			}),
-		).not.toBeDisabled();
+		).toBeInTheDocument();
 		expect(
-			within(reasonFilter).getByRole("option", {
+			screen.getByRole("button", {
 				name: "author (no unread notifications)",
 			}),
-		).not.toBeDisabled();
+		).toBeInTheDocument();
 	});
 });

@@ -138,6 +138,144 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 
+.reason-picker {
+  position: relative;
+  min-width: 230px;
+  max-width: 360px;
+}
+
+.reason-picker-trigger {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding-right: 26px;
+}
+
+.reason-picker-trigger.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+.reason-picker-placeholder,
+.reason-picker-summary {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reason-chip-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.reason-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-elevated) 70%, var(--bg));
+  padding: 1px 7px;
+}
+
+.reason-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reason-chip-remove {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.reason-chip-remove:hover {
+  color: var(--danger);
+}
+
+.reason-picker-caret {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+}
+
+.reason-picker-trigger.open .reason-picker-caret {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.reason-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: 100%;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--surface-elevated);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+}
+
+.reason-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  padding: 6px 8px;
+}
+
+.reason-option:hover,
+.reason-option:focus-visible {
+  background: var(--row-hover);
+}
+
+.reason-option.selected {
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.reason-option-check {
+  width: 14px;
+  color: var(--ok);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.reason-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reason-option.missing .reason-option-label {
+  color: var(--muted);
+}
+
 /* ============================================================
    FORM CONTROLS
    ============================================================ */
