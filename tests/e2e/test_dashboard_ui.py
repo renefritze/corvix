@@ -84,7 +84,8 @@ def test_filter_bar_filters_by_reason(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     reason_filter = app_page.get_by_label("Reason filter")
-    reason_filter.select_option("subscribed")
+    reason_filter.click()
+    app_page.get_by_role("button", name="subscribed").click()
     expect(app_page.locator("tr.notification-row")).to_have_count(1)
     expect(app_page.locator("tr.notification-row .col-reason")).to_have_text("subscribed")
 
@@ -114,15 +115,33 @@ def test_sort_order_matches_config(app_page: PageLike) -> None:
 
 
 @pytest.mark.e2e
-def test_filter_clears_when_input_emptied(app_page: PageLike) -> None:
+def test_filter_clears_when_selected_reason_chip_is_removed(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     rows = app_page.locator("tr.notification-row")
     expect(rows).to_have_count(3)
     reason_filter = app_page.get_by_label("Reason filter")
-    reason_filter.select_option("subscribed")
+    reason_filter.click()
+    app_page.get_by_role("button", name="subscribed").click()
     expect(rows).to_have_count(1)
-    reason_filter.select_option("")
+    app_page.get_by_role("button", name="Remove subscribed reason filter").click()
+    expect(rows).to_have_count(3)
+
+
+@pytest.mark.e2e
+def test_filter_clears_when_selected_reason_option_is_toggled_off(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    rows = app_page.locator("tr.notification-row")
+    expect(rows).to_have_count(3)
+
+    reason_filter = app_page.get_by_label("Reason filter")
+    reason_filter.click()
+    reason_options = app_page.get_by_label("Reason options")
+    reason_options.get_by_role("button", name="subscribed", exact=True).click()
+    expect(rows).to_have_count(1)
+
+    reason_options.get_by_role("button", name="subscribed", exact=True).click()
     expect(rows).to_have_count(3)
 
 

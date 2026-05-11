@@ -1,7 +1,7 @@
 import { useCallback, useState } from "preact/hooks";
 import type { FilterState } from "../types";
 
-const DEFAULT: FilterState = { unread: "all", reason: "", repository: "" };
+const DEFAULT: FilterState = { unread: "all", reason: [], repository: "" };
 
 export function useFilters() {
 	const [filters, setFilters] = useState<FilterState>(DEFAULT);

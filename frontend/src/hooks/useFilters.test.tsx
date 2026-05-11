@@ -7,7 +7,7 @@ function Harness() {
 	return (
 		<div>
 			<div data-testid="state">{JSON.stringify(filters)}</div>
-			<button type="button" onClick={() => setFilter("reason", "subscribed")}>
+			<button type="button" onClick={() => setFilter("reason", ["subscribed"])}>
 				set-reason
 			</button>
 			<button type="button" onClick={() => setFilter("unread", "read")}>
@@ -26,12 +26,12 @@ describe("useFilters", () => {
 		render(<Harness />);
 
 		expect(screen.getByTestId("state")).toHaveTextContent(
-			'{"unread":"all","reason":"","repository":""}',
+			'{"unread":"all","reason":[],"repository":""}',
 		);
 
 		await user.click(screen.getByRole("button", { name: "set-reason" }));
 		expect(screen.getByTestId("state")).toHaveTextContent(
-			'"reason":"subscribed"',
+			'"reason":["subscribed"]',
 		);
 
 		await user.click(screen.getByRole("button", { name: "set-unread" }));
@@ -39,7 +39,7 @@ describe("useFilters", () => {
 
 		await user.click(screen.getByRole("button", { name: "clear" }));
 		expect(screen.getByTestId("state")).toHaveTextContent(
-			'{"unread":"all","reason":"","repository":""}',
+			'{"unread":"all","reason":[],"repository":""}',
 		);
 	});
 });

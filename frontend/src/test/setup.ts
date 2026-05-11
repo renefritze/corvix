@@ -39,10 +39,31 @@ Object.defineProperty(globalThis, "open", {
 	value: vi.fn(),
 });
 
+Object.defineProperty(globalThis, "requestAnimationFrame", {
+	writable: true,
+	value: (callback: FrameRequestCallback) =>
+		setTimeout(() => callback(performance.now()), 0),
+});
+
+Object.defineProperty(globalThis, "cancelAnimationFrame", {
+	writable: true,
+	value: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+});
+
 if (globalThis.window !== undefined) {
 	Object.defineProperty(globalThis.window, "open", {
 		writable: true,
 		value: globalThis.open,
+	});
+
+	Object.defineProperty(globalThis.window, "requestAnimationFrame", {
+		writable: true,
+		value: globalThis.requestAnimationFrame,
+	});
+
+	Object.defineProperty(globalThis.window, "cancelAnimationFrame", {
+		writable: true,
+		value: globalThis.cancelAnimationFrame,
 	});
 }
 
