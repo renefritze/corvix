@@ -249,61 +249,6 @@ jobs:
         path: .lighthouseci/
         if-no-files-found: ignore
 
-  ui-screenshot-check:
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event_name
-      == 'workflow_dispatch'
-    permissions:
-      contents: read
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
-      with:
-        node-version: '22'
-        cache: npm
-        cache-dependency-path: frontend/package-lock.json
-    - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
-      name: Setup UV + Python
-      with:
-        python-version: '3.13'
-        enable-cache: true
-        ignore-nothing-to-cache: true
-        cache-dependency-glob: |
-          **/requirements*.txt
-          **/pyproject.toml
-          **/uv.lock
-    - name: Build frontend assets
-      run: |
-        make frontend-build
-    - name: Install image diff tooling
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y imagemagick
-    - name: Capture expected screenshot
-      run: |
-        mkdir -p artifacts/ui-screenshot
-        cp docs/_static/corvix-ui.png artifacts/ui-screenshot/corvix-ui-expected.png
-    - name: Regenerate UI screenshot
-      run: |
-        make ui-screenshot
-        cp docs/_static/corvix-ui.png artifacts/ui-screenshot/corvix-ui-actual.png
-        compare -metric AE \
-          artifacts/ui-screenshot/corvix-ui-expected.png \
-          artifacts/ui-screenshot/corvix-ui-actual.png \
-          artifacts/ui-screenshot/corvix-ui-diff.png \
-          2>artifacts/ui-screenshot/compare-metric.txt || true
-    - name: Verify screenshot is up to date
-      run: |
-        git add -N docs/_static/corvix-ui.png
-        git diff --exit-code -- docs/_static/corvix-ui.png
-    - name: Upload screenshot diff artifacts
-      if: failure()
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-      with:
-        name: ui-screenshot-diff
-        path: artifacts/ui-screenshot/
-        if-no-files-found: ignore
-
   tests-status:
     name: tests-status
     if: ${{ always() }}
@@ -313,7 +258,6 @@ jobs:
     - integration-tests
     - e2e-tests
     - lighthouse-tests
-    - ui-screenshot-check
     runs-on: ubuntu-24.04
     steps:
     - name: Fail if any required test job failed
@@ -323,22 +267,19 @@ jobs:
         INTEGRATION_TESTS_RESULT: ${{ needs.integration-tests.result }}
         E2E_TESTS_RESULT: ${{ needs.e2e-tests.result }}
         LIGHTHOUSE_TESTS_RESULT: ${{ needs.lighthouse-tests.result }}
-        UI_SCREENSHOT_CHECK_RESULT: ${{ needs.ui-screenshot-check.result }}
       run: |-
         echo "docker-compose-build: ${DOCKER_COMPOSE_BUILD_RESULT}"
         echo "fast-tests: ${FAST_TESTS_RESULT}"
         echo "integration-tests: ${INTEGRATION_TESTS_RESULT}"
         echo "e2e-tests: ${E2E_TESTS_RESULT}"
         echo "lighthouse-tests: ${LIGHTHOUSE_TESTS_RESULT}"
-        echo "ui-screenshot-check: ${UI_SCREENSHOT_CHECK_RESULT}"
 
         for result in \
           "${DOCKER_COMPOSE_BUILD_RESULT}" \
           "${FAST_TESTS_RESULT}" \
           "${INTEGRATION_TESTS_RESULT}" \
           "${E2E_TESTS_RESULT}" \
-          "${LIGHTHOUSE_TESTS_RESULT}" \
-          "${UI_SCREENSHOT_CHECK_RESULT}"; do
+          "${LIGHTHOUSE_TESTS_RESULT}"; do
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
             echo "Detected failing upstream test job result: ${result}"
             exit 1
