@@ -267,6 +267,7 @@ jobs:
       with:
         python-version: '3.13'
         enable-cache: true
+        ignore-nothing-to-cache: true
         cache-dependency-glob: |
           **/requirements*.txt
           **/pyproject.toml
@@ -274,13 +275,34 @@ jobs:
     - name: Build frontend assets
       run: |
         make frontend-build
+    - name: Install image diff tooling
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y imagemagick
+    - name: Capture expected screenshot
+      run: |
+        mkdir -p artifacts/ui-screenshot
+        cp docs/_static/corvix-ui.png artifacts/ui-screenshot/corvix-ui-expected.png
     - name: Regenerate UI screenshot
       run: |
         make ui-screenshot
+        cp docs/_static/corvix-ui.png artifacts/ui-screenshot/corvix-ui-actual.png
+        compare -metric AE \
+          artifacts/ui-screenshot/corvix-ui-expected.png \
+          artifacts/ui-screenshot/corvix-ui-actual.png \
+          artifacts/ui-screenshot/corvix-ui-diff.png \
+          2>artifacts/ui-screenshot/compare-metric.txt || true
     - name: Verify screenshot is up to date
       run: |
         git add -N docs/_static/corvix-ui.png
         git diff --exit-code -- docs/_static/corvix-ui.png
+    - name: Upload screenshot diff artifacts
+      if: failure()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: ui-screenshot-diff
+        path: artifacts/ui-screenshot/
+        if-no-files-found: ignore
 
   tests-status:
     name: tests-status
