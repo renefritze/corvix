@@ -138,24 +138,8 @@ export function FilterBar({
 						<span class="reason-picker-placeholder">All reasons</span>
 					)}
 					{filters.reason.length > 0 && filters.reason.length <= 2 && (
-						<span class="reason-chip-list">
-							{filters.reason.map((reason) => (
-								<span class="reason-chip" key={reason}>
-									<span class="reason-chip-text">{reason}</span>
-									<button
-										type="button"
-										class="reason-chip-remove"
-										aria-label={`Remove ${reason} reason filter`}
-										onClick={(event) => {
-											event.preventDefault();
-											event.stopPropagation();
-											removeReason(reason);
-										}}
-									>
-										×
-									</button>
-								</span>
-							))}
+						<span class="reason-picker-summary">
+							{filters.reason.join(", ")}
 						</span>
 					)}
 					{filters.reason.length > 2 && (
@@ -167,28 +151,50 @@ export function FilterBar({
 						▾
 					</span>
 				</button>
-				{reasonMenuOpen && (
-					<div id={reasonListId} class="reason-picker-menu" role="group">
-						{reasonOptions.map((option) => (
-							<button
-								type="button"
-								class={[
-									"reason-option",
-									selectedReasonSet.has(option.reason) ? "selected" : "",
-									option.missing ? "missing" : "",
-								]
-									.filter(Boolean)
-									.join(" ")}
-								onClick={() => toggleReason(option.reason)}
-								key={option.reason}
-							>
-								<span class="reason-option-check" aria-hidden="true">
-									{selectedReasonSet.has(option.reason) ? "✓" : ""}
-								</span>
-								<span class="reason-option-label">{option.label}</span>
-							</button>
+				{filters.reason.length > 0 && (
+					<span class="reason-chip-list" aria-label="Selected reasons">
+						{filters.reason.map((reason) => (
+							<span class="reason-chip" key={reason}>
+								<span class="reason-chip-text">{reason}</span>
+								<button
+									type="button"
+									class="reason-chip-remove"
+									aria-label={`Remove ${reason} reason filter`}
+									onClick={() => removeReason(reason)}
+								>
+									×
+								</button>
+							</span>
 						))}
-					</div>
+					</span>
+				)}
+				{reasonMenuOpen && (
+					<ul
+						id={reasonListId}
+						class="reason-picker-menu"
+						aria-label="Reason options"
+					>
+						{reasonOptions.map((option) => (
+							<li key={option.reason}>
+								<button
+									type="button"
+									class={[
+										"reason-option",
+										selectedReasonSet.has(option.reason) ? "selected" : "",
+										option.missing ? "missing" : "",
+									]
+										.filter(Boolean)
+										.join(" ")}
+									onClick={() => toggleReason(option.reason)}
+								>
+									<span class="reason-option-check" aria-hidden="true">
+										{selectedReasonSet.has(option.reason) ? "✓" : ""}
+									</span>
+									<span class="reason-option-label">{option.label}</span>
+								</button>
+							</li>
+						))}
+					</ul>
 				)}
 			</div>
 			<select

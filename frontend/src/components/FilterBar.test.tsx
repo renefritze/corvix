@@ -86,7 +86,7 @@ describe("FilterBar", () => {
 			/>,
 		);
 
-		expect(screen.getByText("mention")).toBeInTheDocument();
+		expect(screen.getAllByText("mention")).toHaveLength(2);
 		await user.click(
 			screen.getByRole("button", { name: "Remove mention reason filter" }),
 		);
