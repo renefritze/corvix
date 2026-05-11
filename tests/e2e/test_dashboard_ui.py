@@ -115,7 +115,7 @@ def test_sort_order_matches_config(app_page: PageLike) -> None:
 
 
 @pytest.mark.e2e
-def test_filter_clears_when_all_reasons_are_deselected(app_page: PageLike) -> None:
+def test_filter_clears_when_selected_reason_chip_is_removed(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     rows = app_page.locator("tr.notification-row")
@@ -124,7 +124,24 @@ def test_filter_clears_when_all_reasons_are_deselected(app_page: PageLike) -> No
     reason_filter.click()
     app_page.get_by_role("button", name="subscribed").click()
     expect(rows).to_have_count(1)
-    app_page.get_by_role("button", name="subscribed").click()
+    app_page.get_by_role("button", name="Remove subscribed reason filter").click()
+    expect(rows).to_have_count(3)
+
+
+@pytest.mark.e2e
+def test_filter_clears_when_selected_reason_option_is_toggled_off(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    rows = app_page.locator("tr.notification-row")
+    expect(rows).to_have_count(3)
+
+    reason_filter = app_page.get_by_label("Reason filter")
+    reason_filter.click()
+    reason_options = app_page.get_by_label("Reason options")
+    reason_options.get_by_role("button", name="subscribed", exact=True).click()
+    expect(rows).to_have_count(1)
+
+    reason_options.get_by_role("button", name="subscribed", exact=True).click()
     expect(rows).to_have_count(3)
 
 

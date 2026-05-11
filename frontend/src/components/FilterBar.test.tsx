@@ -71,6 +71,33 @@ describe("FilterBar", () => {
 		]);
 	});
 
+	it("toggles off a selected reason from the reason menu", async () => {
+		const onFilterChange = vi.fn();
+		const user = userEvent.setup();
+
+		render(
+			<FilterBar
+				filters={{ unread: "all", reason: ["subscribed"], repository: "" }}
+				includeRead={true}
+				items={[
+					makeItem({ reason: "mention", repository: "org/a" }),
+					makeItem({
+						thread_id: "2",
+						reason: "subscribed",
+						repository: "org/b",
+					}),
+				]}
+				onFilterChange={onFilterChange}
+				onClearFilters={vi.fn()}
+				generatedAt={null}
+			/>,
+		);
+
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "subscribed" }));
+		expect(onFilterChange).toHaveBeenLastCalledWith("reason", []);
+	});
+
 	it("shows chips and allows removing selected reason", async () => {
 		const onFilterChange = vi.fn();
 		const user = userEvent.setup();
