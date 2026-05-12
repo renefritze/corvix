@@ -37,6 +37,8 @@ interface NotificationTableProps {
 	readonly sortDirection: SortDirection;
 	readonly onSort: (col: SortColumn) => void;
 	readonly onDismiss: (accountId: string, threadId: string) => void;
+	readonly onMarkGroupRead: (groupName: string, items: DashboardItem[]) => void;
+	readonly markingGroupNames: Set<string>;
 	readonly onOpenTarget: (accountId: string, threadId: string) => void;
 	readonly onRequestIgnoreRule: (
 		item: DashboardItem,
@@ -51,6 +53,8 @@ export function NotificationTable({
 	sortDirection,
 	onSort,
 	onDismiss,
+	onMarkGroupRead,
+	markingGroupNames,
 	onOpenTarget,
 	onRequestIgnoreRule,
 	pendingDismissals,
@@ -74,11 +78,30 @@ export function NotificationTable({
 			<tbody>
 				{groups.map((group) => {
 					const sorted = sortItems(group.items, sortColumn, sortDirection);
+					const unreadCount = group.items.filter((item) => item.unread).length;
+					const isMarkingRead = markingGroupNames.has(group.name);
 					return [
 						<tr key={`group-${group.name}`} class="group-header-row">
 							<td colSpan={COLS} class="group-header-cell">
-								{group.name}{" "}
-								<span class="group-count">({group.items.length})</span>
+								<div class="group-header-content">
+									<div>
+										{group.name}{" "}
+										<span class="group-count">({group.items.length})</span>
+									</div>
+									{unreadCount > 0 && (
+										<button
+											type="button"
+											class="group-mark-read-btn"
+											onClick={() => onMarkGroupRead(group.name, group.items)}
+											disabled={isMarkingRead}
+											aria-label={`Mark all visible unread notifications in ${group.name} as read`}
+										>
+											{isMarkingRead
+												? "Marking..."
+												: `Mark all read (${unreadCount})`}
+										</button>
+									)}
+								</div>
 							</td>
 						</tr>,
 						...sorted.map((item) => (

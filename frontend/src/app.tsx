@@ -68,6 +68,9 @@ export function App() {
 	} | null>(null);
 	const [ignoreDialogItem, setIgnoreDialogItem] =
 		useState<DashboardItem | null>(null);
+	const [markingGroupNames, setMarkingGroupNames] = useState<Set<string>>(
+		new Set(),
+	);
 	const [ignoreSnippets, setIgnoreSnippets] =
 		useState<RuleSnippetsPayload | null>(null);
 	const [ignoreLoading, setIgnoreLoading] = useState(false);
@@ -169,6 +172,42 @@ export function App() {
 					setToastError(
 						err instanceof Error ? err.message : "Mark read failed",
 					);
+				});
+		},
+		[refresh],
+	);
+
+	const handleMarkGroupRead = useCallback(
+		(groupName: string, items: DashboardItem[]) => {
+			const unreadItems = items.filter((item) => item.unread);
+			if (unreadItems.length === 0) return;
+			setMarkingGroupNames((prev) => {
+				const next = new Set(prev);
+				next.add(groupName);
+				return next;
+			});
+			void Promise.allSettled(
+				unreadItems.map((item) =>
+					markNotificationRead(item.account_id, item.thread_id),
+				),
+			)
+				.then((results) => {
+					const failures = results.filter(
+						(result) => result.status === "rejected",
+					).length;
+					if (failures > 0) {
+						setToastError(
+							`Mark all read failed for ${failures} notification${failures > 1 ? "s" : ""}`,
+						);
+					}
+				})
+				.finally(() => {
+					setMarkingGroupNames((prev) => {
+						const next = new Set(prev);
+						next.delete(groupName);
+						return next;
+					});
+					return refresh();
 				});
 		},
 		[refresh],
@@ -330,6 +369,8 @@ export function App() {
 					sortDirection={sortDirection}
 					onSort={handleSort}
 					onDismiss={dismiss}
+					onMarkGroupRead={handleMarkGroupRead}
+					markingGroupNames={markingGroupNames}
 					onOpenTarget={handleOpenTarget}
 					onRequestIgnoreRule={handleRequestIgnoreRule}
 					pendingDismissals={new Set(pending.keys())}
