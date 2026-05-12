@@ -383,7 +383,8 @@ describe("App", () => {
 			).toBeInTheDocument();
 		});
 
-		await user.selectOptions(screen.getByLabelText("Reason filter"), "mention");
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "mention" }));
 		await user.click(
 			screen.getByRole("button", {
 				name: /Mark all visible unread notifications in group-a as read/,

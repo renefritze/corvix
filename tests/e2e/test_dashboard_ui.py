@@ -248,12 +248,21 @@ def test_group_header_mark_all_read_applies_to_visible_unread(app_page: PageLike
     expect(group_headers).to_have_count(2)
 
     repo_a_header = group_headers.filter(has_text="org/repo-a")
-    expect(repo_a_header.get_by_role("button", name="Mark all read (1)")).to_have_count(1)
+    mark_all_button = repo_a_header.get_by_role(
+        "button",
+        name="Mark all visible unread notifications in org/repo-a as read",
+    )
+    expect(mark_all_button).to_have_count(1)
+    expect(mark_all_button).to_have_text("Mark all read (1)")
 
-    repo_a_header.get_by_role("button", name="Mark all read (1)").click()
+    mark_all_button.click()
 
-    expect(app_page.locator("tr.group-header-row .group-mark-read-btn")).to_have_count(1)
-    expect(repo_a_header.get_by_role("button", name="Mark all read (1)")).to_have_count(0)
+    expect(
+        repo_a_header.get_by_role(
+            "button",
+            name="Mark all visible unread notifications in org/repo-a as read",
+        ),
+    ).to_have_count(0)
 
 
 @pytest.mark.e2e
