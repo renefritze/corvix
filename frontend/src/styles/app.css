@@ -684,6 +684,22 @@ body.col-resizing * {
   padding: 6px 12px;
   border-top: 1px solid var(--line);
 }
+
+.group-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.group-mark-read-btn {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+
 .group-count { color: var(--accent); }
 
 /* ============================================================
@@ -776,6 +792,9 @@ body.col-resizing * {
   .title-meta { display: block; }
   .col-repository { width: 130px; }
   .ignore-rule-content { grid-template-columns: 1fr; }
+  .group-header-content {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 480px) {

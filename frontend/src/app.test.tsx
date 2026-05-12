@@ -326,6 +326,94 @@ describe("App", () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
+	it("marks only visible unread items as read from a group header", async () => {
+		setPath("/");
+		const snapshot = makeSnapshot({
+			groups: [
+				{
+					name: "group-a",
+					items: [
+						makeItem({
+							thread_id: "u-1",
+							subject_title: "Unread mention",
+							unread: true,
+							reason: "mention",
+						}),
+						makeItem({
+							thread_id: "u-2",
+							subject_title: "Unread subscribed",
+							unread: true,
+							reason: "subscribed",
+						}),
+						makeItem({
+							thread_id: "r-1",
+							subject_title: "Read mention",
+							unread: false,
+							reason: "mention",
+						}),
+					],
+				},
+			],
+			total_items: 3,
+			dashboard_names: ["overview"],
+		});
+
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockImplementation(async (input: FetchInput, init?: RequestInit) => {
+				const url = requestUrl(input);
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				if (url.includes("/api/snapshot")) {
+					return {
+						ok: true,
+						json: async () => snapshot,
+					} as Response;
+				}
+				return { ok: false, status: 404 } as Response;
+			});
+
+		render(<App />);
+		const user = userEvent.setup();
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Unread mention" }),
+			).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "mention" }));
+		await user.click(
+			screen.getByRole("button", {
+				name: /Mark all visible unread notifications in group-a as read/,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith(
+				"/api/notifications/primary/u-1/mark-read",
+				{ method: "POST", keepalive: true },
+			);
+		});
+
+		expect(fetchMock).not.toHaveBeenCalledWith(
+			"/api/notifications/primary/u-2/mark-read",
+			{ method: "POST", keepalive: true },
+		);
+		expect(fetchMock).not.toHaveBeenCalledWith(
+			"/api/notifications/primary/r-1/mark-read",
+			{ method: "POST", keepalive: true },
+		);
+
+		expect(
+			fetchMock.mock.calls.filter((call) =>
+				requestUrl(call[0]).startsWith("/api/snapshot"),
+			).length,
+		).toBeGreaterThan(1);
+	});
+
 	it("falls back to default dashboard when URL dashboard is unknown", async () => {
 		setPath("/dashboards/unknown");
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({

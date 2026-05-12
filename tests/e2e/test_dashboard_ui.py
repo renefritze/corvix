@@ -241,6 +241,31 @@ def test_groups_displayed_with_headers(app_page: PageLike) -> None:
 
 
 @pytest.mark.e2e
+def test_group_header_mark_all_read_applies_to_visible_unread(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    group_headers = app_page.locator("tr.group-header-row")
+    expect(group_headers).to_have_count(2)
+
+    repo_a_header = group_headers.filter(has_text="org/repo-a")
+    mark_all_button = repo_a_header.get_by_role(
+        "button",
+        name="Mark all visible unread notifications in org/repo-a as read",
+    )
+    expect(mark_all_button).to_have_count(1)
+    expect(mark_all_button).to_have_text("Mark all read (1)")
+
+    mark_all_button.click()
+
+    expect(
+        repo_a_header.get_by_role(
+            "button",
+            name="Mark all visible unread notifications in org/repo-a as read",
+        ),
+    ).to_have_count(0)
+
+
+@pytest.mark.e2e
 def test_mobile_viewport_renders_without_horizontal_scroll(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
