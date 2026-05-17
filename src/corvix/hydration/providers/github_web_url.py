@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TypeIs
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 from corvix.domain import Notification
 from corvix.hydration.base import HydrationContext
@@ -14,8 +14,6 @@ _MIN_API_REPO_SEGMENTS = 4
 _MIN_RESOURCE_SEGMENTS = 2
 _RELEASE_TAG_SEGMENTS = 3
 _ACTIONS_RUNS_SEGMENTS = 3
-_CHECK_SUITE_PATH_SEGMENTS = 5
-_RELEASE_PATH_SEGMENTS = 5
 _API_RESOURCE_TO_WEB_PATH = {
     "pulls": "pull",
     "issues": "issues",
@@ -23,6 +21,16 @@ _API_RESOURCE_TO_WEB_PATH = {
     "compare": "compare",
     "discussions": "discussions",
 }
+
+
+def _parse_github_api_path(subject_url: str) -> tuple[ParseResult, list[str], int]:
+    parsed = urlparse(subject_url)
+    segments = [s for s in parsed.path.split("/") if s]
+    try:
+        repos_index = segments.index("repos")
+    except ValueError:
+        repos_index = -1
+    return parsed, segments, repos_index
 
 
 def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
@@ -66,14 +74,13 @@ class GitHubWebUrlProvider:
         subject_url: str,
         repository: str,
     ) -> str | None:
-        parsed = urlparse(subject_url)
-        segments = [s for s in parsed.path.split("/") if s]
-        if len(segments) < _CHECK_SUITE_PATH_SEGMENTS or segments[3] != "check-suites":
+        parsed, segments, repos_index = _parse_github_api_path(subject_url)
+        if repos_index < 0 or len(segments) < repos_index + 5 or segments[repos_index + 3] != "check-suites":
             return None
-        check_suite_id = segments[4]
-        check_runs_url = (
-            f"{parsed.scheme}://{parsed.netloc}/repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
-        )
+        check_suite_id = segments[repos_index + 4]
+        prefix = segments[:repos_index]
+        base_path = f"{'/'.join(prefix)}/" if prefix else ""
+        check_runs_url = f"{parsed.scheme}://{parsed.netloc}/{base_path}repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
         payload = ctx.get_json(client=client, url=check_runs_url, timeout_seconds=self.timeout_seconds)
         if not _is_str_object_map(payload):
             return None
@@ -87,9 +94,8 @@ class GitHubWebUrlProvider:
         return None
 
     def _resolve_release(self, client: JsonFetchClient, ctx: HydrationContext, subject_url: str) -> str | None:
-        parsed = urlparse(subject_url)
-        segments = [s for s in parsed.path.split("/") if s]
-        if len(segments) < _RELEASE_PATH_SEGMENTS or segments[3] != "releases":
+        _, segments, repos_index = _parse_github_api_path(subject_url)
+        if repos_index < 0 or len(segments) < repos_index + 5 or segments[repos_index + 3] != "releases":
             return None
         payload = ctx.get_json(client=client, url=subject_url, timeout_seconds=self.timeout_seconds)
         if not _is_str_object_map(payload):
@@ -100,13 +106,8 @@ class GitHubWebUrlProvider:
 
 def map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str) -> str | None:
     """Map a subject API URL to its browser URL when possible."""
-    parsed = urlparse(subject_url)
-    path_segments = [segment for segment in parsed.path.split("/") if segment]
+    _, path_segments, repos_index = _parse_github_api_path(subject_url)
     result: str | None = None
-    try:
-        repos_index = path_segments.index("repos")
-    except ValueError:
-        repos_index = -1
     if len(path_segments) >= repos_index + _MIN_API_REPO_SEGMENTS and repos_index >= 0:
         api_repo_name = "/".join(path_segments[repos_index + 1 : repos_index + 3])
         if api_repo_name == repo_name:

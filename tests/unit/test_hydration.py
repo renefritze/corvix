@@ -172,6 +172,47 @@ def test_hydration_release_web_url_from_api_payload() -> None:
     assert notification.web_url == "https://github.com/org/repo/releases/tag/v1.2.3"
 
 
+def test_hydration_check_suite_enterprise_prefix() -> None:
+    notification = _notification(
+        thread_id="55",
+        subject_type="CheckSuite",
+        subject_url="https://ghe.example.com/api/v3/repos/org/repo/check-suites/555",
+        web_url=None,
+    )
+    client = _FakeClient(
+        responses={
+            "https://ghe.example.com/api/v3/repos/org/repo/check-suites/555/check-runs?per_page=1": {
+                "check_runs": [{"html_url": "https://ghe.example.com/org/repo/actions/runs/777/job/1"}]
+            }
+        }
+    )
+    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+
+    engine.run(notifications=[notification], client=client)
+
+    assert notification.web_url == "https://ghe.example.com/org/repo/actions/runs/777/job/1"
+
+
+def test_hydration_release_enterprise_prefix() -> None:
+    notification = _notification(
+        subject_type="Release",
+        subject_url="https://ghe.example.com/api/v3/repos/org/repo/releases/123",
+        web_url=None,
+    )
+    client = _FakeClient(
+        responses={
+            "https://ghe.example.com/api/v3/repos/org/repo/releases/123": {
+                "html_url": "https://ghe.example.com/org/repo/releases/tag/v1.2.3"
+            }
+        }
+    )
+    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+
+    engine.run(notifications=[notification], client=client)
+
+    assert notification.web_url == "https://ghe.example.com/org/repo/releases/tag/v1.2.3"
+
+
 def test_hydration_fails_open_for_malformed_thread_payload() -> None:
     notification = _notification(thread_id="7", subject_type="CheckSuite", subject_url=None, web_url=None)
     client = _FakeClient(responses={"https://api.example.com/notifications/threads/7": []})
