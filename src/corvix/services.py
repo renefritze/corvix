@@ -7,22 +7,26 @@ import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Protocol, cast
+from typing import Protocol
 
 from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import AppConfig, DashboardSpec, PollingConfig, available_dashboards
 from corvix.domain import Notification, NotificationRecord, PollerStatus, format_timestamp, notification_key
-from corvix.enrichment.base import EnrichmentProvider, JsonFetchClient
+from corvix.enrichment.base import EnrichmentProvider
 from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
-from corvix.ingestion import WebUrlEnricher, resolve_web_urls
+from corvix.hydration.base import HydrationProvider
+from corvix.hydration.engine import HydrationEngine
+from corvix.hydration.providers.github_thread_subject import GitHubThreadSubjectProvider
+from corvix.hydration.providers.github_web_url import GitHubWebUrlProvider
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
 from corvix.notifications.models import DispatchResult
 from corvix.notifications.targets.base import NotificationTarget
+from corvix.pipeline.base import JsonFetchClient
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
@@ -85,7 +89,18 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     previous_records = _load_previous_records(input)
 
     notifications, clients_by_account = _fetch_notifications(input.config.polling, active_clients)
-    _resolve_web_urls_for_notifications(notifications, active_clients)
+
+    hydration_engine = HydrationEngine(
+        providers=_build_hydration_providers(),
+        max_requests_per_cycle=input.config.enrichment.max_requests_per_cycle,
+    )
+    hydration_client = active_clients[0]
+    hydration_clients: dict[str, JsonFetchClient] = dict(clients_by_account)
+    hydration_result = hydration_engine.run(
+        notifications=notifications,
+        client=hydration_client,
+        clients_by_account=hydration_clients,
+    )
 
     enrichment_engine = EnrichmentEngine(
         config=input.config.enrichment,
@@ -106,6 +121,7 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         clients_by_account=clients_by_account,
         contexts_by_notification_key=enrichment_result.contexts_by_notification_key,
     )
+    errors.extend(f"hydration: {error}" for error in hydration_result.errors)
     errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
     input.cache.save(
         records=records,
@@ -156,21 +172,6 @@ def _fetch_notifications(
         if fetched:
             clients_by_account[fetched[0].account_id] = client
     return notifications, clients_by_account
-
-
-def _resolve_web_urls_for_notifications(
-    notifications: list[Notification],
-    active_clients: tuple[NotificationsClient, ...],
-) -> None:
-    enrichers_by_account: dict[str, WebUrlEnricher] = {}
-    for client in active_clients:
-        if not isinstance(client, WebUrlEnricher):
-            continue
-        account_id = getattr(client, "account_id", "primary")
-        if isinstance(account_id, str) and account_id:
-            enrichers_by_account[account_id] = cast(WebUrlEnricher, client)
-    for notification in notifications:
-        resolve_web_urls([notification], enricher=enrichers_by_account.get(notification.account_id))
 
 
 def _process_notifications(
@@ -328,3 +329,10 @@ def _build_enrichment_providers(config: AppConfig) -> list[EnrichmentProvider]:
             )
         )
     return providers
+
+
+def _build_hydration_providers() -> list[HydrationProvider]:
+    return [
+        GitHubThreadSubjectProvider(),
+        GitHubWebUrlProvider(),
+    ]

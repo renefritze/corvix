@@ -89,11 +89,11 @@ JSON file at the path configured in `state.cache_file`:
 
 Canonical persisted schema is the flattened record returned by `NotificationRecord.to_dict()`.
 
-### 2.4 URL resolution
+### 2.4 Hydration and URL resolution
 
-`web_url` is derived in two stages during each poll cycle (`run_poll_cycle`).
+Canonical fields are completed during a dedicated hydration stage in each poll cycle (`run_poll_cycle`), before enrichment/scoring/rules.
 
-**Fast path** — pure string mapping in `_map_subject_api_url_to_web`, no API calls:
+**Fast path** — pure string mapping in `map_subject_api_url_to_web`, no API calls:
 
 | Subject type | API path pattern | Web URL |
 |---|---|---|
@@ -104,15 +104,17 @@ Canonical persisted schema is the flattened record returned by `NotificationReco
 | `Discussion` | `.../discussions/{id}` | `.../discussions/{id}` |
 | `WorkflowRun` | `.../actions/runs/{id}` | `.../actions/runs/{id}` |
 
-**Enrichment path** — `resolve_web_urls()` makes a targeted GitHub API call for notification types where no 1:1 URL mapping exists. Only runs when `web_url` is still `None` after the fast path and `subject_url` is available.
+**Hydration fallback path** — providers run in order and may call the GitHub API when `subject_url` or `web_url` is missing.
+
+1. `github.thread_subject` backfills `subject_url` from `thread_url` payload (`subject.url`).
+2. `github.web_url` resolves `web_url` from `subject_url`.
 
 | Subject type | API call | Resolved to |
 |---|---|---|
 | `CheckSuite` | `GET /repos/{owner}/{repo}/check-suites/{id}/check-runs?per_page=1` | `html_url` of first check-run |
+| `Release` (id form) | `GET /repos/{owner}/{repo}/releases/{id}` | `html_url` of release |
 
-If enrichment fails (API error, empty response, unknown type), `web_url` stays `None` and the UI renders the title as plain text rather than a link.
-
-The enricher is injected via the `WebUrlEnricher` Protocol. `GitHubNotificationsClient` implements it, and `run_poll_cycle` calls `resolve_web_urls(notifications, enricher=input.client)` before scoring/rules. If no enricher is provided (or resolution fails), fast-path behavior still applies and unresolved `web_url` values remain `None`.
+If hydration fails (API error, empty response, unknown type), `web_url` stays `None` and the UI renders the title as plain text rather than a link.
 
 ---
 
@@ -187,7 +189,7 @@ enrichment:
     timeout_seconds: 10
 ```
 
-When enabled, Corvix runs provider-based enrichment before scoring/rules. Current provider:
+When enabled, Corvix runs provider-based context enrichment before scoring/rules. URL hydration always runs independently of this setting. Current providers:
 
 - `github_latest_comment`: fetches latest comment metadata for `reason == comment` notifications.
 - `github_pr_state`: fetches pull request state metadata for pull-request notifications.
