@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TypeIs
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import ParseResult, quote, urlparse
 
 from corvix.domain import Notification
 from corvix.hydration.base import HydrationContext
@@ -21,6 +23,9 @@ _API_RESOURCE_TO_WEB_PATH = {
     "compare": "compare",
     "discussions": "discussions",
 }
+_CHECK_SUITE_TITLE_RE = re.compile(
+    r"^(?P<workflow>.+?) workflow run(?:, Attempt #(?P<attempt>\d+))? (?P<state>.+?) for (?P<branch>.+?) branch$"
+)
 
 
 def _parse_github_api_path(subject_url: str) -> tuple[ParseResult, list[str], int]:
@@ -45,29 +50,80 @@ class GitHubWebUrlProvider:
     name: str = "github.web_url"
 
     def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> None:
-        if notification.web_url is not None or not notification.subject_url:
+        if notification.web_url is not None:
             return
         repo_base = notification.repository_url or f"https://github.com/{notification.repository}"
-        direct_url = map_subject_api_url_to_web(
-            subject_url=notification.subject_url,
-            repo_name=notification.repository,
-            repo_base=repo_base,
-        )
-        if direct_url is not None:
-            notification.web_url = direct_url
-            return
+        if notification.subject_url:
+            direct_url = map_subject_api_url_to_web(
+                subject_url=notification.subject_url,
+                repo_name=notification.repository,
+                repo_base=repo_base,
+            )
+            if direct_url is not None:
+                notification.web_url = direct_url
+                return
         if notification.subject_type == "CheckSuite":
             notification.web_url = self._resolve_check_suite(
+                client=client,
+                ctx=ctx,
+                notification=notification,
+                repo_base=repo_base,
+            )
+            return
+        if notification.subject_type == "Release" and notification.subject_url:
+            notification.web_url = self._resolve_release(client=client, ctx=ctx, subject_url=notification.subject_url)
+
+    def _resolve_check_suite(
+        self,
+        client: JsonFetchClient,
+        ctx: HydrationContext,
+        notification: Notification,
+        repo_base: str,
+    ) -> str | None:
+        resolved_url: str | None = None
+        if notification.subject_url:
+            url_from_subject = self._resolve_check_suite_from_subject_url(
                 client=client,
                 ctx=ctx,
                 subject_url=notification.subject_url,
                 repository=notification.repository,
             )
-            return
-        if notification.subject_type == "Release":
-            notification.web_url = self._resolve_release(client=client, ctx=ctx, subject_url=notification.subject_url)
+            if url_from_subject is not None:
+                resolved_url = url_from_subject
 
-    def _resolve_check_suite(
+        if resolved_url is None:
+            parsed_title = _parse_check_suite_title(notification.subject_title)
+            if parsed_title is not None:
+                fallback_url = _build_actions_branch_url(repo_base=repo_base, branch=parsed_title.branch)
+                api_base = _build_actions_api_base(repo_base=repo_base)
+                runs_url = (
+                    f"{api_base}/repos/{notification.repository}/actions/runs"
+                    f"?branch={quote(parsed_title.branch, safe='')}&per_page=25"
+                )
+                try:
+                    payload = ctx.get_json(client=client, url=runs_url, timeout_seconds=self.timeout_seconds)
+                except RuntimeError:
+                    resolved_url = fallback_url
+                else:
+                    if _is_str_object_map(payload):
+                        workflow_runs = payload.get("workflow_runs")
+                        if isinstance(workflow_runs, list):
+                            candidate = _match_check_suite_run(
+                                workflow_runs=workflow_runs,
+                                workflow_name=parsed_title.workflow,
+                                run_attempt=parsed_title.attempt,
+                                target_timestamp=notification.updated_at,
+                            )
+                            if candidate is not None:
+                                html_url = candidate.get("html_url")
+                                if isinstance(html_url, str):
+                                    resolved_url = html_url
+                    if resolved_url is None:
+                        resolved_url = fallback_url
+
+        return resolved_url
+
+    def _resolve_check_suite_from_subject_url(
         self,
         client: JsonFetchClient,
         ctx: HydrationContext,
@@ -102,6 +158,81 @@ class GitHubWebUrlProvider:
             return None
         html_url = payload.get("html_url")
         return html_url if isinstance(html_url, str) else None
+
+
+@dataclass(slots=True)
+class _ParsedCheckSuiteTitle:
+    workflow: str
+    branch: str
+    attempt: int | None
+
+
+def _parse_check_suite_title(title: str) -> _ParsedCheckSuiteTitle | None:
+    match = _CHECK_SUITE_TITLE_RE.match(title)
+    if match is None:
+        return None
+    workflow = match.group("workflow")
+    branch = match.group("branch")
+    raw_attempt = match.group("attempt")
+    attempt = int(raw_attempt) if raw_attempt is not None else None
+    return _ParsedCheckSuiteTitle(workflow=workflow, branch=branch, attempt=attempt)
+
+
+def _build_actions_branch_url(repo_base: str, branch: str) -> str:
+    return f"{repo_base}/actions?query={quote(f'branch:{branch}', safe='')}"
+
+
+def _build_actions_api_base(repo_base: str) -> str:
+    parsed = urlparse(repo_base)
+    if parsed.netloc == "github.com":
+        return f"{parsed.scheme}://api.github.com"
+    return f"{parsed.scheme}://{parsed.netloc}/api/v3"
+
+
+def _match_check_suite_run(
+    workflow_runs: list[object],
+    workflow_name: str,
+    run_attempt: int | None,
+    target_timestamp: datetime,
+) -> dict[str, object] | None:
+    normalized_name = workflow_name.casefold()
+    candidates: list[dict[str, object]] = []
+    for run in workflow_runs:
+        if not _is_str_object_map(run):
+            continue
+        name = run.get("name")
+        path = run.get("path")
+        if not (
+            (isinstance(name, str) and name.casefold() == normalized_name)
+            or (isinstance(path, str) and path.casefold() == normalized_name)
+        ):
+            continue
+        if run_attempt is not None:
+            current_attempt = run.get("run_attempt")
+            if not isinstance(current_attempt, int) or current_attempt != run_attempt:
+                continue
+        candidates.append(run)
+    if not candidates:
+        return None
+
+    def _distance_seconds(run: dict[str, object]) -> float:
+        updated_raw = run.get("updated_at")
+        created_raw = run.get("created_at")
+        for raw in (updated_raw, created_raw):
+            if isinstance(raw, str):
+                timestamp = _parse_github_timestamp(raw)
+                if timestamp is not None:
+                    return abs((timestamp - target_timestamp).total_seconds())
+        return float("inf")
+
+    return min(candidates, key=_distance_seconds)
+
+
+def _parse_github_timestamp(raw: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str) -> str | None:

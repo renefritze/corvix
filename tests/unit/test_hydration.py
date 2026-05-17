@@ -223,3 +223,89 @@ def test_hydration_fails_open_for_malformed_thread_payload() -> None:
     assert result.errors == []
     assert notification.subject_url is None
     assert notification.web_url is None
+
+
+def test_hydration_check_suite_without_subject_url_resolves_exact_run() -> None:
+    notification = _notification(thread_id="99", subject_type="CheckSuite", subject_url=None, web_url=None)
+    notification.subject_title = "Docs workflow run failed for ci_activities branch"
+    notification.updated_at = datetime(2026, 5, 17, 14, 9, 26, tzinfo=UTC)
+    client = _FakeClient(
+        responses={
+            "https://api.example.com/notifications/threads/99": {"subject": {"url": None}},
+            "https://api.github.com/repos/org/repo/actions/runs?branch=ci_activities&per_page=25": {
+                "workflow_runs": [
+                    {
+                        "name": "Docs",
+                        "run_attempt": 1,
+                        "updated_at": "2026-05-17T14:09:22Z",
+                        "html_url": "https://github.com/org/repo/actions/runs/123",
+                    },
+                    {
+                        "name": "Docs",
+                        "run_attempt": 1,
+                        "updated_at": "2026-05-17T14:39:22Z",
+                        "html_url": "https://github.com/org/repo/actions/runs/124",
+                    },
+                ]
+            },
+        }
+    )
+    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+
+    result = engine.run(notifications=[notification], client=client)
+
+    assert result.errors == []
+    assert notification.subject_url is None
+    assert notification.web_url == "https://github.com/org/repo/actions/runs/123"
+
+
+def test_hydration_check_suite_without_subject_url_falls_back_to_branch_page() -> None:
+    notification = _notification(thread_id="77", subject_type="CheckSuite", subject_url=None, web_url=None)
+    notification.subject_title = "pytest workflow run failed for feature/no-filters-dashboard branch"
+    client = _FakeClient(
+        responses={
+            "https://api.example.com/notifications/threads/77": {"subject": {"url": None}},
+            "https://api.github.com/repos/org/repo/actions/runs?branch=feature%2Fno-filters-dashboard&per_page=25": {
+                "workflow_runs": []
+            },
+        }
+    )
+    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+
+    result = engine.run(notifications=[notification], client=client)
+
+    assert result.errors == []
+    assert notification.web_url == "https://github.com/org/repo/actions?query=branch%3Afeature%2Fno-filters-dashboard"
+
+
+def test_hydration_check_suite_attempt_title_matches_run_attempt() -> None:
+    notification = _notification(thread_id="55", subject_type="CheckSuite", subject_url=None, web_url=None)
+    notification.subject_title = "test repo/hooks workflow run, Attempt #4 failed for task/OSS-1123 branch"
+    notification.updated_at = datetime(2026, 5, 15, 8, 44, 7, tzinfo=UTC)
+    client = _FakeClient(
+        responses={
+            "https://api.example.com/notifications/threads/55": {"subject": {"url": None}},
+            "https://api.github.com/repos/org/repo/actions/runs?branch=task%2FOSS-1123&per_page=25": {
+                "workflow_runs": [
+                    {
+                        "name": "test repo/hooks",
+                        "run_attempt": 1,
+                        "updated_at": "2026-05-15T08:11:00Z",
+                        "html_url": "https://github.com/org/repo/actions/runs/111",
+                    },
+                    {
+                        "name": "test repo/hooks",
+                        "run_attempt": 4,
+                        "updated_at": "2026-05-15T08:43:44Z",
+                        "html_url": "https://github.com/org/repo/actions/runs/222",
+                    },
+                ]
+            },
+        }
+    )
+    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+
+    result = engine.run(notifications=[notification], client=client)
+
+    assert result.errors == []
+    assert notification.web_url == "https://github.com/org/repo/actions/runs/222"
