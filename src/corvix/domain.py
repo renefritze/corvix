@@ -133,6 +133,7 @@ class Notification:
     thread_url: str | None = None
     subject_url: str | None = None
     web_url: str | None = None
+    repository_url: str | None = None
     account_id: str = "primary"
     account_label: str = "Primary"
 
@@ -168,6 +169,8 @@ class Notification:
             repository.get("full_name"),
             "Invalid notification payload: missing repository.full_name.",
         )
+        repository_url_raw = repository.get("html_url")
+        repository_url = repository_url_raw if isinstance(repository_url_raw, str) else None
 
         reason = _require_non_empty_str_value(
             payload.get("reason"),
@@ -203,6 +206,7 @@ class Notification:
             thread_url=thread_url_str,
             subject_url=subject_url_str,
             web_url=None,
+            repository_url=repository_url,
         )
 
 
@@ -233,6 +237,7 @@ class NotificationRecord:
             "thread_url": self.notification.thread_url,
             "subject_url": self.notification.subject_url,
             "web_url": self.notification.web_url,
+            "repository_url": self.notification.repository_url,
             "score": self.score,
             "excluded": self.excluded,
             "matched_rules": self.matched_rules,
@@ -258,6 +263,7 @@ class NotificationRecord:
             thread_url=_optional_str(payload, "thread_url"),
             subject_url=_optional_str(payload, "subject_url"),
             web_url=_optional_str(payload, "web_url"),
+            repository_url=_optional_str(payload, "repository_url"),
         )
         return cls(
             notification=notification,

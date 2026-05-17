@@ -39,7 +39,7 @@ class GitHubWebUrlProvider:
     def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> None:
         if notification.web_url is not None or not notification.subject_url:
             return
-        repo_base = f"https://github.com/{notification.repository}"
+        repo_base = notification.repository_url or f"https://github.com/{notification.repository}"
         direct_url = map_subject_api_url_to_web(
             subject_url=notification.subject_url,
             repo_name=notification.repository,
@@ -102,20 +102,21 @@ def map_subject_api_url_to_web(subject_url: str, repo_name: str, repo_base: str)
     """Map a subject API URL to its browser URL when possible."""
     parsed = urlparse(subject_url)
     path_segments = [segment for segment in parsed.path.split("/") if segment]
-    if len(path_segments) < _MIN_API_REPO_SEGMENTS or path_segments[0] != "repos":
-        return None
-
-    api_repo_name = "/".join(path_segments[1:3])
-    if api_repo_name != repo_name:
-        return None
-
-    resource = path_segments[3:]
-    resource_name = resource[0]
-    mapped_web_path = _API_RESOURCE_TO_WEB_PATH.get(resource_name)
-    if mapped_web_path is not None and len(resource) >= _MIN_RESOURCE_SEGMENTS:
-        return f"{repo_base}/{mapped_web_path}/{resource[1]}"
-    if resource_name == "releases" and len(resource) >= _RELEASE_TAG_SEGMENTS and resource[1] == "tags":
-        return f"{repo_base}/releases/tag/{resource[2]}"
-    if resource_name == "actions" and len(resource) >= _ACTIONS_RUNS_SEGMENTS and resource[1] == "runs":
-        return f"{repo_base}/actions/runs/{resource[2]}"
-    return None
+    result: str | None = None
+    try:
+        repos_index = path_segments.index("repos")
+    except ValueError:
+        repos_index = -1
+    if len(path_segments) >= repos_index + _MIN_API_REPO_SEGMENTS and repos_index >= 0:
+        api_repo_name = "/".join(path_segments[repos_index + 1 : repos_index + 3])
+        if api_repo_name == repo_name:
+            resource = path_segments[repos_index + 3 :]
+            resource_name = resource[0]
+            mapped_web_path = _API_RESOURCE_TO_WEB_PATH.get(resource_name)
+            if mapped_web_path is not None and len(resource) >= _MIN_RESOURCE_SEGMENTS:
+                result = f"{repo_base}/{mapped_web_path}/{resource[1]}"
+            elif resource_name == "releases" and len(resource) >= _RELEASE_TAG_SEGMENTS and resource[1] == "tags":
+                result = f"{repo_base}/releases/tag/{resource[2]}"
+            elif resource_name == "actions" and len(resource) >= _ACTIONS_RUNS_SEGMENTS and resource[1] == "runs":
+                result = f"{repo_base}/actions/runs/{resource[2]}"
+    return result

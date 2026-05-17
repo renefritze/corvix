@@ -97,6 +97,17 @@ def test_from_api_payload_defaults_web_url_to_none() -> None:
     assert n.web_url is None
 
 
+def test_from_api_payload_preserves_repository_url() -> None:
+    n = Notification.from_api_payload(_valid_payload())
+    assert n.repository_url == "https://github.com/org/repo"
+
+
+def test_from_api_payload_missing_repository_url_defaults_none() -> None:
+    payload = _valid_payload(repository={"full_name": "org/repo"})
+    n = Notification.from_api_payload(payload)
+    assert n.repository_url is None
+
+
 def test_from_api_payload_missing_subject_raises() -> None:
     payload = _valid_payload()
     del payload["subject"]
@@ -232,6 +243,22 @@ def test_subject_url_round_trips() -> None:
     record = NotificationRecord(notification=n, score=1.0, excluded=False)
     restored = NotificationRecord.from_dict(record.to_dict())
     assert restored.notification.subject_url == "https://api.github.com/repos/org/repo/check-suites/555"
+
+
+def test_repository_url_round_trips() -> None:
+    n = Notification(
+        thread_id="1",
+        repository="org/repo",
+        repository_url="https://github.example.com/org/repo",
+        reason="mention",
+        subject_title="Test",
+        subject_type="Issue",
+        unread=True,
+        updated_at=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    record = NotificationRecord(notification=n, score=1.0, excluded=False)
+    restored = NotificationRecord.from_dict(record.to_dict())
+    assert restored.notification.repository_url == "https://github.example.com/org/repo"
 
 
 def test_from_dict_without_subject_url_is_none() -> None:

@@ -30,6 +30,7 @@ def _notification(
         thread_url=f"https://api.example.com/notifications/threads/{thread_id}",
         subject_url=subject_url,
         web_url=web_url,
+        repository_url="https://github.com/org/repo",
     )
 
 
@@ -60,6 +61,74 @@ def test_map_subject_api_url_to_web_mismatched_repo_returns_none() -> None:
         repo_base="https://github.com/org/repo",
     )
     assert result is None
+
+
+def test_map_subject_api_url_to_web_maps_issue() -> None:
+    result = map_subject_api_url_to_web(
+        subject_url="https://api.github.com/repos/org/repo/issues/9",
+        repo_name="org/repo",
+        repo_base="https://github.com/org/repo",
+    )
+    assert result == "https://github.com/org/repo/issues/9"
+
+
+def test_map_subject_api_url_to_web_maps_commit() -> None:
+    result = map_subject_api_url_to_web(
+        subject_url="https://api.github.com/repos/org/repo/commits/deadbeef",
+        repo_name="org/repo",
+        repo_base="https://github.com/org/repo",
+    )
+    assert result == "https://github.com/org/repo/commit/deadbeef"
+
+
+def test_map_subject_api_url_to_web_maps_compare() -> None:
+    result = map_subject_api_url_to_web(
+        subject_url="https://api.github.com/repos/org/repo/compare/base...head",
+        repo_name="org/repo",
+        repo_base="https://github.com/org/repo",
+    )
+    assert result == "https://github.com/org/repo/compare/base...head"
+
+
+def test_map_subject_api_url_to_web_maps_discussion() -> None:
+    result = map_subject_api_url_to_web(
+        subject_url="https://api.github.com/repos/org/repo/discussions/123",
+        repo_name="org/repo",
+        repo_base="https://github.com/org/repo",
+    )
+    assert result == "https://github.com/org/repo/discussions/123"
+
+
+def test_map_subject_api_url_to_web_maps_release_tag() -> None:
+    result = map_subject_api_url_to_web(
+        subject_url="https://api.github.com/repos/org/repo/releases/tags/v1.2.3",
+        repo_name="org/repo",
+        repo_base="https://github.com/org/repo",
+    )
+    assert result == "https://github.com/org/repo/releases/tag/v1.2.3"
+
+
+def test_map_subject_api_url_to_web_maps_actions_run() -> None:
+    result = map_subject_api_url_to_web(
+        subject_url="https://api.github.com/repos/org/repo/actions/runs/777",
+        repo_name="org/repo",
+        repo_base="https://github.com/org/repo",
+    )
+    assert result == "https://github.com/org/repo/actions/runs/777"
+
+
+def test_hydration_uses_repository_url_for_direct_mapping() -> None:
+    notification = _notification(
+        subject_type="Issue",
+        subject_url="https://ghe.example.com/api/v3/repos/org/repo/issues/7",
+        web_url=None,
+    )
+    notification.repository_url = "https://ghe.example.com/org/repo"
+    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+
+    engine.run(notifications=[notification], client=_FakeClient(responses={}))
+
+    assert notification.web_url == "https://ghe.example.com/org/repo/issues/7"
 
 
 def test_hydration_thread_subject_then_check_suite_web_url() -> None:
