@@ -220,6 +220,12 @@ a.titleLink:focus-visible {
   gap: 10px;
 }
 
+.groupHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .groupMarkReadBtn {
   padding: 2px 8px;
   font-size: 0.72rem;
@@ -263,6 +269,7 @@ a.titleLink:focus-visible {
   .titleMeta { display: block; }
   .colRepository { width: 130px; }
   .groupHeaderContent { flex-wrap: wrap; }
+  .groupHeaderActions { flex-wrap: wrap; }
 }
 
 @media (max-width: 480px) {

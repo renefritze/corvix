@@ -37,6 +37,7 @@ describe("NotificationTable", () => {
 				sortDirection="desc"
 				onSort={vi.fn()}
 				onDismiss={vi.fn()}
+				onDismissGroupRead={vi.fn()}
 				onMarkGroupRead={vi.fn()}
 				markingGroupNames={new Set()}
 				onOpenTarget={vi.fn()}
@@ -71,6 +72,7 @@ describe("NotificationTable", () => {
 				sortDirection="asc"
 				onSort={vi.fn()}
 				onDismiss={vi.fn()}
+				onDismissGroupRead={vi.fn()}
 				onMarkGroupRead={vi.fn()}
 				markingGroupNames={new Set()}
 				onOpenTarget={vi.fn()}
@@ -104,6 +106,7 @@ describe("NotificationTable", () => {
 				sortDirection="desc"
 				onSort={vi.fn()}
 				onDismiss={vi.fn()}
+				onDismissGroupRead={vi.fn()}
 				onMarkGroupRead={onMarkGroupRead}
 				markingGroupNames={new Set()}
 				onOpenTarget={vi.fn()}
@@ -124,6 +127,49 @@ describe("NotificationTable", () => {
 		expect(onMarkGroupRead).toHaveBeenCalledWith("org/repo-a", groups[0].items);
 	});
 
+	it("renders group remove-read action and invokes callback", async () => {
+		const groups = [
+			{
+				name: "org/repo-a",
+				items: [
+					makeItem({ thread_id: "1", unread: true, subject_title: "One" }),
+					makeItem({ thread_id: "2", unread: false, subject_title: "Two" }),
+				],
+			},
+		];
+		const onDismissGroupRead = vi.fn();
+
+		render(
+			<NotificationTable
+				groups={groups}
+				sortColumn="score"
+				sortDirection="desc"
+				onSort={vi.fn()}
+				onDismiss={vi.fn()}
+				onDismissGroupRead={onDismissGroupRead}
+				onMarkGroupRead={vi.fn()}
+				markingGroupNames={new Set()}
+				onOpenTarget={vi.fn()}
+				onRequestIgnoreRule={vi.fn()}
+				pendingDismissals={new Set()}
+				{...resizeProps}
+			/>,
+		);
+
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("button", {
+				name: /Dismiss all visible read notifications in org\/repo-a/,
+			}),
+		);
+
+		expect(onDismissGroupRead).toHaveBeenCalledTimes(1);
+		expect(onDismissGroupRead).toHaveBeenCalledWith(
+			"org/repo-a",
+			groups[0].items,
+		);
+	});
+
 	it("disables group action while mark-read batch is in progress", () => {
 		const groups = [
 			{
@@ -139,6 +185,7 @@ describe("NotificationTable", () => {
 				sortDirection="desc"
 				onSort={vi.fn()}
 				onDismiss={vi.fn()}
+				onDismissGroupRead={vi.fn()}
 				onMarkGroupRead={vi.fn()}
 				markingGroupNames={new Set(["org/repo-a"])}
 				onOpenTarget={vi.fn()}

@@ -273,6 +273,31 @@ def test_group_header_mark_all_read_applies_to_visible_unread(app_page: PageLike
 
 
 @pytest.mark.e2e
+def test_group_header_remove_read_applies_to_visible_read(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    group_headers = app_page.locator("[data-testid='group-header-row']")
+    expect(group_headers).to_have_count(2)
+
+    repo_a_header = group_headers.filter(has_text="org/repo-a")
+    remove_read_button = repo_a_header.get_by_role(
+        "button",
+        name="Dismiss all visible read notifications in org/repo-a",
+    )
+    expect(remove_read_button).to_have_count(1)
+    expect(remove_read_button).to_have_text("Remove read (1)")
+
+    remove_read_button.click()
+
+    expect(
+        app_page.locator("tr[data-thread-id]", has_text="Triage flaky integration test"),
+    ).to_have_count(0)
+    expect(
+        app_page.locator("tr[data-thread-id]", has_text="Review API changes"),
+    ).to_have_count(1)
+
+
+@pytest.mark.e2e
 def test_mobile_viewport_renders_without_horizontal_scroll(page: PageLike, corvix_server: str) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
