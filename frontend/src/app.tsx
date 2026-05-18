@@ -141,7 +141,10 @@ export function App() {
 							return false;
 						if (effectiveUnreadFilter === "read" && item.unread) return false;
 					}
-					if (filters.reason.length > 0 && !filters.reason.includes(item.reason))
+					if (
+						filters.reason.length > 0 &&
+						!filters.reason.includes(item.reason)
+					)
 						return false;
 					if (filters.repository && item.repository !== filters.repository)
 						return false;
@@ -211,6 +214,17 @@ export function App() {
 				});
 		},
 		[refresh],
+	);
+
+	const handleDismissGroupRead = useCallback(
+		(_groupName: string, items: DashboardItem[]) => {
+			for (const item of items) {
+				if (!item.unread) {
+					dismiss(item.account_id, item.thread_id);
+				}
+			}
+		},
+		[dismiss],
 	);
 
 	const handleRequestIgnoreRule = useCallback(
@@ -369,6 +383,7 @@ export function App() {
 					sortDirection={sortDirection}
 					onSort={handleSort}
 					onDismiss={dismiss}
+					onDismissGroupRead={handleDismissGroupRead}
 					onMarkGroupRead={handleMarkGroupRead}
 					markingGroupNames={markingGroupNames}
 					onOpenTarget={handleOpenTarget}

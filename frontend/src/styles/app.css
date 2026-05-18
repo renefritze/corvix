@@ -692,6 +692,12 @@ body.col-resizing * {
   gap: 10px;
 }
 
+.group-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .group-mark-read-btn {
   padding: 2px 8px;
   font-size: 0.72rem;
@@ -793,6 +799,9 @@ body.col-resizing * {
   .col-repository { width: 130px; }
   .ignore-rule-content { grid-template-columns: 1fr; }
   .group-header-content {
+    flex-wrap: wrap;
+  }
+  .group-header-actions {
     flex-wrap: wrap;
   }
 }
