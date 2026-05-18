@@ -24,7 +24,9 @@ _API_RESOURCE_TO_WEB_PATH = {
     "discussions": "discussions",
 }
 _CHECK_SUITE_TITLE_RE = re.compile(
-    r"^(?P<workflow>.+?) workflow run(?:, Attempt #(?P<attempt>\d+))? (?P<state>.+?) for (?P<branch>.+?) branch$"
+    r"^(?P<workflow>(?:(?! workflow run).)+) workflow run"
+    r"(?:, Attempt #(?P<attempt>\d+))?"
+    r" (?P<state>(?:(?! for ).)+) for (?P<branch>(?:(?! branch$).)+) branch$"
 )
 
 
@@ -82,12 +84,15 @@ class GitHubWebUrlProvider:
     ) -> str | None:
         resolved_url: str | None = None
         if notification.subject_url:
-            url_from_subject = self._resolve_check_suite_from_subject_url(
-                client=client,
-                ctx=ctx,
-                subject_url=notification.subject_url,
-                repository=notification.repository,
-            )
+            try:
+                url_from_subject = self._resolve_check_suite_from_subject_url(
+                    client=client,
+                    ctx=ctx,
+                    subject_url=notification.subject_url,
+                    repository=notification.repository,
+                )
+            except Exception:
+                url_from_subject = None
             if url_from_subject is not None:
                 resolved_url = url_from_subject
 
