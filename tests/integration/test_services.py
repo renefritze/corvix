@@ -35,8 +35,9 @@ EXPECTED_WATCH_ITERATIONS = 2
 
 
 class FakeClient:
-    def __init__(self, notifications: list[Notification]) -> None:
+    def __init__(self, notifications: list[Notification], responses: dict[str, JsonValue] | None = None) -> None:
         self._notifications = notifications
+        self._responses = responses or {}
         self.marked_thread_ids: list[str] = []
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
@@ -48,14 +49,12 @@ class FakeClient:
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
+        if url in self._responses:
+            return self._responses[url]
+        if "/notifications/threads/" in url:
+            return {"subject": {"url": None}}
         msg = f"unexpected enrichment fetch: {url}"
         raise RuntimeError(msg)
-
-
-class FakeClientWithWebUrlEnrichment(FakeClient):
-    def enrich_web_url(self, notification: Notification) -> str | None:
-        del notification
-        return "https://github.com/org/repo/actions/runs/123"
 
 
 class FakeClientWithDismiss(FakeClient):
@@ -443,11 +442,11 @@ def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> 
     assert "Please review" not in rendered_text
 
 
-def test_poll_cycle_resolves_web_urls_with_client_enricher(tmp_path: Path) -> None:
+def test_poll_cycle_hydrates_web_urls_with_thread_subject_fallback(tmp_path: Path) -> None:
     now = datetime.now(tz=UTC)
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
-    client = FakeClientWithWebUrlEnrichment(
+    client = FakeClient(
         [
             Notification(
                 thread_id="99",
@@ -458,10 +457,18 @@ def test_poll_cycle_resolves_web_urls_with_client_enricher(tmp_path: Path) -> No
                 unread=True,
                 updated_at=now,
                 thread_url="https://api.github.com/notifications/threads/99",
-                subject_url="https://api.github.com/repos/org/repo/check-suites/555",
+                subject_url=None,
                 web_url=None,
             )
-        ]
+        ],
+        responses={
+            "https://api.github.com/notifications/threads/99": {
+                "subject": {"url": "https://api.github.com/repos/org/repo/check-suites/555"}
+            },
+            "https://api.github.com/repos/org/repo/check-suites/555/check-runs?per_page=1": {
+                "check_runs": [{"html_url": "https://github.com/org/repo/actions/runs/123"}]
+            },
+        },
     )
     cache = NotificationCache(path=cache_path)
 
@@ -569,7 +576,14 @@ def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:
             thread_url="https://api.example.com/notifications/threads/3",
         )
     ]
-    client = FakeClient(notifications)
+    client = FakeClient(
+        notifications,
+        responses={
+            "https://api.example.com/notifications/threads/3": {
+                "subject": {"latest_comment_url": "https://api.example.com/repos/org/repo/issues/comments/9"}
+            }
+        },
+    )
     cache = NotificationCache(path=cache_path)
 
     summary = run_poll_cycle(
