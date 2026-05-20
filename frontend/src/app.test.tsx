@@ -414,6 +414,99 @@ describe("App", () => {
 		).toBeGreaterThan(1);
 	});
 
+	it("dismisses only visible read items from a group header", async () => {
+		vi.useFakeTimers();
+		setPath("/");
+		const snapshot = makeSnapshot({
+			groups: [
+				{
+					name: "group-a",
+					items: [
+						makeItem({
+							thread_id: "u-1",
+							subject_title: "Unread mention",
+							unread: true,
+							reason: "mention",
+						}),
+						makeItem({
+							thread_id: "r-1",
+							subject_title: "Read mention",
+							unread: false,
+							reason: "mention",
+						}),
+						makeItem({
+							thread_id: "r-2",
+							subject_title: "Read subscribed",
+							unread: false,
+							reason: "subscribed",
+						}),
+					],
+				},
+			],
+			total_items: 3,
+			dashboard_names: ["overview"],
+		});
+
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockImplementation(async (input: FetchInput, init?: RequestInit) => {
+				const url = requestUrl(input);
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				if (url.includes("/api/snapshot")) {
+					return {
+						ok: true,
+						json: async () => snapshot,
+					} as Response;
+				}
+				return { ok: false, status: 404 } as Response;
+			});
+
+		render(<App />);
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Unread mention" }),
+			).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "mention" }));
+		await user.click(
+			screen.getByRole("button", {
+				name: /Dismiss all visible read notifications in group-a/,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("link", { name: "Read mention" }),
+			).not.toBeInTheDocument();
+		});
+
+		await vi.advanceTimersByTimeAsync(3_100);
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith(
+				"/api/notifications/primary/r-1/dismiss",
+				{ method: "POST" },
+			);
+		});
+
+		expect(fetchMock).not.toHaveBeenCalledWith(
+			"/api/notifications/primary/u-1/dismiss",
+			{ method: "POST" },
+		);
+		expect(fetchMock).not.toHaveBeenCalledWith(
+			"/api/notifications/primary/r-2/dismiss",
+			{ method: "POST" },
+		);
+
+		vi.useRealTimers();
+	});
+
 	it("falls back to default dashboard when URL dashboard is unknown", async () => {
 		setPath("/dashboards/unknown");
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
