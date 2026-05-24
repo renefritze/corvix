@@ -212,10 +212,6 @@ def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
         last_poll = parse_timestamp(last_poll_str)
     except ValueError:
         return {"status": "unhealthy", "reason": "invalid_poll_time"}
-    return _health_check_staleness_dt(last_poll)
-
-
-def _health_check_staleness_dt(last_poll: datetime) -> dict[str, object]:
     staleness = datetime.now(tz=UTC) - last_poll
     if staleness > timedelta(minutes=5):
         return {
@@ -254,21 +250,12 @@ def health() -> Response[dict[str, object]]:
     status = poller_status.get("status", "unknown")
     if status == "error":
         return _health_response(_health_error(poller_status))
-    last_poll_time: datetime | None = None
-    last_poll_str = poller_status.get("last_poll_time")
-    if last_poll_str:
-        try:
-            last_poll_time = parse_timestamp(last_poll_str)
-        except ValueError:
-            return _health_response({"status": "unhealthy", "reason": "invalid_poll_time"})
-    else:
-        try:
-            last_poll_time = datetime.fromtimestamp(cache.path.stat().st_mtime, tz=UTC)
-        except OSError:
-            last_poll_time = None
-    if last_poll_time is None:
+    if status in {"unknown", "starting"}:
         return _health_response({"status": "unhealthy", "reason": "poller_not_running"})
-    return _health_response(_health_check_staleness_dt(last_poll_time))
+    last_poll_str = poller_status.get("last_poll_time")
+    if not last_poll_str:
+        return _health_response({"status": "unhealthy", "reason": "invalid_poll_time"})
+    return _health_response(_health_check_staleness(last_poll_str))
 
 
 @get("/api/themes", sync_to_thread=False)
