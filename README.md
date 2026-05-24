@@ -52,7 +52,7 @@ Notes:
 To enable token-based authentication, set `CORVIX_SECRET_TOKEN` in your `.env` file
 or environment before starting the `web` container:
 
-```env
+```bash
 # Generate a strong secret: openssl rand -hex 32
 CORVIX_SECRET_TOKEN=your-strong-random-secret
 ```
