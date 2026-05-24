@@ -753,7 +753,10 @@ class TestTokenAuth:
         yield
         _mw._SECRET_CACHE = None
         _mw._MISCONFIGURED = False
+class TestTokenAuth:
     """Tests for the optional CORVIX_SECRET_TOKEN authentication."""
+
+    @pytest.fixture(autouse=True)
 
     # ------------------------------------------------------------------
     # No auth configured — backward-compatible pass-through
