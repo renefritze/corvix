@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import get_protocol_members
@@ -274,6 +276,51 @@ def test_load_generated_at_non_string_is_none(tmp_path: Path) -> None:
 
     assert generated_at is None
     assert records == []
+
+
+def test_load_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    cache = _cache(tmp_path)
+    cache.save([_make_record("1")], generated_at=datetime.now(tz=UTC))
+
+    calls = 0
+
+    @contextmanager
+    def _spy_shared_lock(self: NotificationCache) -> Iterator[None]:
+        nonlocal calls
+        calls += 1
+        yield
+
+    monkeypatch.setattr(NotificationCache, "_shared_lock", _spy_shared_lock)
+
+    cache.load()
+
+    assert calls == 1
+
+
+def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    cache = _cache(tmp_path)
+    cache.save_status(
+        {
+            "status": "ok",
+            "last_poll_time": "2024-01-01T00:00:00Z",
+            "last_error": None,
+            "last_error_time": None,
+        }
+    )
+
+    calls = 0
+
+    @contextmanager
+    def _spy_shared_lock(self: NotificationCache) -> Iterator[None]:
+        nonlocal calls
+        calls += 1
+        yield
+
+    monkeypatch.setattr(NotificationCache, "_shared_lock", _spy_shared_lock)
+
+    cache.load_status()
+
+    assert calls == 1
 
 
 def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:

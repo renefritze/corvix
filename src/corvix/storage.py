@@ -110,7 +110,8 @@ class NotificationCache:
 
     def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
         """Load snapshot from disk if available."""
-        return self._load_unlocked()
+        with self._shared_lock():
+            return self._load_unlocked()
 
     def save_status(self, status: PollerStatus) -> None:
         """Persist only the poller status without touching notifications."""
@@ -133,7 +134,8 @@ class NotificationCache:
 
     def load_status(self) -> PollerStatus:
         """Load the poller status from the cache file."""
-        return self._load_status_unlocked()
+        with self._shared_lock():
+            return self._load_status_unlocked()
 
     def _load_raw_generated_at(self) -> str | None:
         if not self.path.exists():
@@ -226,6 +228,17 @@ class NotificationCache:
         lock_path = self.path.parent / f".{self.path.name}.lock"
         with lock_path.open("a", encoding="utf-8") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+    @contextmanager
+    def _shared_lock(self) -> Iterator[None]:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.parent / f".{self.path.name}.lock"
+        with lock_path.open("a", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
             try:
                 yield
             finally:
