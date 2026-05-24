@@ -74,6 +74,43 @@ def test_poll_command_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert "Actions executed: 0" in result.output
 
 
+def test_poll_command_defaults_to_apply_actions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    config_path = tmp_path / "corvix.yaml"
+    _write_config(config_path, tmp_path / "notifications.json")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.delenv("CORVIX_DRY_RUN", raising=False)
+    monkeypatch.delenv("CORVIX_DRY_RUN_FILE", raising=False)
+
+    def _fake_run_poll_cycle(poll_input: PollCycleInput) -> PollingSummary:
+        assert poll_input.apply_actions is True
+        return PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[])
+
+    monkeypatch.setattr(cli, "run_poll_cycle", _fake_run_poll_cycle)
+
+    result = runner.invoke(cli.main, ["--config", str(config_path), "poll"])
+
+    assert result.exit_code == 0
+
+
+def test_poll_command_dry_run_env_overrides_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    config_path = tmp_path / "corvix.yaml"
+    _write_config(config_path, tmp_path / "notifications.json")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("CORVIX_DRY_RUN", "true")
+
+    def _fake_run_poll_cycle(poll_input: PollCycleInput) -> PollingSummary:
+        assert poll_input.apply_actions is False
+        return PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[])
+
+    monkeypatch.setattr(cli, "run_poll_cycle", _fake_run_poll_cycle)
+
+    result = runner.invoke(cli.main, ["--config", str(config_path), "poll"])
+
+    assert result.exit_code == 0
+
+
 def test_poll_command_missing_config(tmp_path: Path) -> None:
     runner = CliRunner()
     missing = tmp_path / "does-not-exist.yaml"

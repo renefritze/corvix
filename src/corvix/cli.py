@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from os import environ
 from pathlib import Path
+from typing import TypeVar
 
 import click
 from rich.console import Console
@@ -22,6 +24,52 @@ from corvix.services import (
 )
 from corvix.storage import NotificationCache, PostgresStorage
 from corvix.web.app import run as run_web
+
+F = TypeVar("F", bound=Callable[..., object])
+
+
+def _parse_bool_value(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    msg = f"Invalid boolean value: {value!r}"
+    raise ValueError(msg)
+
+
+def _resolve_apply_actions_default() -> bool | None:
+    raw = get_env_value("CORVIX_DRY_RUN")
+    if raw is None or not raw.strip():
+        return None
+    return not _parse_bool_value(raw)
+
+
+def _apply_actions_callback(ctx: click.Context, param: click.Parameter, value: bool) -> bool:
+    param_name = param.name
+    if not param_name:
+        return value
+    if ctx.get_parameter_source(param_name) is click.core.ParameterSource.DEFAULT:
+        try:
+            resolved = _resolve_apply_actions_default()
+        except ValueError as error:
+            raise click.ClickException(str(error)) from error
+        if resolved is not None:
+            return resolved
+    return value
+
+
+def _apply_actions_option() -> Callable[[F], F]:
+    return click.option(
+        "--apply-actions/--dry-run",
+        default=True,
+        show_default=True,
+        callback=_apply_actions_callback,
+        help=(
+            "Apply mark-read actions to GitHub or only report planned actions. "
+            "Set CORVIX_DRY_RUN=true to default to dry-run."
+        ),
+    )
 
 
 @click.group(invoke_without_command=True)
@@ -59,12 +107,7 @@ def init_config_command(path: Path, force: bool) -> None:
 
 
 @main.command("poll")
-@click.option(
-    "--apply-actions/--dry-run",
-    default=False,
-    show_default=True,
-    help="Apply mark-read actions to GitHub or only report planned actions.",
-)
+@_apply_actions_option()
 @click.pass_context
 def poll_command(ctx: click.Context, apply_actions: bool) -> None:
     """Run one poll cycle and persist processed notifications to cache."""
@@ -89,12 +132,7 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
 
 
 @main.command("watch")
-@click.option(
-    "--apply-actions/--dry-run",
-    default=False,
-    show_default=True,
-    help="Apply mark-read actions to GitHub or only report planned actions.",
-)
+@_apply_actions_option()
 @click.option(
     "--iterations",
     type=click.IntRange(min=1),
