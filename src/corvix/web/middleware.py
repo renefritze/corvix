@@ -3,7 +3,9 @@
 When ``CORVIX_SECRET_TOKEN`` (or ``CORVIX_SECRET_TOKEN_FILE``) is set:
 
 * ``/api/*`` routes (except ``/api/health``) require an
-  ``Authorization: Bearer <token>`` or ``X-Corvix-Token: <token>`` header.
+  ``Authorization: Bearer <token>`` or ``X-Corvix-Token: <token>`` header,
+  **or** a valid ``corvix_session`` cookie (so the browser SPA works after
+  logging in via the web UI without needing to inject headers).
 * UI routes (``/``, ``/dashboards/*``) require a ``corvix_session`` cookie;
   requests without a valid cookie are redirected to ``/login``.
 * ``/api/health``, ``/assets/*``, ``/login``, and ``/logout`` are always public.
@@ -33,8 +35,11 @@ _SESSION_COOKIE_NAME = "corvix_session"
 _SESSION_HMAC_MSG = b"corvix-session-v1"
 
 # Paths that are always accessible without authentication.
-_PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/login", "/logout"})
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/", "/assets")
+# /assets (exact) handles the rare bare mount request; /assets/ handles all
+# static file requests.  Using exact + trailing-slash prefix avoids
+# accidentally making unrelated paths like /assets-private/ public.
+_PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/login", "/logout", "/assets"})
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/",)
 
 
 def _compute_session_token(secret: str) -> str:
@@ -142,26 +147,46 @@ class TokenAuthMiddleware(ASGIMiddleware):
             return
 
         # Parse headers once.
+        # RFC 7230 §3.2.4: header field values are ISO-8859-1 (latin-1).
+        # Using latin-1 (rather than the default strict UTF-8) means malformed
+        # byte sequences never raise UnicodeDecodeError and produce a clean
+        # 401/redirect instead of a 500.
         raw_headers: dict[bytes, bytes] = {k.lower(): v for k, v in scope.get("headers", [])}
 
+        def _decode(b: bytes) -> str:
+            return b.decode("latin-1")
+
         if path.startswith("/api/"):
-            # ----- API routes: Bearer or X-Corvix-Token header -----
-            auth_header = raw_headers.get(b"authorization", b"").decode()
-            token_header = raw_headers.get(b"x-corvix-token", b"").decode()
+            # ----- API routes: Bearer/X-Corvix-Token header OR session cookie -----
+            # Headers are checked first (programmatic clients, curl, etc.).
+            # Cookie fallback lets the browser SPA work after a /login without
+            # needing to inject custom headers into every fetch() call.
+            auth_header = _decode(raw_headers.get(b"authorization", b""))
+            token_header = _decode(raw_headers.get(b"x-corvix-token", b""))
 
-            provided = ""
+            provided_token = ""
             if auth_header.lower().startswith("bearer "):
-                provided = auth_header[7:].strip()
+                provided_token = auth_header[7:].strip()
             elif token_header:
-                provided = token_header.strip()
+                provided_token = token_header.strip()
 
-            if not provided or not hmac.compare_digest(provided, secret):
-                await _send_json_401(send)
-                return
+            if provided_token:
+                # Explicit header auth.
+                if not hmac.compare_digest(provided_token, secret):
+                    await _send_json_401(send)
+                    return
+            else:
+                # Cookie fallback (browser SPA path).
+                cookie_header = _decode(raw_headers.get(b"cookie", b""))
+                session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
+                expected = _compute_session_token(secret)
+                if not session_val or not hmac.compare_digest(session_val, expected):
+                    await _send_json_401(send)
+                    return
 
         else:
             # ----- UI routes: session cookie -----
-            cookie_header = raw_headers.get(b"cookie", b"").decode()
+            cookie_header = _decode(raw_headers.get(b"cookie", b""))
             session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
             expected = _compute_session_token(secret)
 

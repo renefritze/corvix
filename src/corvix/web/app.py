@@ -156,6 +156,19 @@ def login_page() -> Response[Any]:
     return Response(content=_LOGIN_HTML, media_type="text/html")
 
 
+def _request_is_https(request: Request) -> bool:
+    """Return True when the request arrived over HTTPS.
+
+    Checks the ``X-Forwarded-Proto`` header first (set by reverse proxies such
+    as nginx / Caddy / Traefik) and falls back to the connection scheme so that
+    direct TLS connections are also detected.
+    """
+    forwarded_proto = request.headers.get("x-forwarded-proto", "")
+    if forwarded_proto:
+        return forwarded_proto.split(",")[0].strip().lower() == "https"
+    return request.url.scheme == "https"
+
+
 @post("/login")
 async def login(request: Request) -> Response[None]:
     """Validate the submitted token and issue a session cookie on success."""
@@ -173,6 +186,7 @@ async def login(request: Request) -> Response[None]:
             httponly=True,
             samesite="strict",
             path="/",
+            secure=_request_is_https(request),
         )
     )
     return redirect

@@ -942,3 +942,51 @@ class TestTokenAuth:
         assert "corvix_session" in login_r.cookies
         # UI should be accessible afterwards
         assert client.get("/", follow_redirects=False).status_code == HTTPStatus.OK
+
+    # ------------------------------------------------------------------
+    # API routes accept session cookie (SPA browser flow)
+    # ------------------------------------------------------------------
+
+    def test_api_200_with_session_cookie_after_login(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """After browser login, the SPA's fetch() calls must succeed via cookie."""
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        client.post("/login", data={"token": _SECRET})  # sets corvix_session in jar
+        # No Authorization header — should succeed via cookie fallback
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_401_with_wrong_session_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        client.cookies.set("corvix_session", "not-the-right-hmac")
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    # ------------------------------------------------------------------
+    # Secure cookie flag (HTTPS detection)
+    # ------------------------------------------------------------------
+
+    def test_login_cookie_not_secure_over_http(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        # TestClient uses http:// — Secure flag should NOT be set
+        cookie_header = response.headers.get("set-cookie", "")
+        assert "secure" not in cookie_header.lower()
+
+    def test_login_cookie_is_secure_when_behind_https_proxy(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post(
+            "/login",
+            data={"token": _SECRET},
+            follow_redirects=False,
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        cookie_header = response.headers.get("set-cookie", "")
+        assert "secure" in cookie_header.lower()
