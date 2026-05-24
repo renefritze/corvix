@@ -106,7 +106,7 @@ def _parse_cookies(cookie_header: str) -> dict[str, str]:
     Uses :class:`http.cookies.SimpleCookie` from the standard library to
     handle quoted values and other edge cases correctly.
     """
-    jar: SimpleCookie[str] = SimpleCookie()
+    jar: SimpleCookie = SimpleCookie()
     jar.load(cookie_header)
     return {k: v.value for k, v in jar.items()}
 
@@ -201,6 +201,71 @@ async def _send_redirect(send: Send, location: bytes) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Request header helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_request_headers(scope: Scope) -> dict[bytes, bytes]:
+    """Extract and normalise HTTP headers from an ASGI scope.
+
+    RFC 7230 §3.2.4: header field values are ISO-8859-1 (latin-1); using
+    latin-1 decoding (rather than strict UTF-8) means malformed byte sequences
+    never raise :exc:`UnicodeDecodeError` and produce a clean 401/redirect
+    instead of a 500.
+
+    RFC 6265 §5.4: a request may carry multiple ``Cookie`` headers; they must
+    be treated as if joined by ``"; "``.  A plain dict comprehension would
+    silently drop all but the last occurrence, so Cookie header bytes are
+    accumulated separately and joined before being stored.
+    """
+    raw_headers: dict[bytes, bytes] = {}
+    cookie_parts: list[bytes] = []
+    for k, v in scope.get("headers", []):
+        k_lower = k.lower()
+        if k_lower == b"cookie":
+            cookie_parts.append(v)
+        else:
+            raw_headers[k_lower] = v
+    if cookie_parts:
+        raw_headers[b"cookie"] = b"; ".join(cookie_parts)
+    return raw_headers
+
+
+def _check_api_auth(raw_headers: dict[bytes, bytes], secret: str) -> bool:
+    """Return True when the request carries valid API credentials.
+
+    Checks ``Authorization: Bearer`` and ``X-Corvix-Token`` headers first
+    (programmatic clients, curl, etc.).  Falls back to the ``corvix_session``
+    cookie so browser SPAs work after logging in via the web UI without
+    needing to inject custom headers into every ``fetch()`` call.
+    """
+    auth_header = raw_headers.get(b"authorization", b"").decode("latin-1")
+    token_header = raw_headers.get(b"x-corvix-token", b"").decode("latin-1")
+
+    provided_token = ""
+    if auth_header.lower().startswith("bearer "):
+        provided_token = auth_header[7:].strip()
+    elif token_header:
+        provided_token = token_header.strip()
+
+    if provided_token:
+        # Explicit header auth — constant-time comparison prevents timing leaks.
+        return hmac.compare_digest(provided_token, secret)
+
+    # Cookie fallback (browser SPA path).
+    cookie_header = raw_headers.get(b"cookie", b"").decode("latin-1")
+    session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
+    return _verify_session_cookie(secret, session_val)
+
+
+def _check_ui_auth(raw_headers: dict[bytes, bytes], secret: str) -> bool:
+    """Return True when the request carries a valid ``corvix_session`` cookie."""
+    cookie_header = raw_headers.get(b"cookie", b"").decode("latin-1")
+    session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
+    return _verify_session_cookie(secret, session_val)
+
+
+# ---------------------------------------------------------------------------
 # Middleware
 # ---------------------------------------------------------------------------
 
@@ -229,50 +294,16 @@ class TokenAuthMiddleware(ASGIMiddleware):
             await next_app(scope, receive, send)
             return
 
-        # Parse headers once.
-        # RFC 7230 §3.2.4: header field values are ISO-8859-1 (latin-1).
-        # Using latin-1 (rather than the default strict UTF-8) means malformed
-        # byte sequences never raise UnicodeDecodeError and produce a clean
-        # 401/redirect instead of a 500.
-        raw_headers: dict[bytes, bytes] = {k.lower(): v for k, v in scope.get("headers", [])}
-
-        def _decode(b: bytes) -> str:
-            return b.decode("latin-1")
+        raw_headers = _parse_request_headers(scope)
 
         if path.startswith("/api/"):
             # ----- API routes: Bearer/X-Corvix-Token header OR session cookie -----
-            # Headers are checked first (programmatic clients, curl, etc.).
-            # Cookie fallback lets the browser SPA work after a /login without
-            # needing to inject custom headers into every fetch() call.
-            auth_header = _decode(raw_headers.get(b"authorization", b""))
-            token_header = _decode(raw_headers.get(b"x-corvix-token", b""))
-
-            provided_token = ""
-            if auth_header.lower().startswith("bearer "):
-                provided_token = auth_header[7:].strip()
-            elif token_header:
-                provided_token = token_header.strip()
-
-            if provided_token:
-                # Explicit header auth.
-                if not hmac.compare_digest(provided_token, secret):
-                    await _send_json_401(send)
-                    return
-            else:
-                # Cookie fallback (browser SPA path).
-                cookie_header = _decode(raw_headers.get(b"cookie", b""))
-                session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
-                if not _verify_session_cookie(secret, session_val):
-                    await _send_json_401(send)
-                    return
-
-        else:
-            # ----- UI routes: session cookie -----
-            cookie_header = _decode(raw_headers.get(b"cookie", b""))
-            session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
-
-            if not _verify_session_cookie(secret, session_val):
-                await _send_redirect(send, b"/login")
+            if not _check_api_auth(raw_headers, secret):
+                await _send_json_401(send)
                 return
+        elif not _check_ui_auth(raw_headers, secret):
+            # ----- UI routes: session cookie; redirect to login if absent/invalid -----
+            await _send_redirect(send, b"/login")
+            return
 
         await next_app(scope, receive, send)

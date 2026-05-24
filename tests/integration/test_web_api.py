@@ -738,6 +738,8 @@ _SECRET = "test-secret-token"
 
 
 class TestTokenAuth:
+    """Tests for the optional CORVIX_SECRET_TOKEN authentication."""
+
     @pytest.fixture(autouse=True)
     def reset_middleware_cache(self) -> pytest.Generator[None, None, None]:
         """Reset the secret TTL cache and misconfiguration flag between tests.
