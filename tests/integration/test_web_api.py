@@ -13,6 +13,7 @@ from litestar.testing import TestClient
 
 from corvix.config import load_config
 from corvix.web.app import INDEX_HTML, THEMES, app
+from corvix.web.middleware import _compute_session_token
 
 GENERATED_AT = "2024-01-01T00:00:00Z"
 EXPECTED_POPULATED_TOTAL_ITEMS = 3
@@ -726,3 +727,178 @@ def test_load_runtime_config_invalid_yaml(client: TestClient, monkeypatch: pytes
     response = client.get("/api/dashboards")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+# ---------------------------------------------------------------------------
+# Token-based authentication tests
+# ---------------------------------------------------------------------------
+
+_SECRET = "test-secret-token"
+
+
+class TestTokenAuth:
+    """Tests for the optional CORVIX_SECRET_TOKEN authentication."""
+
+    # ------------------------------------------------------------------
+    # No auth configured — backward-compatible pass-through
+    # ------------------------------------------------------------------
+
+    def test_api_no_auth_required_when_token_unset(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_ui_no_redirect_when_token_unset(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/", follow_redirects=False)
+        # Should serve the SPA directly, not redirect to /login
+        assert response.status_code == HTTPStatus.OK
+
+    # ------------------------------------------------------------------
+    # Auth enabled — API routes
+    # ------------------------------------------------------------------
+
+    def test_api_401_without_auth_header(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_api_200_with_bearer_token(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"Authorization": f"Bearer {_SECRET}"})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_200_with_x_corvix_token_header(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"X-Corvix-Token": _SECRET})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_401_with_wrong_bearer_token(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"Authorization": "Bearer wrong-token"})
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_api_401_with_wrong_x_corvix_token(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"X-Corvix-Token": "wrong-token"})
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_api_401_response_is_json(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes")
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"detail": "Unauthorized"}
+
+    # ------------------------------------------------------------------
+    # Auth enabled — always-public paths
+    # ------------------------------------------------------------------
+
+    def test_health_always_public(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        # /api/health returns 200 even without any auth header
+        response = client.get("/api/health")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_login_page_always_accessible(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/login")
+        assert response.status_code == HTTPStatus.OK
+        assert b"<form" in response.content
+
+    # ------------------------------------------------------------------
+    # Auth enabled — UI routes redirect without cookie
+    # ------------------------------------------------------------------
+
+    def test_ui_redirects_to_login_without_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/login"
+
+    def test_dashboard_redirects_to_login_without_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/dashboards/triage", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/login"
+
+    # ------------------------------------------------------------------
+    # Auth enabled — login / logout flow
+    # ------------------------------------------------------------------
+
+    def test_login_sets_cookie_and_redirects_to_root(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert "corvix_session" in response.cookies
+
+    def test_login_cookie_value_is_hmac_of_secret(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert response.cookies["corvix_session"] == _compute_session_token(_SECRET)
+
+    def test_login_wrong_token_returns_401(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": "bad-token"})
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_ui_accessible_with_valid_session_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        # Log in first — TestClient carries the Set-Cookie automatically.
+        login_r = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert login_r.status_code == HTTPStatus.FOUND
+        # The session cookie is now in the client's cookie jar.
+        ui_r = client.get("/", follow_redirects=False)
+        assert ui_r.status_code == HTTPStatus.OK
+
+    def test_logout_clears_cookie_and_redirects_to_login(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        # Log in, then log out.
+        client.post("/login", data={"token": _SECRET})
+        response = client.get("/logout", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/login"
+
+    def test_login_page_redirects_to_root_when_auth_not_configured(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/login", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/"

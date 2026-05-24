@@ -33,6 +33,11 @@ services:
     environment:
       CORVIX_CONFIG: /app/config/corvix.yaml
       DATABASE_URL_FILE: /run/secrets/database_url
+      # Optional: require authentication on all requests.
+      # Set to a strong random secret (e.g. `openssl rand -hex 32`).
+      # CORVIX_SECRET_TOKEN: changeme
+      # Or store the secret in a Docker secrets file:
+      # CORVIX_SECRET_TOKEN_FILE: /run/secrets/corvix_token
     secrets:
     - database_url
 
