@@ -3,15 +3,14 @@ services:
   web-lighthouse:
     build:
       context: .
-    command:
-    - uvicorn
-    - corvix.web.app:app
-    - --host
-    - 0.0.0.0
-    - --port
-    - "8000"
+    entrypoint:
+    - sh
+    - -c
+    - python /fixtures/prepare_fixture.py && exec uvicorn corvix.web.app:app --host 0.0.0.0 --port 8000
     environment:
       CORVIX_CONFIG: /fixtures/corvix.lighthouse.yaml
+      LH_TEMPLATE: /fixtures/notifications.json
+      LH_CACHE: /var/cache/corvix/notifications.json
     ports: ["4173:8000"]
     volumes:
     - ./tests/lighthouse:/fixtures:ro
