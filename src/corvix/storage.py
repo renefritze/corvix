@@ -110,9 +110,15 @@ class NotificationCache:
 
     def load(self) -> tuple[datetime | None, list[NotificationRecord]]:
         """Load snapshot from disk if available."""
-        if not self.path.exists():
+        try:
+            path_exists = self.path.exists()
+        except OSError:
             return None, []
-        with self._shared_lock():
+        if not path_exists:
+            return None, []
+        with self._shared_lock() as locked:
+            if not locked:
+                return None, []
             return self._load_unlocked()
 
     def save_status(self, status: PollerStatus) -> None:
@@ -136,9 +142,15 @@ class NotificationCache:
 
     def load_status(self) -> PollerStatus:
         """Load the poller status from the cache file."""
-        if not self.path.exists():
+        try:
+            path_exists = self.path.exists()
+        except OSError:
             return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
-        with self._shared_lock():
+        if not path_exists:
+            return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
+        with self._shared_lock() as locked:
+            if not locked:
+                return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
             return self._load_status_unlocked()
 
     def _load_raw_generated_at(self) -> str | None:
@@ -238,7 +250,7 @@ class NotificationCache:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     @contextmanager
-    def _shared_lock(self) -> Iterator[None]:
+    def _shared_lock(self) -> Iterator[bool]:
         lock_path = self.path.parent / f".{self.path.name}.lock"
         try:
             lock_file = lock_path.open("r", encoding="utf-8")
@@ -246,16 +258,16 @@ class NotificationCache:
             try:
                 lock_file = lock_path.open("a+", encoding="utf-8")
             except PermissionError:
-                yield
+                yield False
                 return
         except PermissionError:
-            yield
+            yield False
             return
 
         with lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
             try:
-                yield
+                yield True
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
