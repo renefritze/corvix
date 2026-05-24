@@ -20,8 +20,8 @@ class _Response:
     def __enter__(self) -> _Response:
         return self
 
-    def __exit__(self, *_args: object) -> None:
-        return None
+    def __exit__(self, *_args: object) -> bool:
+        return False
 
     def read(self) -> bytes:
         return self._payload
