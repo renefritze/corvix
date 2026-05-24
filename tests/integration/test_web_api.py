@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 
@@ -140,10 +140,23 @@ def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_health_when_poller_unknown(configured_client: TestClient) -> None:
     response = configured_client.get("/api/health")
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"status": "ok"}
+
+
+def test_health_when_cache_mtime_is_stale_without_poller_status(configured_client: TestClient) -> None:
+    config_path = Path(os.environ["CORVIX_CONFIG"])
+    cache_file = load_config(config_path).resolve_cache_file()
+    stale_time = datetime.now(tz=UTC) - timedelta(minutes=10)
+    os.utime(cache_file, (stale_time.timestamp(), stale_time.timestamp()))
+
+    response = configured_client.get("/api/health")
+
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
-    assert payload["reason"] == "poller_not_running"
+    assert payload["reason"] == "stale"
+    assert "last_poll_seconds_ago" in payload
 
 
 def test_health_when_poller_healthy(configured_client: TestClient) -> None:
