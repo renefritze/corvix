@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-from corvix.config import AppConfig, GitHubAccountConfig, load_config, write_default_config
+from corvix.config import AppConfig, GitHubAccountConfig, PollingConfig, load_config, write_default_config
 from corvix.db import get_database_url
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
@@ -70,7 +70,7 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
     """Run one poll cycle and persist processed notifications to cache."""
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
-    clients = _build_clients(app_config.github.accounts)
+    clients = _build_clients(app_config.github.accounts, app_config.polling)
     cache = NotificationCache(path=app_config.resolve_cache_file())
     summary = run_poll_cycle(
         PollCycleInput(
@@ -106,7 +106,7 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
     """Run periodic poll cycles, suitable for cron-like local daemon behavior."""
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
-    clients = _build_clients(app_config.github.accounts)
+    clients = _build_clients(app_config.github.accounts, app_config.polling)
     cache = NotificationCache(path=app_config.resolve_cache_file())
     summaries = run_watch_loop(
         PollCycleInput(
@@ -218,7 +218,7 @@ def _resolve_token(token_env: str) -> str:
     raise click.ClickException(msg)
 
 
-def _build_clients(accounts: list[GitHubAccountConfig]) -> tuple[NotificationsClient, ...]:
+def _build_clients(accounts: list[GitHubAccountConfig], polling: PollingConfig) -> tuple[NotificationsClient, ...]:
     clients: list[NotificationsClient] = []
     for account in accounts:
         token = _resolve_token(account.token_env)
@@ -228,6 +228,7 @@ def _build_clients(accounts: list[GitHubAccountConfig]) -> tuple[NotificationsCl
                 api_base_url=account.api_base_url,
                 account_id=account.id,
                 account_label=account.label,
+                request_timeout_seconds=polling.request_timeout_seconds,
             )
         )
     return tuple(clients)

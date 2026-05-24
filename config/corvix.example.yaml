@@ -16,6 +16,8 @@ github:
 polling:
   # Watch-loop delay between poll cycles, in seconds.
   interval_seconds: 60
+  # HTTP timeout per GitHub API request, in seconds.
+  request_timeout_seconds: 30
   # GitHub page size per request (valid range: 1-50).
   per_page: 50
   # Maximum pages to fetch per cycle to cap API usage.

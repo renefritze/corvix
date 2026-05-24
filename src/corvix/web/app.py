@@ -291,7 +291,11 @@ def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None
     if not token:
         msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
-    client = GitHubNotificationsClient(token=token, api_base_url=account.api_base_url)
+    client = GitHubNotificationsClient(
+        token=token,
+        api_base_url=account.api_base_url,
+        request_timeout_seconds=config.polling.request_timeout_seconds,
+    )
     try:
         client.dismiss_thread(thread_id)
     except Exception as error:
@@ -315,7 +319,11 @@ def _mark_notification_read_impl(account_id: str, thread_id: str) -> Response[No
         msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
 
-    client = GitHubNotificationsClient(token=token, api_base_url=account.api_base_url)
+    client = GitHubNotificationsClient(
+        token=token,
+        api_base_url=account.api_base_url,
+        request_timeout_seconds=config.polling.request_timeout_seconds,
+    )
     try:
         client.mark_thread_read(thread_id)
     except Exception as error:

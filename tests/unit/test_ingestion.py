@@ -110,6 +110,45 @@ def test_request_json_reads_and_decodes_payload() -> None:
     assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(1.5)
 
 
+def test_request_json_uses_client_default_timeout() -> None:
+    client = GitHubNotificationsClient(
+        token="test-token", api_base_url="https://api.example.com", request_timeout_seconds=2.5
+    )
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"ok": true}'
+
+    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+        client._request_json("https://api.example.com/notifications", method="GET")
+
+    assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(2.5)
+
+
+def test_request_no_content_uses_client_default_timeout() -> None:
+    client = GitHubNotificationsClient(
+        token="test-token", api_base_url="https://api.example.com", request_timeout_seconds=3.5
+    )
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+        client._request_no_content("https://api.example.com/notifications/threads/123", method="PATCH")
+
+    assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(3.5)
+
+
 def test_http_error_detail_falls_back_for_non_json_payload() -> None:
     err = url_error.HTTPError(
         url="https://api.example.com/x",
