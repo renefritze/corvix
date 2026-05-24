@@ -23,6 +23,9 @@ services:
     build:
       context: .
     restart: unless-stopped
+    # --proxy-headers tells uvicorn to trust X-Forwarded-Proto from a reverse
+    # proxy, which lets Litestar's request.url.scheme reflect the real protocol
+    # (used for the Secure cookie flag on /login).
     command:
     - uvicorn
     - corvix.web.app:app
@@ -30,9 +33,15 @@ services:
     - 0.0.0.0
     - --port
     - "8000"
+    - --proxy-headers
     environment:
       CORVIX_CONFIG: /app/config/corvix.yaml
       DATABASE_URL_FILE: /run/secrets/database_url
+      # Optional: require authentication on all requests.
+      # Set to a strong random secret (e.g. `openssl rand -hex 32`).
+      # CORVIX_SECRET_TOKEN: changeme
+      # Or store the secret in a Docker secrets file:
+      # CORVIX_SECRET_TOKEN_FILE: /run/secrets/corvix_token
     secrets:
     - database_url
 
