@@ -132,7 +132,7 @@ dashboards:
 def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
     response = client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
     assert payload["reason"] == "config_unavailable"
@@ -140,7 +140,7 @@ def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_health_when_poller_unknown(configured_client: TestClient) -> None:
     response = configured_client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
     assert payload["reason"] == "poller_not_running"
@@ -185,7 +185,7 @@ def test_health_when_poller_stale(configured_client: TestClient) -> None:
         encoding="utf-8",
     )
     response = configured_client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
     assert payload["reason"] == "stale"
@@ -199,7 +199,7 @@ def test_health_when_cache_is_invalid(configured_client: TestClient) -> None:
 
     response = configured_client.get("/api/health")
 
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_cache"}
 
 
@@ -223,7 +223,7 @@ def test_health_when_poller_error_trims_last_line(configured_client: TestClient)
 
     response = configured_client.get("/api/health")
 
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {
         "status": "unhealthy",
         "reason": "poller_error",
@@ -250,7 +250,7 @@ def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) ->
 
     response = configured_client.get("/api/health")
 
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_poll_time"}
 
 

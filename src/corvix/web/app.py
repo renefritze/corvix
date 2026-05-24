@@ -9,6 +9,7 @@ import logging
 import re
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 from importlib.resources import files
 from os import environ
 from pathlib import Path
@@ -221,35 +222,40 @@ def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
     return {"status": "ok"}
 
 
+def _health_response(payload: dict[str, object]) -> Response[dict[str, object]]:
+    status_code = HTTPStatus.OK if payload.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
+    return Response(content=payload, status_code=status_code, media_type="application/json")
+
+
 @get("/api/health", sync_to_thread=False)
-def health() -> dict[str, object]:
+def health() -> Response[dict[str, object]]:
     """Health endpoint for container checks.
 
     Returns 200 with {"status": "ok"} when config and cache are readable,
     the poller is running, and the poller's last poll time is not stale.
 
-    Returns 200 with {"status": "unhealthy"} and one of these reasons:
+    Returns 503 with {"status": "unhealthy"} and one of these reasons:
     "config_unavailable", "invalid_cache", "poller_not_running",
     "poller_error", "invalid_poll_time", or "stale".
     """
     try:
         config = _load_runtime_config()
     except HTTPException:
-        return {"status": "unhealthy", "reason": "config_unavailable"}
+        return _health_response({"status": "unhealthy", "reason": "config_unavailable"})
     cache = NotificationCache(path=config.resolve_cache_file())
     try:
         poller_status = cache.load_status()
     except (OSError, json.JSONDecodeError):
-        return {"status": "unhealthy", "reason": "invalid_cache"}
+        return _health_response({"status": "unhealthy", "reason": "invalid_cache"})
     status = poller_status.get("status", "unknown")
     if status == "error":
-        return _health_error(poller_status)
+        return _health_response(_health_error(poller_status))
     if status in {"unknown", "starting"}:
-        return {"status": "unhealthy", "reason": "poller_not_running"}
+        return _health_response({"status": "unhealthy", "reason": "poller_not_running"})
     last_poll_str = poller_status.get("last_poll_time")
     if not last_poll_str:
-        return {"status": "unhealthy", "reason": "invalid_poll_time"}
-    return _health_check_staleness(last_poll_str)
+        return _health_response({"status": "unhealthy", "reason": "invalid_poll_time"})
+    return _health_response(_health_check_staleness(last_poll_str))
 
 
 @get("/api/themes", sync_to_thread=False)
