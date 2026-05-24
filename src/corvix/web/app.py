@@ -291,11 +291,7 @@ def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None
     if not token:
         msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
-    client = GitHubNotificationsClient(
-        token=token,
-        api_base_url=account.api_base_url,
-        request_timeout_seconds=config.polling.request_timeout_seconds,
-    )
+    client = _build_github_client(config=config, account=account, token=token)
     try:
         client.dismiss_thread(thread_id)
     except Exception as error:
@@ -319,11 +315,7 @@ def _mark_notification_read_impl(account_id: str, thread_id: str) -> Response[No
         msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
 
-    client = GitHubNotificationsClient(
-        token=token,
-        api_base_url=account.api_base_url,
-        request_timeout_seconds=config.polling.request_timeout_seconds,
-    )
+    client = _build_github_client(config=config, account=account, token=token)
     try:
         client.mark_thread_read(thread_id)
     except Exception as error:
@@ -342,6 +334,14 @@ def _require_account(config: AppConfig, account_id: str) -> GitHubAccountConfig:
             return account
     msg = f"GitHub account '{account_id}' not found in config."
     raise HTTPException(status_code=404, detail=msg)
+
+
+def _build_github_client(config: AppConfig, account: GitHubAccountConfig, token: str) -> GitHubNotificationsClient:
+    return GitHubNotificationsClient(
+        token=token,
+        api_base_url=account.api_base_url,
+        request_timeout_seconds=config.polling.request_timeout_seconds,
+    )
 
 
 def _default_account_id(config: AppConfig) -> str:

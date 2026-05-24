@@ -13,6 +13,20 @@ from corvix.config import PollingConfig
 from corvix.ingestion import GitHubNotificationsClient, _coerce_json_value, _http_error_detail, _retry_delay_seconds
 
 
+class _Response:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> _Response:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
 def _client() -> GitHubNotificationsClient:
     return GitHubNotificationsClient(token="test-token", api_base_url="https://api.example.com")
 
@@ -93,17 +107,7 @@ def test_coerce_json_value_rejects_non_string_dict_keys() -> None:
 def test_request_json_reads_and_decodes_payload() -> None:
     client = _client()
 
-    class _Response:
-        def __enter__(self) -> _Response:
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return b'{"ok": true}'
-
-    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+    with patch.object(request, "urlopen", return_value=_Response(b'{"ok": true}')) as mock_urlopen:
         payload = client._request_json("https://api.example.com/notifications", method="GET", timeout_seconds=1.5)
 
     assert payload == {"ok": True}
@@ -115,17 +119,7 @@ def test_request_json_uses_client_default_timeout() -> None:
         token="test-token", api_base_url="https://api.example.com", request_timeout_seconds=2.5
     )
 
-    class _Response:
-        def __enter__(self) -> _Response:
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return b'{"ok": true}'
-
-    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+    with patch.object(request, "urlopen", return_value=_Response(b'{"ok": true}')) as mock_urlopen:
         client._request_json("https://api.example.com/notifications", method="GET")
 
     assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(2.5)
@@ -136,17 +130,27 @@ def test_request_no_content_uses_client_default_timeout() -> None:
         token="test-token", api_base_url="https://api.example.com", request_timeout_seconds=3.5
     )
 
-    class _Response:
-        def __enter__(self) -> _Response:
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-    with patch.object(request, "urlopen", return_value=_Response()) as mock_urlopen:
+    with patch.object(request, "urlopen", return_value=_Response(b"")) as mock_urlopen:
         client._request_no_content("https://api.example.com/notifications/threads/123", method="PATCH")
 
     assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(3.5)
+
+
+def test_fetch_notifications_uses_polling_request_timeout() -> None:
+    client = _client()
+    polling = PollingConfig(
+        interval_seconds=300,
+        request_timeout_seconds=1.25,
+        per_page=50,
+        max_pages=1,
+        all=False,
+        participating=False,
+    )
+
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value=[]) as mock_req:
+        client.fetch_notifications(polling)
+
+    assert mock_req.call_args.kwargs["timeout_seconds"] == pytest.approx(1.25)
 
 
 def test_http_error_detail_falls_back_for_non_json_payload() -> None:

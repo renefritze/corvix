@@ -53,11 +53,14 @@ class GitHubNotificationsClient:
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
         """Fetch notifications with pagination."""
-        self.request_timeout_seconds = polling.request_timeout_seconds
         notifications: list[Notification] = []
         page = 1
         while page <= polling.max_pages:
-            raw = self._fetch_page(polling=polling, page=page)
+            raw = self._fetch_page(
+                polling=polling,
+                page=page,
+                timeout_seconds=polling.request_timeout_seconds,
+            )
             if not raw:
                 break
             notifications.extend(
@@ -71,7 +74,7 @@ class GitHubNotificationsClient:
             page += 1
         return notifications
 
-    def _fetch_page(self, polling: PollingConfig, page: int) -> list[JsonObject]:
+    def _fetch_page(self, polling: PollingConfig, page: int, timeout_seconds: float) -> list[JsonObject]:
         query = {
             "all": str(polling.all).lower(),
             "participating": str(polling.participating).lower(),
@@ -79,7 +82,7 @@ class GitHubNotificationsClient:
             "page": str(page),
         }
         url = self._build_url("/notifications", query)
-        payload = self._request_json(url, method="GET")
+        payload = self._request_json(url, method="GET", timeout_seconds=timeout_seconds)
         if not isinstance(payload, list):
             msg = "GitHub API returned unexpected notifications payload."
             raise ValueError(msg)
