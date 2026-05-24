@@ -82,6 +82,8 @@ def _asset_version_token() -> str:
 _INDEX_HTML_TEMPLATE = _STATIC_ROOT.joinpath("index.html").read_text(encoding="utf-8")
 INDEX_HTML = _INDEX_HTML_TEMPLATE.replace("__ASSET_VERSION__", _asset_version_token())
 
+_MEDIA_TYPE_HTML = "text/html"
+
 _LOGIN_HTML = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -130,14 +132,14 @@ _LOGIN_HTML = """\
 @get("/", sync_to_thread=False)
 def index() -> Response[str]:
     """Serve the dashboard single-page UI."""
-    return Response(content=INDEX_HTML, media_type="text/html")
+    return Response(content=INDEX_HTML, media_type=_MEDIA_TYPE_HTML)
 
 
 @get("/dashboards/{dashboard_name:str}", sync_to_thread=False)
 def dashboard_index(dashboard_name: str) -> Response[str]:
     """Serve the dashboard SPA for bookmarkable dashboard URLs."""
     del dashboard_name
-    return Response(content=INDEX_HTML, media_type="text/html")
+    return Response(content=INDEX_HTML, media_type=_MEDIA_TYPE_HTML)
 
 
 def _get_auth_secret() -> str:
@@ -154,7 +156,7 @@ def login_page() -> Response[Any]:
     """Serve the login form, or redirect to / when auth is not configured."""
     if not _get_auth_secret():
         return Redirect("/")
-    return Response(content=_LOGIN_HTML, media_type="text/html")
+    return Response(content=_LOGIN_HTML, media_type=_MEDIA_TYPE_HTML)
 
 
 @post("/login")
