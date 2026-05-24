@@ -116,9 +116,7 @@ class NotificationCache:
             return None, []
         if not path_exists:
             return None, []
-        with self._shared_lock() as locked:
-            if not locked:
-                return None, []
+        with self._shared_lock():
             return self._load_unlocked()
 
     def save_status(self, status: PollerStatus) -> None:
@@ -148,9 +146,7 @@ class NotificationCache:
             return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
         if not path_exists:
             return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
-        with self._shared_lock() as locked:
-            if not locked:
-                return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
+        with self._shared_lock():
             return self._load_status_unlocked()
 
     def _load_raw_generated_at(self) -> str | None:
@@ -250,24 +246,30 @@ class NotificationCache:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     @contextmanager
-    def _shared_lock(self) -> Iterator[bool]:
+    def _shared_lock(self) -> Iterator[None]:
+        """Acquire a shared read lock when possible; fall through unlocked otherwise.
+
+        When the lock file cannot be created (read-only filesystem, missing
+        permissions), no concurrent writer can be holding the exclusive lock
+        from this process either, so reads proceed without it. Torn reads
+        remain prevented under normal operation where both reader and writer
+        can open the lock file.
+        """
         lock_path = self.path.parent / f".{self.path.name}.lock"
         try:
-            lock_file = lock_path.open("r", encoding="utf-8")
-        except FileNotFoundError:
-            try:
-                lock_file = lock_path.open("a+", encoding="utf-8")
-            except PermissionError:
-                yield False
-                return
-        except PermissionError:
-            yield False
+            lock_file = lock_path.open("a+", encoding="utf-8")
+        except OSError:
+            yield
             return
 
         with lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
             try:
-                yield True
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
+            except OSError:
+                yield
+                return
+            try:
+                yield
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
