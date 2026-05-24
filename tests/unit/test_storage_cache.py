@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import get_protocol_members
+from typing import IO, Any, cast, get_protocol_members
 
 import pytest
 from pytest import MonkeyPatch
@@ -89,6 +91,17 @@ def test_load_returns_empty_when_no_file(tmp_path: Path) -> None:
     generated_at, records = cache.load()
     assert generated_at is None
     assert records == []
+
+
+def test_load_does_not_create_lockfile_when_no_cache(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    lock_path = cache.path.parent / f".{cache.path.name}.lock"
+    assert not lock_path.exists()
+
+    cache.load()
+    cache.load_status()
+
+    assert not lock_path.exists()
 
 
 def test_save_creates_parent_directories(tmp_path: Path) -> None:
@@ -274,6 +287,97 @@ def test_load_generated_at_non_string_is_none(tmp_path: Path) -> None:
 
     assert generated_at is None
     assert records == []
+
+
+def test_load_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    cache = _cache(tmp_path)
+    cache.save([_make_record("1")], generated_at=datetime.now(tz=UTC))
+
+    calls = 0
+
+    @contextmanager
+    def _spy_shared_lock(self: NotificationCache) -> Iterator[bool]:
+        nonlocal calls
+        calls += 1
+        yield True
+
+    monkeypatch.setattr(NotificationCache, "_shared_lock", _spy_shared_lock)
+
+    cache.load()
+
+    assert calls == 1
+
+
+def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    cache = _cache(tmp_path)
+    cache.save_status(
+        {
+            "status": "ok",
+            "last_poll_time": "2024-01-01T00:00:00Z",
+            "last_error": None,
+            "last_error_time": None,
+        }
+    )
+
+    calls = 0
+
+    @contextmanager
+    def _spy_shared_lock(self: NotificationCache) -> Iterator[bool]:
+        nonlocal calls
+        calls += 1
+        yield True
+
+    monkeypatch.setattr(NotificationCache, "_shared_lock", _spy_shared_lock)
+
+    cache.load_status()
+
+    assert calls == 1
+
+
+def test_load_status_returns_default_when_lock_cannot_be_opened(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    cache = _cache(tmp_path)
+    cache.save_status(
+        {
+            "status": "ok",
+            "last_poll_time": "2024-01-01T00:00:00Z",
+            "last_error": None,
+            "last_error_time": None,
+        }
+    )
+
+    original_open = cast(Any, Path.open)
+    original_read_text = cast(Any, Path.read_text)
+
+    def _deny_lock_open(
+        path: Path,
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> IO[str]:
+        if str(path).endswith(".lock"):
+            raise PermissionError("read-only")
+        return cast(
+            IO[str],
+            original_open(path, mode=mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline),
+        )
+
+    def _deny_cache_read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> str:
+        if path == cache.path:
+            raise AssertionError("cache should not be read without lock")
+        return cast(str, original_read_text(path, encoding=encoding, errors=errors, newline=newline))
+
+    monkeypatch.setattr(Path, "open", _deny_lock_open)
+    monkeypatch.setattr(Path, "read_text", _deny_cache_read)
+
+    status = cache.load_status()
+    assert status.get("status") == "unknown"
 
 
 def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
