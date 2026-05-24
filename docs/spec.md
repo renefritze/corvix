@@ -359,7 +359,7 @@ Entry point: `corvix` (`corvix.cli:main`). All subcommands accept `--config PATH
 | Command | Description |
 |---|---|
 | `init-config [PATH]` | Write starter YAML. `--force` to overwrite. |
-| `poll` | One fetch → process → cache cycle. `--apply-actions` / `--dry-run` (default dry-run). Prints fetched/excluded/actions counts. |
+| `poll` | One fetch → process → cache cycle. `--apply-actions` / `--dry-run` (default apply-actions; or set `CORVIX_DRY_RUN=true`). Prints fetched/excluded/actions counts. |
 | `watch` | Runs `poll` in a loop, sleeping `interval_seconds` between runs. `--iterations N` to cap. |
 | `dashboard [--name NAME]` | Renders dashboards from cache using Rich tables. Does not poll. |
 | `serve` | Starts Litestar web server. `--host`, `--port`, `--reload`. Sets env vars then delegates to `uvicorn`. |
@@ -427,7 +427,7 @@ The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/a
 | Service | Image | Role |
 |---|---|---|
 | `db` | `postgres:16-alpine` | PostgreSQL service for migration and database-backed workflows. |
-| `poller` | local build | Runs `corvix watch --dry-run` continuously; writes to shared `corvix_state` volume. |
+| `poller` | local build | Runs `corvix watch` continuously; applies actions by default (set `CORVIX_DRY_RUN=true` to disable). Writes to shared `corvix_state` volume. |
 | `web` | local build | Runs `uvicorn corvix.web.app:app --host 0.0.0.0 --port 8000`; reads from shared `corvix_state` volume. |
 
 Shared volume `corvix_state` is mounted at `/data`. The poller writes `notifications.json` there; the web service reads it. Both services mount `./config:/app/config`.
@@ -441,6 +441,7 @@ Optional development override: if live-reload/source mounts are needed, add a co
 | `GITHUB_TOKEN` / `GITHUB_TOKEN_FILE` | poller, web | GitHub PAT source (`*_FILE` is used in Docker Compose). |
 | `CORVIX_CONFIG` | both | Path to YAML config file inside the container. |
 | `DATABASE_URL` / `DATABASE_URL_FILE` | both | PostgreSQL URL source (`*_FILE` is used in Docker Compose). |
+| `CORVIX_DRY_RUN` | poller | When `true`, defaults the poller to dry-run mode (no GitHub state changes). |
 | `CORVIX_WEB_HOST` | web | Bind host for uvicorn (default `0.0.0.0`). |
 | `CORVIX_WEB_PORT` | web | Bind port for uvicorn (default `8000`). |
 | `CORVIX_WEB_RELOAD` | web | Enable uvicorn reload (`true`/`false`). |

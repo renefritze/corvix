@@ -67,7 +67,6 @@ services:
     - --config
     - /app/config/corvix.yaml
     - watch
-    - --dry-run
     environment:
       CORVIX_CONFIG: /app/config/corvix.yaml
       DATABASE_URL_FILE: /run/secrets/database_url
@@ -75,6 +74,7 @@ services:
     - database_url
 
     # Load environment variables from a `.env` file (multiple named tokens allowed)
+    # Set `CORVIX_DRY_RUN=true` in `.env` to disable GitHub actions.
     env_file: .env
     volumes:
     - ./config:/app/config

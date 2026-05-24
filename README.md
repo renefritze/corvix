@@ -40,6 +40,7 @@ Notes:
 - Frontend assets are built as part of Docker image build.
 - Rebuild images after frontend source changes.
 - `poller` updates the shared `/data/notifications.json` cache.
+- Set `CORVIX_DRY_RUN=true` in `.env` to run the poller in dry-run mode (no GitHub actions).
 - `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
 
 ## Contributor Tooling
