@@ -93,6 +93,17 @@ def test_load_returns_empty_when_no_file(tmp_path: Path) -> None:
     assert records == []
 
 
+def test_load_does_not_create_lockfile_when_no_cache(tmp_path: Path) -> None:
+    cache = _cache(tmp_path)
+    lock_path = cache.path.parent / f".{cache.path.name}.lock"
+    assert not lock_path.exists()
+
+    cache.load()
+    cache.load_status()
+
+    assert not lock_path.exists()
+
+
 def test_save_creates_parent_directories(tmp_path: Path) -> None:
     deep_path = tmp_path / "a" / "b" / "c" / "notifications.json"
     cache = NotificationCache(path=deep_path)
