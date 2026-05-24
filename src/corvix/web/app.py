@@ -29,7 +29,7 @@ from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
-from corvix.web.middleware import TokenAuthMiddleware, _compute_session_token
+from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -141,11 +141,12 @@ def dashboard_index(dashboard_name: str) -> Response[str]:
 
 
 def _get_auth_secret() -> str:
-    """Return the configured secret, or '' if unset.  Mirrors middleware._get_secret()."""
-    try:
-        return get_env_value("CORVIX_SECRET_TOKEN") or ""
-    except ValueError:
-        return ""
+    """Return the configured secret, delegating to middleware._get_secret().
+
+    Using the shared implementation ensures consistent TTL caching, memoized
+    misconfiguration logging, and ``_FILE`` support in one place.
+    """
+    return _get_secret()
 
 
 @get("/login", sync_to_thread=False)
@@ -156,28 +157,23 @@ def login_page() -> Response[Any]:
     return Response(content=_LOGIN_HTML, media_type="text/html")
 
 
-def _request_is_https(request: Request) -> bool:
-    """Return True when the request arrived over HTTPS.
-
-    Checks the ``X-Forwarded-Proto`` header first (set by reverse proxies such
-    as nginx / Caddy / Traefik) and falls back to the connection scheme so that
-    direct TLS connections are also detected.
-    """
-    forwarded_proto = request.headers.get("x-forwarded-proto", "")
-    if forwarded_proto:
-        return forwarded_proto.split(",")[0].strip().lower() == "https"
-    return request.url.scheme == "https"
-
-
 @post("/login")
 async def login(request: Request) -> Response[None]:
-    """Validate the submitted token and issue a session cookie on success."""
+    """Validate the submitted token and issue a session cookie on success.
+
+    The ``Secure`` attribute is set when the request arrived over HTTPS.
+    The scheme is read from ``request.url.scheme`` which reflects the real
+    protocol when uvicorn is started with ``--proxy-headers`` (trusting
+    ``X-Forwarded-Proto`` from a reverse proxy).  This avoids raw header
+    inspection from application code, which can be spoofed by untrusted
+    clients not behind a proxy.
+    """
     form_data = await request.form()
     token = str(form_data.get("token", ""))
     secret = _get_auth_secret()
     if not secret or not hmac.compare_digest(token, secret):
         raise HTTPException(status_code=401, detail="Invalid token")
-    session_val = _compute_session_token(secret)
+    session_val = _make_session_cookie(secret)
     redirect: Response[None] = Redirect("/")
     redirect.set_cookie(
         Cookie(
@@ -186,7 +182,8 @@ async def login(request: Request) -> Response[None]:
             httponly=True,
             samesite="strict",
             path="/",
-            secure=_request_is_https(request),
+            max_age=SESSION_MAX_AGE_SECONDS,
+            secure=request.url.scheme == "https",
         )
     )
     return redirect

@@ -12,6 +12,16 @@ When ``CORVIX_SECRET_TOKEN`` (or ``CORVIX_SECRET_TOKEN_FILE``) is set:
 
 When the environment variable is *not* set, the middleware is a no-op and the
 app behaves exactly as before (backward compatible).
+
+HTTPS detection
+---------------
+The ``corvix_session`` cookie is marked ``Secure`` only when the request
+arrives over HTTPS.  The scheme is read from ``request.url.scheme``, which
+reflects the real protocol when uvicorn is started with ``--proxy-headers``
+(trusting ``X-Forwarded-Proto`` from a reverse proxy).  Without that flag,
+direct HTTPS connections are still detected correctly via the connection
+scheme.  Do **not** rely on raw ``X-Forwarded-Proto`` header inspection from
+application code: untrusted clients can spoof it.
 """
 
 from __future__ import annotations
@@ -19,6 +29,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import time
+from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING
 
 from litestar.enums import ScopeType
@@ -32,56 +44,116 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SESSION_COOKIE_NAME = "corvix_session"
-_SESSION_HMAC_MSG = b"corvix-session-v1"
+
+# Session cookie lifetime.  The cookie both carries its own expiry (verified
+# server-side) and sets max-age so browsers expire it promptly.
+SESSION_MAX_AGE_SECONDS: int = 24 * 60 * 60  # 24 hours
 
 # Paths that are always accessible without authentication.
-# /assets (exact) handles the rare bare mount request; /assets/ handles all
-# static file requests.  Using exact + trailing-slash prefix avoids
-# accidentally making unrelated paths like /assets-private/ public.
+# /assets (exact) handles the bare mount request; /assets/ handles static
+# file requests.  Using exact + trailing-slash prefix avoids accidentally
+# making unrelated paths like /assets-private/ public.
 _PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/login", "/logout", "/assets"})
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/",)
 
+# ---------------------------------------------------------------------------
+# Session cookie helpers
+# ---------------------------------------------------------------------------
 
-def _compute_session_token(secret: str) -> str:
-    """Return a deterministic session token derived from *secret* via HMAC-SHA256.
 
-    The same secret always produces the same token so no server-side session
-    store is required.  The token is stored as a hex digest.
+def _make_session_cookie(secret: str) -> str:
+    """Return a signed, time-limited session cookie value.
+
+    Format: ``{expiry_unix_timestamp}:{hmac_sha256_hex}``
+
+    The HMAC covers both the fixed context string and the expiry timestamp so
+    that the expiry cannot be extended without knowing the secret.
     """
-    return hmac.new(secret.encode(), _SESSION_HMAC_MSG, hashlib.sha256).hexdigest()
+    expiry = int(time.time()) + SESSION_MAX_AGE_SECONDS
+    msg = f"corvix-session-v2:{expiry}".encode()
+    sig = hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
+    return f"{expiry}:{sig}"
+
+
+def _verify_session_cookie(secret: str, value: str) -> bool:
+    """Return True when *value* is a valid, unexpired session token.
+
+    Validates the HMAC signature and rejects tokens whose expiry timestamp is
+    in the past.  Uses :func:`hmac.compare_digest` to prevent timing attacks.
+    """
+    try:
+        expiry_str, sig = value.split(":", 1)
+        expiry = int(expiry_str)
+    except ValueError:
+        return False
+
+    if time.time() > expiry:
+        return False
+
+    msg = f"corvix-session-v2:{expiry}".encode()
+    expected = hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
+
+
+# ---------------------------------------------------------------------------
+# Cookie parsing
+# ---------------------------------------------------------------------------
 
 
 def _parse_cookies(cookie_header: str) -> dict[str, str]:
-    """Parse a raw ``Cookie`` header value into a name→value dict."""
-    cookies: dict[str, str] = {}
-    for raw_part in cookie_header.split(";"):
-        stripped = raw_part.strip()
-        if "=" in stripped:
-            name, _, value = stripped.partition("=")
-            cookies[name.strip()] = value.strip()
-    return cookies
+    """Parse a raw ``Cookie`` header value into a name→value dict.
 
+    Uses :class:`http.cookies.SimpleCookie` from the standard library to
+    handle quoted values and other edge cases correctly.
+    """
+    jar: SimpleCookie[str] = SimpleCookie()
+    jar.load(cookie_header)
+    return {k: v.value for k, v in jar.items()}
+
+
+# ---------------------------------------------------------------------------
+# Secret resolution with TTL cache
+# ---------------------------------------------------------------------------
 
 _MISCONFIGURED: bool = False
+_SECRET_CACHE: tuple[float, str] | None = None
+_SECRET_CACHE_TTL: float = 60.0  # seconds
 
 
 def _get_secret() -> str:
     """Return the configured secret token, or an empty string if not set.
 
+    Results are cached for ``_SECRET_CACHE_TTL`` seconds so that deployments
+    using ``CORVIX_SECRET_TOKEN_FILE`` do not incur a synchronous disk read on
+    every request.  A configuration change takes effect within one TTL window.
+
     When both ``CORVIX_SECRET_TOKEN`` and ``CORVIX_SECRET_TOKEN_FILE`` are set
     simultaneously, logs a warning *once* per process and returns an empty
     string (auth disabled) to avoid flooding logs under load.
     """
-    global _MISCONFIGURED  # noqa: PLW0603
+    global _MISCONFIGURED, _SECRET_CACHE  # noqa: PLW0603
+
+    now = time.monotonic()
+    if _SECRET_CACHE is not None and now - _SECRET_CACHE[0] < _SECRET_CACHE_TTL:
+        return _SECRET_CACHE[1]
+
     try:
-        return get_env_value("CORVIX_SECRET_TOKEN") or ""
+        value = get_env_value("CORVIX_SECRET_TOKEN") or ""
     except ValueError:
         if not _MISCONFIGURED:
             logger.warning(
                 "CORVIX_SECRET_TOKEN misconfigured (both direct and _FILE set); auth disabled."
             )
             _MISCONFIGURED = True
-        return ""
+        value = ""
+
+    _SECRET_CACHE = (now, value)
+    return value
+
+
+# ---------------------------------------------------------------------------
+# Public-path check
+# ---------------------------------------------------------------------------
 
 
 def _is_public(path: str) -> bool:
@@ -89,6 +161,11 @@ def _is_public(path: str) -> bool:
     if path in _PUBLIC_EXACT:
         return True
     return any(path.startswith(prefix) for prefix in _PUBLIC_PREFIXES)
+
+
+# ---------------------------------------------------------------------------
+# ASGI response helpers
+# ---------------------------------------------------------------------------
 
 
 async def _send_json_401(send: Send) -> None:
@@ -123,11 +200,17 @@ async def _send_redirect(send: Send, location: bytes) -> None:
     await send({"type": "http.response.body", "body": b"", "more_body": False})
 
 
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
+
+
 class TokenAuthMiddleware(ASGIMiddleware):
     """Optional token-based authentication middleware.
 
     Reads the secret from ``CORVIX_SECRET_TOKEN`` (or ``CORVIX_SECRET_TOKEN_FILE``)
-    on every request so that config changes take effect without a restart.
+    with a 60-second TTL cache so that config changes take effect without a
+    restart while avoiding per-request file I/O.
     When the variable is absent the middleware is a transparent pass-through.
     """
 
@@ -179,8 +262,7 @@ class TokenAuthMiddleware(ASGIMiddleware):
                 # Cookie fallback (browser SPA path).
                 cookie_header = _decode(raw_headers.get(b"cookie", b""))
                 session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
-                expected = _compute_session_token(secret)
-                if not session_val or not hmac.compare_digest(session_val, expected):
+                if not _verify_session_cookie(secret, session_val):
                     await _send_json_401(send)
                     return
 
@@ -188,9 +270,8 @@ class TokenAuthMiddleware(ASGIMiddleware):
             # ----- UI routes: session cookie -----
             cookie_header = _decode(raw_headers.get(b"cookie", b""))
             session_val = _parse_cookies(cookie_header).get(_SESSION_COOKIE_NAME, "")
-            expected = _compute_session_token(secret)
 
-            if not session_val or not hmac.compare_digest(session_val, expected):
+            if not _verify_session_cookie(secret, session_val):
                 await _send_redirect(send, b"/login")
                 return
 

@@ -11,9 +11,10 @@ from pathlib import Path
 import pytest
 from litestar.testing import TestClient
 
+import corvix.web.middleware as _mw
 from corvix.config import load_config
 from corvix.web.app import INDEX_HTML, THEMES, app
-from corvix.web.middleware import _compute_session_token
+from corvix.web.middleware import _verify_session_cookie
 
 GENERATED_AT = "2024-01-01T00:00:00Z"
 EXPECTED_POPULATED_TOTAL_ITEMS = 3
@@ -737,6 +738,19 @@ _SECRET = "test-secret-token"
 
 
 class TestTokenAuth:
+    @pytest.fixture(autouse=True)
+    def reset_middleware_cache(self) -> pytest.Generator[None, None, None]:
+        """Reset the secret TTL cache and misconfiguration flag between tests.
+
+        The middleware caches the resolved secret for 60 s to reduce file I/O.
+        Without resetting the cache, monkeypatch env-var changes would be
+        invisible within the same test session, causing false passes/failures.
+        """
+        _mw._SECRET_CACHE = None
+        _mw._MISCONFIGURED = False
+        yield
+        _mw._SECRET_CACHE = None
+        _mw._MISCONFIGURED = False
     """Tests for the optional CORVIX_SECRET_TOKEN authentication."""
 
     # ------------------------------------------------------------------
@@ -859,12 +873,13 @@ class TestTokenAuth:
         assert response.status_code == HTTPStatus.FOUND
         assert "corvix_session" in response.cookies
 
-    def test_login_cookie_value_is_hmac_of_secret(
+    def test_login_cookie_value_is_valid_and_unexpired(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
-        assert response.cookies["corvix_session"] == _compute_session_token(_SECRET)
+        cookie_val = response.cookies["corvix_session"]
+        assert _verify_session_cookie(_SECRET, cookie_val), "Session cookie failed verification"
 
     def test_login_wrong_token_returns_401(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -978,15 +993,18 @@ class TestTokenAuth:
         cookie_header = response.headers.get("set-cookie", "")
         assert "secure" not in cookie_header.lower()
 
-    def test_login_cookie_is_secure_when_behind_https_proxy(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    def test_login_cookie_is_secure_over_https(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Cookie gets the Secure flag when Litestar sees the request as HTTPS.
+
+        We create a dedicated TestClient with an ``https://`` base URL so that
+        ``request.url.scheme`` returns ``"https"``.  This is the correct
+        approach now that HTTPS detection relies on uvicorn's ``--proxy-headers``
+        flag setting the scope scheme (not raw header inspection from app code).
+        """
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.post(
-            "/login",
-            data={"token": _SECRET},
-            follow_redirects=False,
-            headers={"X-Forwarded-Proto": "https"},
-        )
+        https_client = TestClient(app, base_url="https://testserver.local")
+        response = https_client.post("/login", data={"token": _SECRET}, follow_redirects=False)
         cookie_header = response.headers.get("set-cookie", "")
         assert "secure" in cookie_header.lower()
