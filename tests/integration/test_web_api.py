@@ -902,3 +902,43 @@ class TestTokenAuth:
         response = client.get("/login", follow_redirects=False)
         assert response.status_code == HTTPStatus.FOUND
         assert response.headers["location"] == "/"
+
+    # ------------------------------------------------------------------
+    # _FILE variant support
+    # ------------------------------------------------------------------
+
+    def test_api_200_with_bearer_token_via_file(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret_file = tmp_path / "corvix_token"
+        secret_file.write_text(_SECRET, encoding="utf-8")
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
+        response = client.get("/api/themes", headers={"Authorization": f"Bearer {_SECRET}"})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_401_without_header_via_file(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret_file = tmp_path / "corvix_token"
+        secret_file.write_text(_SECRET, encoding="utf-8")
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_login_flow_via_file(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret_file = tmp_path / "corvix_token"
+        secret_file.write_text(_SECRET, encoding="utf-8")
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
+        # Login page should show the form (not redirect to /)
+        assert client.get("/login").status_code == HTTPStatus.OK
+        # Posting the correct token should set a session cookie
+        login_r = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert login_r.status_code == HTTPStatus.FOUND
+        assert "corvix_session" in login_r.cookies
+        # UI should be accessible afterwards
+        assert client.get("/", follow_redirects=False).status_code == HTTPStatus.OK

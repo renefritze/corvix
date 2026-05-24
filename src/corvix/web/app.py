@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from os import environ
 from pathlib import Path
-from typing import Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 import uvicorn
 from litestar import Litestar, Request, Response, get, post
@@ -140,12 +140,19 @@ def dashboard_index(dashboard_name: str) -> Response[str]:
     return Response(content=INDEX_HTML, media_type="text/html")
 
 
+def _get_auth_secret() -> str:
+    """Return the configured secret, or '' if unset.  Mirrors middleware._get_secret()."""
+    try:
+        return get_env_value("CORVIX_SECRET_TOKEN") or ""
+    except ValueError:
+        return ""
+
+
 @get("/login", sync_to_thread=False)
-def login_page() -> Response[str]:
+def login_page() -> Response[Any]:
     """Serve the login form, or redirect to / when auth is not configured."""
-    secret = environ.get("CORVIX_SECRET_TOKEN", "") or environ.get("CORVIX_SECRET_TOKEN_FILE", "")
-    if not secret:
-        return Redirect("/")  # type: ignore[return-value]
+    if not _get_auth_secret():
+        return Redirect("/")
     return Response(content=_LOGIN_HTML, media_type="text/html")
 
 
@@ -154,7 +161,7 @@ async def login(request: Request) -> Response[None]:
     """Validate the submitted token and issue a session cookie on success."""
     form_data = await request.form()
     token = str(form_data.get("token", ""))
-    secret = environ.get("CORVIX_SECRET_TOKEN", "")
+    secret = _get_auth_secret()
     if not secret or not hmac.compare_digest(token, secret):
         raise HTTPException(status_code=401, detail="Invalid token")
     session_val = _compute_session_token(secret)

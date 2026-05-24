@@ -34,7 +34,7 @@ _SESSION_HMAC_MSG = b"corvix-session-v1"
 
 # Paths that are always accessible without authentication.
 _PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/login", "/logout"})
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/",)
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/", "/assets")
 
 
 def _compute_session_token(secret: str) -> str:
@@ -57,12 +57,25 @@ def _parse_cookies(cookie_header: str) -> dict[str, str]:
     return cookies
 
 
+_MISCONFIGURED: bool = False
+
+
 def _get_secret() -> str:
-    """Return the configured secret token, or an empty string if not set."""
+    """Return the configured secret token, or an empty string if not set.
+
+    When both ``CORVIX_SECRET_TOKEN`` and ``CORVIX_SECRET_TOKEN_FILE`` are set
+    simultaneously, logs a warning *once* per process and returns an empty
+    string (auth disabled) to avoid flooding logs under load.
+    """
+    global _MISCONFIGURED  # noqa: PLW0603
     try:
         return get_env_value("CORVIX_SECRET_TOKEN") or ""
     except ValueError:
-        logger.warning("CORVIX_SECRET_TOKEN misconfigured (both direct and _FILE set); auth disabled.")
+        if not _MISCONFIGURED:
+            logger.warning(
+                "CORVIX_SECRET_TOKEN misconfigured (both direct and _FILE set); auth disabled."
+            )
+            _MISCONFIGURED = True
         return ""
 
 
