@@ -229,8 +229,8 @@ def migrate_cache_command(ctx: click.Context, user_id: str) -> None:
         return
 
     snapshot_time = generated_at if generated_at is not None else datetime.now(tz=UTC)
-    storage = PostgresStorage(connection_string=db_url)
-    storage.save_records(user_id=user_id, records=records, generated_at=snapshot_time)
+    with PostgresStorage(connection_string=db_url) as storage:
+        storage.save_records(user_id=user_id, records=records, generated_at=snapshot_time)
     click.echo(f"Migrated {len(records)} records for user {user_id}.")
 
 
