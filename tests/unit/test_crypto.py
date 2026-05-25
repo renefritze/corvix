@@ -63,7 +63,7 @@ def test_decrypt_token_round_trips() -> None:
 
 
 def test_decrypt_token_raises_on_garbage_input() -> None:
-    with pytest.raises(Exception):  # noqa: B017 — cryptography raises InvalidToken or binascii error
+    with pytest.raises(InvalidToken):
         decrypt_token("not-a-valid-fernet-token")
 
 
