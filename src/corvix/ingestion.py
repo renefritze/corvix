@@ -35,6 +35,9 @@ def _validate_thread_id(thread_id: str) -> None:
     does not match prevents path-traversal sequences such as ``../`` from being
     embedded in the URL path constructed by callers.
     """
+    if not isinstance(thread_id, str):
+        msg = f"Invalid thread_id {thread_id!r}: must be a string."
+        raise TypeError(msg)
     if not _THREAD_ID_RE.fullmatch(thread_id):
         msg = f"Invalid thread_id {thread_id!r}: must be a positive integer string."
         raise ValueError(msg)
