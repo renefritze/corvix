@@ -229,7 +229,7 @@ def test_dismiss_thread_rejects_path_traversal() -> None:
 
 
 def test_sanitize_api_url_accepts_matching_host() -> None:
-    client = _client()  # api_base_url="https://api.example.com"
+    client = _client()  # default base URL is https://api.example.com
     result = client._sanitize_api_url("https://api.example.com/repos/org/repo/pulls/1")
     assert result == "https://api.example.com/repos/org/repo/pulls/1"
 

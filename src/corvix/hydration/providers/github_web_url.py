@@ -142,7 +142,7 @@ class GitHubWebUrlProvider:
             return None
         check_suite_id = segments[repos_index + 4]
         # Validate check_suite_id is a positive integer to prevent path injection.
-        if not re.fullmatch(r"[1-9][0-9]*", check_suite_id):
+        if not re.fullmatch(r"[1-9]\d*", check_suite_id):
             return None
         # Build the check-runs URL from client.api_base_url (trusted config), not from
         # parsed.scheme / parsed.netloc of the external subject_url, to avoid SSRF.

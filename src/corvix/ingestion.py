@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 REQUEST_FAILED_DETAIL = "request failed"
 
 # GitHub notification thread IDs are positive integers.
-_THREAD_ID_RE = re.compile(r"^[1-9][0-9]*$")
+_THREAD_ID_RE = re.compile(r"^[1-9]\d*$")
 
 
 def _as_json_object(value: JsonValue) -> JsonObject | None:
