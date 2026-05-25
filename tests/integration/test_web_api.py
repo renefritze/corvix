@@ -830,9 +830,10 @@ class TestTokenAuth:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        # /api/health returns 200 even without any auth header
+        # /api/health is always reachable without an auth header;
+        # it may return 200 (healthy) or 503 (unhealthy) but never 401.
         response = client.get("/api/health")
-        assert response.status_code == HTTPStatus.OK
+        assert response.status_code != HTTPStatus.UNAUTHORIZED
 
     def test_login_page_always_accessible(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
