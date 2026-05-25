@@ -7,7 +7,7 @@ github:
     api_base_url: https://api.github.com
 
 state:
-  cache_file: /fixtures/notifications.json
+  cache_file: /var/cache/corvix/notifications.json
 
 dashboards:
 - name: triage

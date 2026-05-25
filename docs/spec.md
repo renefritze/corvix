@@ -375,7 +375,7 @@ Framework: Litestar. Served via uvicorn. Config loaded on every request from the
 |---|---|---|
 | `GET` | `/` | Single-page HTML dashboard app served from `src/corvix/web/static/index.html`. |
 | `GET` | `/dashboards/{name}` | Same SPA shell, with dashboard selected from URL path (bookmarkable). |
-| `GET` | `/api/health` | Returns `{"status": "ok"}`. |
+| `GET` | `/api/health` | Returns `200` with `{"status": "ok"}`; returns `503` with `{"status": "unhealthy", "reason": ...}` when unhealthy. |
 | `GET` | `/api/themes` | Returns available UI theme presets. |
 | `GET` | `/api/dashboards` | Returns `{"dashboard_names": [...]}`. |
 | `GET` | `/api/snapshot?dashboard=<name>` | Loads cache, runs `build_dashboard_data`, returns `DashboardData` as JSON plus `dashboard_names`. |

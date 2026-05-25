@@ -296,10 +296,10 @@ def test_load_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
     calls = 0
 
     @contextmanager
-    def _spy_shared_lock(self: NotificationCache) -> Iterator[bool]:
+    def _spy_shared_lock(self: NotificationCache) -> Iterator[None]:
         nonlocal calls
         calls += 1
-        yield True
+        yield
 
     monkeypatch.setattr(NotificationCache, "_shared_lock", _spy_shared_lock)
 
@@ -322,10 +322,10 @@ def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPat
     calls = 0
 
     @contextmanager
-    def _spy_shared_lock(self: NotificationCache) -> Iterator[bool]:
+    def _spy_shared_lock(self: NotificationCache) -> Iterator[None]:
         nonlocal calls
         calls += 1
-        yield True
+        yield
 
     monkeypatch.setattr(NotificationCache, "_shared_lock", _spy_shared_lock)
 
@@ -334,7 +334,9 @@ def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPat
     assert calls == 1
 
 
-def test_load_status_returns_default_when_lock_cannot_be_opened(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_load_status_reads_unlocked_when_lock_cannot_be_opened(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """On a read-only filesystem we cannot create a lock file, but no writer can
+    exist either; the read must still succeed instead of returning defaults."""
     cache = _cache(tmp_path)
     cache.save_status(
         {
@@ -346,7 +348,6 @@ def test_load_status_returns_default_when_lock_cannot_be_opened(tmp_path: Path, 
     )
 
     original_open = cast(Any, Path.open)
-    original_read_text = cast(Any, Path.read_text)
 
     def _deny_lock_open(
         path: Path,
@@ -357,27 +358,17 @@ def test_load_status_returns_default_when_lock_cannot_be_opened(tmp_path: Path, 
         newline: str | None = None,
     ) -> IO[str]:
         if str(path).endswith(".lock"):
-            raise PermissionError("read-only")
+            raise OSError(30, "Read-only file system")
         return cast(
             IO[str],
             original_open(path, mode=mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline),
         )
 
-    def _deny_cache_read(
-        path: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-        newline: str | None = None,
-    ) -> str:
-        if path == cache.path:
-            raise AssertionError("cache should not be read without lock")
-        return cast(str, original_read_text(path, encoding=encoding, errors=errors, newline=newline))
-
     monkeypatch.setattr(Path, "open", _deny_lock_open)
-    monkeypatch.setattr(Path, "read_text", _deny_cache_read)
 
     status = cache.load_status()
-    assert status.get("status") == "unknown"
+    assert status.get("status") == "ok"
+    assert status.get("last_poll_time") == "2024-01-01T00:00:00Z"
 
 
 def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
