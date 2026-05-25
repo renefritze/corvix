@@ -140,7 +140,7 @@ class GitHubNotificationsClient:
         }
 
     def _request_json(self, url: str, method: str, timeout_seconds: float | None = None) -> JsonValue:
-        req = request.Request(url=url, method=method, headers=self._headers())
+        req = request.Request(url=url, method=method, headers=self._headers())  # NOSONAR python:S5144
         effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
         # nosec B310 - url is always constructed from self.api_base_url (trusted config) or
@@ -150,7 +150,7 @@ class GitHubNotificationsClient:
         return _coerce_json_value(json.loads(raw))
 
     def _request_no_content(self, url: str, method: str, timeout_seconds: float | None = None) -> None:
-        req = request.Request(url=url, method=method, headers=self._headers(), data=b"")
+        req = request.Request(url=url, method=method, headers=self._headers(), data=b"")  # NOSONAR python:S5144
         effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
         # nosec B310 - url always originates from _build_url (self.api_base_url) after thread-id

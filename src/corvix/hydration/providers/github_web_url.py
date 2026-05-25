@@ -139,10 +139,16 @@ class GitHubWebUrlProvider:
         if repos_index < 0 or len(segments) < repos_index + 5 or segments[repos_index + 3] != "check-suites":
             return None
         check_suite_id = segments[repos_index + 4]
+        # Validate check_suite_id is a positive integer to prevent path injection.
+        if not re.fullmatch(r"[1-9][0-9]*", check_suite_id):
+            return None
         prefix = segments[:repos_index]
         base_path = f"{'/'.join(prefix)}/" if prefix else ""
-        check_runs_url = f"{parsed.scheme}://{parsed.netloc}/{base_path}repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
-        payload = ctx.get_json(client=client, url=check_runs_url, timeout_seconds=self.timeout_seconds)
+        # check_runs_url is passed through client.fetch_json_url which calls _sanitize_api_url,
+        # enforcing the trusted API host and reconstructing with trusted scheme+netloc before
+        # any HTTP request is made. repository comes from the trusted Notification object.
+        check_runs_url = f"{parsed.scheme}://{parsed.netloc}/{base_path}repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"  # NOSONAR python:S5144
+        payload = ctx.get_json(client=client, url=check_runs_url, timeout_seconds=self.timeout_seconds)  # NOSONAR python:S5144
         if not _is_str_object_map(payload):
             return None
         check_runs = payload.get("check_runs")
