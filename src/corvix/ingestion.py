@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from urllib import error as url_error
@@ -16,12 +17,27 @@ from corvix.types import JsonObject, JsonValue
 logger = logging.getLogger(__name__)
 REQUEST_FAILED_DETAIL = "request failed"
 
+# GitHub notification thread IDs are positive integers.
+_THREAD_ID_RE = re.compile(r"^[1-9][0-9]*$")
+
 
 def _as_json_object(value: JsonValue) -> JsonObject | None:
     """Return value as a JSON object when it is a dict."""
     if not isinstance(value, dict):
         return None
     return value
+
+
+def _validate_thread_id(thread_id: str) -> None:
+    """Raise ValueError if *thread_id* is not a valid GitHub notification thread ID.
+
+    GitHub thread IDs are positive decimal integers.  Rejecting anything that
+    does not match prevents path-traversal sequences such as ``../`` from being
+    embedded in the URL path constructed by callers.
+    """
+    if not _THREAD_ID_RE.fullmatch(thread_id):
+        msg = f"Invalid thread_id {thread_id!r}: must be a positive integer string."
+        raise ValueError(msg)
 
 
 def _coerce_json_value(value: object) -> JsonValue:
@@ -95,18 +111,20 @@ class GitHubNotificationsClient:
 
     def mark_thread_read(self, thread_id: str) -> None:
         """Mark a notification thread as read."""
+        _validate_thread_id(thread_id)
         url = self._build_url(f"/notifications/threads/{thread_id}", {})
         self._request_no_content(url, method="PATCH")
 
     def dismiss_thread(self, thread_id: str) -> None:
         """Dismiss a notification thread (removes it from inbox permanently)."""
+        _validate_thread_id(thread_id)
         url = self._build_url(f"/notifications/threads/{thread_id}", {})
         self._request_no_content_with_backoff(url, method="DELETE")
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         """Fetch JSON from a fully-qualified API URL with host validation."""
-        self._validate_api_host(url)
-        return self._request_json(url, method="GET", timeout_seconds=timeout_seconds)
+        safe_url = self._sanitize_api_url(url)
+        return self._request_json(safe_url, method="GET", timeout_seconds=timeout_seconds)
 
     def _build_url(self, path: str, query: dict[str, str]) -> str:
         base = self.api_base_url.rstrip("/")
@@ -122,18 +140,22 @@ class GitHubNotificationsClient:
         }
 
     def _request_json(self, url: str, method: str, timeout_seconds: float | None = None) -> JsonValue:
-        req = request.Request(url=url, method=method, headers=self._headers())
+        req = request.Request(url=url, method=method, headers=self._headers())  # NOSONAR python:S5144
         effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
-        with request.urlopen(req, timeout=effective_timeout) as response:
+        # nosec B310 - url is always constructed from self.api_base_url (trusted config) or
+        # sanitised by _sanitize_api_url which enforces matching host and trusted scheme.
+        with request.urlopen(req, timeout=effective_timeout) as response:  # nosec B310  # NOSONAR python:S5144
             raw = response.read().decode("utf-8")
         return _coerce_json_value(json.loads(raw))
 
     def _request_no_content(self, url: str, method: str, timeout_seconds: float | None = None) -> None:
-        req = request.Request(url=url, method=method, headers=self._headers(), data=b"")
+        req = request.Request(url=url, method=method, headers=self._headers(), data=b"")  # NOSONAR python:S5144
         effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
-        with request.urlopen(req, timeout=effective_timeout):
+        # nosec B310 - url always originates from _build_url (self.api_base_url) after thread-id
+        # validation; no external data can reach this call without passing _validate_thread_id.
+        with request.urlopen(req, timeout=effective_timeout):  # nosec B310  # NOSONAR python:S5144
             return
 
     def _request_no_content_with_backoff(self, url: str, method: str, max_attempts: int = 4) -> None:
@@ -157,12 +179,23 @@ class GitHubNotificationsClient:
                 time.sleep(delay_seconds)
                 attempt += 1
 
-    def _validate_api_host(self, url: str) -> None:
-        expected = parse.urlparse(self.api_base_url).hostname
-        actual = parse.urlparse(url).hostname
-        if not expected or not actual or actual.casefold() != expected.casefold():
+    def _sanitize_api_url(self, url: str) -> str:
+        """Validate ``url`` and return a safe reconstruction using the trusted base host.
+
+        Reconstructs the URL with the scheme and netloc from ``self.api_base_url``
+        so that only the path and query from the input survive into the request.
+        This neutralises SSRF via scheme injection or host-header manipulation
+        while still allowing the caller to supply the full API path.
+        """
+        parsed = parse.urlparse(url)
+        base = parse.urlparse(self.api_base_url)
+        expected_host = base.hostname
+        actual_host = parsed.hostname
+        if not expected_host or not actual_host or actual_host.casefold() != expected_host.casefold():
             msg = "URL host must match configured GitHub API base host."
             raise ValueError(msg)
+        # Reconstruct with trusted scheme + netloc; keep only path and query from input.
+        return parse.urlunparse((base.scheme, base.netloc, parsed.path, "", parsed.query, ""))
 
 
 def _http_error_detail(error: url_error.HTTPError) -> str:

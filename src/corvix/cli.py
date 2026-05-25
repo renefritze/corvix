@@ -186,7 +186,7 @@ def dashboard_command(ctx: click.Context, dashboard_name: str | None) -> None:
 
 
 @main.command("serve")
-@click.option("--host", default="0.0.0.0", show_default=True)
+@click.option("--host", default="0.0.0.0", show_default=True)  # nosec B104 - intentional server default; users pass 127.0.0.1 for local-only
 @click.option("--port", default=8000, show_default=True, type=click.IntRange(min=1, max=65535))
 @click.option("--reload/--no-reload", default=False, show_default=True)
 @click.pass_context

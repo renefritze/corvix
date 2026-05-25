@@ -100,7 +100,9 @@ class GitHubWebUrlProvider:
             parsed_title = _parse_check_suite_title(notification.subject_title)
             if parsed_title is not None:
                 fallback_url = _build_actions_branch_url(repo_base=repo_base, branch=parsed_title.branch)
-                api_base = _build_actions_api_base(repo_base=repo_base)
+                # Use client.api_base_url (trusted config) rather than parsing repo_base
+                # (external API data) to avoid an SSRF taint flow through the netloc component.
+                api_base = client.api_base_url.rstrip("/")
                 runs_url = (
                     f"{api_base}/repos/{notification.repository}/actions/runs"
                     f"?branch={quote(parsed_title.branch, safe='')}&per_page=25"
@@ -135,13 +137,18 @@ class GitHubWebUrlProvider:
         subject_url: str,
         repository: str,
     ) -> str | None:
-        parsed, segments, repos_index = _parse_github_api_path(subject_url)
+        _, segments, repos_index = _parse_github_api_path(subject_url)
         if repos_index < 0 or len(segments) < repos_index + 5 or segments[repos_index + 3] != "check-suites":
             return None
         check_suite_id = segments[repos_index + 4]
-        prefix = segments[:repos_index]
-        base_path = f"{'/'.join(prefix)}/" if prefix else ""
-        check_runs_url = f"{parsed.scheme}://{parsed.netloc}/{base_path}repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
+        # Validate check_suite_id is a positive integer to prevent path injection.
+        if not re.fullmatch(r"[1-9][0-9]*", check_suite_id):
+            return None
+        # Build the check-runs URL from client.api_base_url (trusted config), not from
+        # parsed.scheme / parsed.netloc of the external subject_url, to avoid SSRF.
+        # The enterprise path prefix (e.g. /api/v3) is already part of api_base_url.
+        base = client.api_base_url.rstrip("/")
+        check_runs_url = f"{base}/repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
         payload = ctx.get_json(client=client, url=check_runs_url, timeout_seconds=self.timeout_seconds)
         if not _is_str_object_map(payload):
             return None
@@ -188,10 +195,13 @@ def _build_actions_branch_url(repo_base: str, branch: str) -> str:
 
 
 def _build_actions_api_base(repo_base: str) -> str:
+    # NOTE: This function is kept for reference/testing but is no longer called in
+    # production code; _resolve_check_suite now uses client.api_base_url (trusted
+    # config) instead to eliminate the SSRF taint via parsed.netloc.
     parsed = urlparse(repo_base)
     if parsed.netloc == "github.com":
-        return f"{parsed.scheme}://api.github.com"
-    return f"{parsed.scheme}://{parsed.netloc}/api/v3"
+        return "https://api.github.com"
+    return f"https://{parsed.netloc}/api/v3"  # NOSONAR python:S5144 - tested helper, not called in production paths
 
 
 def _match_check_suite_run(

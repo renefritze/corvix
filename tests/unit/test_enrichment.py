@@ -43,6 +43,7 @@ class _FakeClient(JsonFetchClient):
     def __init__(self, responses: dict[str, JsonValue]) -> None:
         self.responses = responses
         self.calls: list[str] = []
+        self.api_base_url = "https://api.example.com"
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
