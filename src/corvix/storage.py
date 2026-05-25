@@ -388,9 +388,10 @@ class PostgresStorage:
 
     def close(self) -> None:
         """Close all pooled connections and release resources."""
-        if self._pool is not None:
-            self._pool.close()
+        pool = self._pool
+        if pool is not None:
             self._pool = None
+            pool.close()
 
     def __enter__(self) -> PostgresStorage:
         return self
