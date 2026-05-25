@@ -13,7 +13,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 revision: str = "c3a1f2e9b8d0"
 down_revision: str | None = "6d0e5f9d2a1b"
@@ -53,10 +53,21 @@ def upgrade() -> None:
         if not token:
             continue
         # Fernet ciphertext always starts with the version byte 0x80, which
-        # encodes to "gAAAAA" in URL-safe base64.  Using this prefix check
-        # (rather than attempting decryption) prevents double-encryption when
-        # the migration is re-run or when the TOKEN_ENCRYPTION_KEY has rotated.
+        # encodes to "gAAAAA" in URL-safe base64.
         if token.startswith("gAAAAA"):
+            # Token looks already encrypted — verify it decrypts with the
+            # current key so we catch a mismatched TOKEN_ENCRYPTION_KEY early
+            # rather than leaving the database in a partially-migrated state.
+            try:
+                fernet.decrypt(token.encode())
+            except InvalidToken:
+                msg = (
+                    f"Token for user {user_id} appears already encrypted but "
+                    "decryption failed with the current TOKEN_ENCRYPTION_KEY. "
+                    "Ensure the key matches the one used to encrypt existing tokens."
+                )
+                raise RuntimeError(msg) from None
+            # Already encrypted with the current key — nothing to do.
             continue
         encrypted = fernet.encrypt(token.encode()).decode()
         conn.execute(
