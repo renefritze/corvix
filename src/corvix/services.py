@@ -76,23 +76,23 @@ class PollCycleInput:
     notification_targets: list[NotificationTarget] | None = None
 
 
-def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
+def run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
     """Fetch notifications, score/evaluate, optionally execute actions, and persist cache.
 
-    If ``input.notification_targets`` is provided (and
-    ``input.config.notifications.enabled`` is ``True``) the poll cycle will
+    If ``cycle_input.notification_targets`` is provided (and
+    ``cycle_input.config.notifications.enabled`` is ``True``) the poll cycle will
     detect newly-arrived unread notifications and fan-out delivery to each
     target after saving the snapshot.
     """
-    current_time = input.now if input.now is not None else datetime.now(tz=UTC)
-    active_clients = _resolve_active_clients(input)
-    previous_records = _load_previous_records(input)
+    current_time = cycle_input.now if cycle_input.now is not None else datetime.now(tz=UTC)
+    active_clients = _resolve_active_clients(cycle_input)
+    previous_records = _load_previous_records(cycle_input)
 
-    notifications, clients_by_account = _fetch_notifications(input.config.polling, active_clients)
+    notifications, clients_by_account = _fetch_notifications(cycle_input.config.polling, active_clients)
 
     hydration_engine = HydrationEngine(
         providers=_build_hydration_providers(),
-        max_requests_per_cycle=input.config.enrichment.max_requests_per_cycle,
+        max_requests_per_cycle=cycle_input.config.enrichment.max_requests_per_cycle,
     )
     hydration_client = active_clients[0]
     hydration_clients: dict[str, JsonFetchClient] = dict(clients_by_account)
@@ -104,8 +104,8 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     notifications = hydration_result.notifications
 
     enrichment_engine = EnrichmentEngine(
-        config=input.config.enrichment,
-        providers=_build_enrichment_providers(input.config),
+        config=cycle_input.config.enrichment,
+        providers=_build_enrichment_providers(cycle_input.config),
     )
     enrichment_client = active_clients[0]
     enrichment_clients: dict[str, JsonFetchClient] = dict(clients_by_account)
@@ -117,14 +117,14 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
 
     records, excluded, action_count, errors = _process_notifications(
         notifications=notifications,
-        input=input,
+        cycle_input=cycle_input,
         current_time=current_time,
         clients_by_account=clients_by_account,
         contexts_by_notification_key=enrichment_result.contexts_by_notification_key,
     )
     errors.extend(f"hydration: {error}" for error in hydration_result.errors)
     errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
-    input.cache.save(
+    cycle_input.cache.save(
         records=records,
         generated_at=current_time,
         poller_status=PollerStatus(
@@ -135,7 +135,7 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         ),
     )
 
-    dispatch = _dispatch_notification_events(input, previous_records, records)
+    dispatch = _dispatch_notification_events(cycle_input, previous_records, records)
 
     return PollingSummary(
         fetched=len(notifications),
@@ -146,17 +146,17 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
     )
 
 
-def _resolve_active_clients(input: PollCycleInput) -> tuple[NotificationsClient, ...]:
-    active_clients = input.clients or ((input.client,) if input.client is not None else ())
+def _resolve_active_clients(cycle_input: PollCycleInput) -> tuple[NotificationsClient, ...]:
+    active_clients = cycle_input.clients or ((cycle_input.client,) if cycle_input.client is not None else ())
     if not active_clients:
         msg = "At least one notifications client is required for polling."
         raise ValueError(msg)
     return active_clients
 
 
-def _load_previous_records(input: PollCycleInput) -> list[NotificationRecord]:
-    if input.config.notifications.enabled and input.notification_targets:
-        _, previous_records = input.cache.load()
+def _load_previous_records(cycle_input: PollCycleInput) -> list[NotificationRecord]:
+    if cycle_input.config.notifications.enabled and cycle_input.notification_targets:
+        _, previous_records = cycle_input.cache.load()
         return previous_records
     return []
 
@@ -177,7 +177,7 @@ def _fetch_notifications(
 
 def _process_notifications(
     notifications: list[Notification],
-    input: PollCycleInput,
+    cycle_input: PollCycleInput,
     current_time: datetime,
     clients_by_account: dict[str, NotificationsClient],
     contexts_by_notification_key: dict[str, dict[str, object]],
@@ -188,11 +188,11 @@ def _process_notifications(
     errors: list[str] = []
     for notification in notifications:
         record_context = contexts_by_notification_key.get(notification_key(notification), {})
-        score = score_notification(notification=notification, config=input.config.scoring, now=current_time)
+        score = score_notification(notification=notification, config=cycle_input.config.scoring, now=current_time)
         evaluation = evaluate_rules(
             notification=notification,
             score=score,
-            rules=input.config.rules,
+            rules=cycle_input.config.rules,
             now=current_time,
             context=record_context,
         )
@@ -212,7 +212,7 @@ def _process_notifications(
             actions=evaluation.actions,
             context=ActionExecutionContext(
                 gateway=gateway_client,
-                apply_actions=input.apply_actions,
+                apply_actions=cycle_input.apply_actions,
                 dismiss_gateway=gateway_client if isinstance(gateway_client, DismissGateway) else None,
                 record=record,
             ),
@@ -237,12 +237,12 @@ def _process_notifications(
 
 
 def _dispatch_notification_events(
-    input: PollCycleInput,
+    cycle_input: PollCycleInput,
     previous_records: list[NotificationRecord],
     records: list[NotificationRecord],
 ) -> DispatchResult | None:
-    notif_cfg = input.config.notifications
-    if not notif_cfg.enabled or not input.notification_targets:
+    notif_cfg = cycle_input.config.notifications
+    if not notif_cfg.enabled or not cycle_input.notification_targets:
         return None
     events = detect_new_unread_events(
         previous=previous_records,
@@ -250,7 +250,7 @@ def _dispatch_notification_events(
         min_score=notif_cfg.detect.min_score,
         include_read=notif_cfg.detect.include_read,
     )
-    dispatcher = NotificationDispatcher(targets=input.notification_targets)
+    dispatcher = NotificationDispatcher(targets=cycle_input.notification_targets)
     return dispatcher.dispatch(events)
 
 
@@ -279,7 +279,7 @@ def _handle_cycle_error(iteration: int, cache: NotificationCache, runs: list[Pol
 
 
 def run_watch_loop(
-    input: PollCycleInput,
+    cycle_input: PollCycleInput,
     iterations: int | None = None,
 ) -> list[PollingSummary]:
     """Run polling loop suitable for local daemon usage."""
@@ -287,13 +287,13 @@ def run_watch_loop(
     iteration = 0
     while iterations is None or iteration < iterations:
         try:
-            runs.append(run_poll_cycle(input))
+            runs.append(run_poll_cycle(cycle_input))
         except Exception:
-            _handle_cycle_error(iteration, input.cache, runs)
+            _handle_cycle_error(iteration, cycle_input.cache, runs)
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break
-        time.sleep(input.config.polling.interval_seconds)
+        time.sleep(cycle_input.config.polling.interval_seconds)
     return runs
 
 
