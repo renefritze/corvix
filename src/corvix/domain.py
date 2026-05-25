@@ -5,16 +5,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TypedDict
 
 
-class PollerStatus(TypedDict, total=False):
+@dataclass(slots=True, frozen=True)
+class PollerStatus:
     """Status written to the cache by the poller/watch loop."""
 
-    status: str
-    last_poll_time: str | None
-    last_error: str | None
-    last_error_time: str | None
+    status: str = "unknown"
+    last_poll_time: str | None = None
+    last_error: str | None = None
+    last_error_time: str | None = None
 
 
 STORED_RECORD_LABEL = "stored record"
