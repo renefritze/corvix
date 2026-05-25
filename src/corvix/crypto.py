@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import cache
+
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import Text
 from sqlalchemy.types import TypeDecorator
@@ -9,6 +11,7 @@ from sqlalchemy.types import TypeDecorator
 from corvix.env import get_env_value
 
 
+@cache
 def get_fernet() -> Fernet:
     """Return a Fernet instance keyed from the TOKEN_ENCRYPTION_KEY env var.
 

@@ -13,7 +13,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 
 revision: str = "c3a1f2e9b8d0"
 down_revision: str | None = "6d0e5f9d2a1b"
@@ -47,22 +47,22 @@ def upgrade() -> None:
     fernet = _get_fernet()
     conn = op.get_bind()
 
-    rows = conn.execute(sa.text("SELECT id, github_token FROM users")).fetchall()
-    for row in rows:
+    # Iterate without fetchall() to avoid loading all rows into memory at once.
+    for row in conn.execute(sa.text("SELECT id, github_token FROM users")):
         user_id, token = row
         if not token:
             continue
-        # Detect already-encrypted values: Fernet tokens are valid base64 and
-        # decrypt successfully. If decryption fails the token is still plaintext.
-        try:
-            fernet.decrypt(token.encode())
-            # Already encrypted — skip.
-        except (InvalidToken, Exception):  # noqa: BLE001
-            encrypted = fernet.encrypt(token.encode()).decode()
-            conn.execute(
-                sa.text("UPDATE users SET github_token = :token WHERE id = :id"),
-                {"token": encrypted, "id": str(user_id)},
-            )
+        # Fernet ciphertext always starts with the version byte 0x80, which
+        # encodes to "gAAAAA" in URL-safe base64.  Using this prefix check
+        # (rather than attempting decryption) prevents double-encryption when
+        # the migration is re-run or when the TOKEN_ENCRYPTION_KEY has rotated.
+        if token.startswith("gAAAAA"):
+            continue
+        encrypted = fernet.encrypt(token.encode()).decode()
+        conn.execute(
+            sa.text("UPDATE users SET github_token = :token WHERE id = :id"),
+            {"token": encrypted, "id": str(user_id)},
+        )
 
 
 def downgrade() -> None:

@@ -13,8 +13,16 @@ _PLAINTEXT = "ghp_some_github_personal_access_token"
 
 @pytest.fixture(autouse=True)
 def set_encryption_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure TOKEN_ENCRYPTION_KEY is set for every test in this module."""
+    """Ensure TOKEN_ENCRYPTION_KEY is set for every test in this module.
+
+    Also clears the get_fernet() cache so each test starts with a fresh
+    Fernet instance keyed from the current environment.
+    """
     monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", _TEST_KEY)
+    get_fernet.cache_clear()
+    yield
+    # Teardown: clear the cache so tests in other modules are not affected.
+    get_fernet.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +38,9 @@ def test_get_fernet_returns_fernet_instance() -> None:
 def test_get_fernet_raises_when_key_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TOKEN_ENCRYPTION_KEY", raising=False)
     monkeypatch.delenv("TOKEN_ENCRYPTION_KEY_FILE", raising=False)
+    # The autouse fixture populated the cache with a valid key; clear it so the
+    # env-var absence is visible to get_fernet().
+    get_fernet.cache_clear()
     with pytest.raises(RuntimeError, match="TOKEN_ENCRYPTION_KEY"):
         get_fernet()
 
