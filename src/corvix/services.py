@@ -200,7 +200,7 @@ def _process_notifications(
             notification=notification,
             score=score,
             excluded=evaluation.excluded,
-            matched_rules=evaluation.matched_rules,
+            matched_rules=tuple(evaluation.matched_rules),
             context=record_context,
         )
         gateway_client = clients_by_account.get(notification.account_id)
@@ -225,7 +225,7 @@ def _process_notifications(
         record = replace(
             record,
             notification=new_notification,
-            actions_taken=action_result.actions_taken,
+            actions_taken=tuple(action_result.actions_taken),
             dismissed=record.dismissed or "dismiss" in action_result.actions_taken,
         )
         errors.extend(action_result.errors)

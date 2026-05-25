@@ -45,8 +45,8 @@ class DashboardItem:
             updated_at=notification.updated_at.isoformat(),
             score=record.score,
             web_url=notification.web_url,
-            matched_rules=record.matched_rules,
-            actions_taken=record.actions_taken,
+            matched_rules=list(record.matched_rules),
+            actions_taken=list(record.actions_taken),
         )
 
 

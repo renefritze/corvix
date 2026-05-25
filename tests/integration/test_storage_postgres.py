@@ -110,8 +110,8 @@ def _record(thread_id: str, score: float) -> NotificationRecord:
         ),
         score=score,
         excluded=False,
-        matched_rules=["rule-a"],
-        actions_taken=[],
+        matched_rules=("rule-a",),
+        actions_taken=(),
         context={"github": {"latest_comment": {"is_ci_only": False}}},
     )
 

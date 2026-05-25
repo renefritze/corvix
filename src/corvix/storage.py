@@ -99,8 +99,8 @@ class NotificationCache:
                     notification=record.notification,
                     score=record.score,
                     excluded=record.excluded,
-                    matched_rules=list(record.matched_rules),
-                    actions_taken=list(record.actions_taken),
+                    matched_rules=record.matched_rules,
+                    actions_taken=record.actions_taken,
                     dismissed=record.dismissed or notification_key(record.notification) in dismissed_ids,
                     context=record.context,
                 )
@@ -488,8 +488,8 @@ class PostgresStorage:
                     notification=notification,
                     score=score,
                     excluded=excluded,
-                    matched_rules=matched_rules,
-                    actions_taken=actions_taken,
+                    matched_rules=tuple(matched_rules),
+                    actions_taken=tuple(actions_taken),
                     context=_coerce_context(context),
                     dismissed=dismissed,
                 )
