@@ -526,8 +526,8 @@ def test_watch_loop_persists_error_status_when_poll_cycle_fails(tmp_path: Path) 
 
     assert len(summaries) == 1
     assert "At least one notifications client is required for polling." in summaries[0].errors[0]
-    assert poller_status["status"] == "error"
-    assert poller_status["last_error"] is not None
+    assert poller_status.status == "error"
+    assert poller_status.last_error is not None
 
 
 def test_watch_loop_logs_warning_when_error_status_cannot_be_persisted(

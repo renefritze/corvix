@@ -203,7 +203,7 @@ def logout() -> Response[None]:
 
 
 def _health_error(poller_status: PollerStatus) -> dict[str, object]:
-    raw_detail = poller_status.get("last_error")
+    raw_detail: str | None = poller_status.last_error
     if isinstance(raw_detail, str):
         raw_detail = raw_detail.split("\n")[-1].strip() or raw_detail
     return {"status": "unhealthy", "reason": "poller_error", "detail": raw_detail}
@@ -249,12 +249,11 @@ def health() -> Response[dict[str, object]]:
         poller_status = cache.load_status()
     except (OSError, json.JSONDecodeError):
         return _health_response({"status": "unhealthy", "reason": "invalid_cache"})
-    status = poller_status.get("status", "unknown")
-    if status == "error":
+    if poller_status.status == "error":
         return _health_response(_health_error(poller_status))
-    if status in {"unknown", "starting"}:
+    if poller_status.status in {"unknown", "starting"}:
         return _health_response({"status": "unhealthy", "reason": "poller_not_running"})
-    last_poll_str = poller_status.get("last_poll_time")
+    last_poll_str = poller_status.last_poll_time
     if not last_poll_str:
         return _health_response({"status": "unhealthy", "reason": "invalid_poll_time"})
     return _health_response(_health_check_staleness(last_poll_str))
@@ -283,19 +282,14 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     try:
         poller_status = cache.load_status()
     except (OSError, json.JSONDecodeError):
-        poller_status = {
-            "status": "unknown",
-            "last_poll_time": None,
-            "last_error": None,
-            "last_error_time": None,
-        }
+        poller_status = PollerStatus()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     data = build_dashboard_data(
         records=records,
         dashboard=selected_dashboard,
         generated_at=generated_at,
     )
-    last_poll_str = poller_status.get("last_poll_time")
+    last_poll_str = poller_status.last_poll_time
     stale = False
     if last_poll_str:
         try:
@@ -307,14 +301,14 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
         stale = True
     payload = asdict(data)
     payload["dashboard_names"] = _dashboard_names(config.dashboards)
-    raw_last_error = poller_status.get("last_error")
+    raw_last_error: str | None = poller_status.last_error
     if isinstance(raw_last_error, str):
         raw_last_error = raw_last_error.split("\n")[-1].strip() or raw_last_error
     payload["poller"] = {
-        "status": poller_status.get("status", "unknown"),
+        "status": poller_status.status,
         "last_poll_time": last_poll_str,
         "last_error": raw_last_error,
-        "last_error_time": poller_status.get("last_error_time"),
+        "last_error_time": poller_status.last_error_time,
         "stale": stale,
     }
     notif_cfg = config.notifications
