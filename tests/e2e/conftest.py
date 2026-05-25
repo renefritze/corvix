@@ -79,7 +79,7 @@ def _wait_for_health(base_url: str, timeout_seconds: float = HEALTH_TIMEOUT_SECO
     health_url = f"{base_url}/api/health"
     while time.monotonic() < deadline:
         try:
-            with urlopen(health_url, timeout=1.0) as response:
+            with urlopen(health_url, timeout=1.0) as response:  # nosec B310 - URL is always http://127.0.0.1:<port>/api/health (local test server)
                 if response.status == HTTP_OK:
                     return
         except URLError:

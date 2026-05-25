@@ -644,7 +644,7 @@ app = Litestar(
 
 def run() -> None:
     """Run app with uvicorn."""
-    host = environ.get("CORVIX_WEB_HOST", "0.0.0.0")
+    host = environ.get("CORVIX_WEB_HOST", "0.0.0.0")  # nosec B104 - intentional; Docker/container deployments need all-interfaces
     port = int(environ.get("CORVIX_WEB_PORT", "8000"))
     reload_enabled = environ.get("CORVIX_WEB_RELOAD", "false").lower() in {"1", "true", "yes"}
     uvicorn.run(
