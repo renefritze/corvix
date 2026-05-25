@@ -45,9 +45,14 @@ def _notification(
 
 
 class _FakeClient(JsonFetchClient):
-    def __init__(self, responses: dict[str, JsonValue]) -> None:
+    def __init__(
+        self,
+        responses: dict[str, JsonValue],
+        api_base_url: str = "https://api.example.com",
+    ) -> None:
         self.responses = responses
         self.calls: list[str] = []
+        self.api_base_url = api_base_url
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
@@ -56,9 +61,14 @@ class _FakeClient(JsonFetchClient):
 
 
 class _FakeRaiseClient(JsonFetchClient):
-    def __init__(self, exc: Exception | None = None) -> None:
+    def __init__(
+        self,
+        exc: Exception | None = None,
+        api_base_url: str = "https://api.example.com",
+    ) -> None:
         self.calls: list[str] = []
         self._exc = exc or RuntimeError("simulated failure")
+        self.api_base_url = api_base_url
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
@@ -204,7 +214,8 @@ def test_hydration_check_suite_enterprise_prefix() -> None:
             "https://ghe.example.com/api/v3/repos/org/repo/check-suites/555/check-runs?per_page=1": {
                 "check_runs": [{"html_url": "https://ghe.example.com/org/repo/actions/runs/777/job/1"}]
             }
-        }
+        },
+        api_base_url="https://ghe.example.com/api/v3",
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
@@ -257,7 +268,7 @@ def test_hydration_check_suite_without_subject_url_resolves_exact_run() -> None:
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/99": {"subject": {"url": None}},
-            "https://api.github.com/repos/org/repo/actions/runs?branch=ci_activities&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=ci_activities&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "Docs",
@@ -295,7 +306,7 @@ def test_hydration_check_suite_without_subject_url_falls_back_to_branch_page() -
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/77": {"subject": {"url": None}},
-            "https://api.github.com/repos/org/repo/actions/runs?branch=feature%2Fno-filters-dashboard&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=feature%2Fno-filters-dashboard&per_page=25": {
                 "workflow_runs": []
             },
         }
@@ -320,7 +331,7 @@ def test_hydration_check_suite_attempt_title_matches_run_attempt() -> None:
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/55": {"subject": {"url": None}},
-            "https://api.github.com/repos/org/repo/actions/runs?branch=task%2FOSS-1123&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=task%2FOSS-1123&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "test repo/hooks",
@@ -458,7 +469,7 @@ def test_check_suite_subject_url_not_check_suite_pattern() -> None:
     )
     client = _FakeClient(
         responses={
-            "https://api.github.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "Docs",
@@ -486,7 +497,7 @@ def test_check_suite_from_subject_url_non_dict_response() -> None:
     client = _FakeClient(
         responses={
             "https://api.example.com/repos/org/repo/check-suites/555/check-runs?per_page=1": ["not", "a", "dict"],
-            "https://api.github.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "Docs",
@@ -573,7 +584,9 @@ def test_enterprise_check_suite_fallback() -> None:
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/1": {"subject": {"url": None}},
-            "https://ghe.example.com/api/v3/repos/org/repo/actions/runs?branch=main&per_page=25": {
+            # _resolve_check_suite uses client.api_base_url (trusted) for the API base,
+            # not the repo_base from the notification (which could be external data).
+            "https://api.example.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "CI",
