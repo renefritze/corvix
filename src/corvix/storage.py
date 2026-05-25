@@ -411,10 +411,11 @@ class PostgresStorage:
             with self._connect() as conn:
                 ...
         """
-        if self._pool is None:
+        pool = self._pool
+        if pool is None:
             msg = "PostgresStorage pool has been closed."
             raise RuntimeError(msg)
-        return self._pool.connection()
+        return pool.connection()
 
     def save_records(
         self,
