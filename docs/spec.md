@@ -8,7 +8,7 @@
 
 Corvix fetches a user's GitHub notifications, scores and filters them with configurable rules, caches the results locally, and presents them through a terminal CLI or a web dashboard.
 
-**Current state**: single-user workflows with JSON cache by default, optional PostgreSQL import/storage support, and web dismiss operations.
+**Current state**: single-user workflows backed by PostgreSQL (required), shared by the poller and web service, with web dismiss/mark-read operations.
 
 **Target state**: multi-user server with PostgreSQL persistence, two-way notification management, theming, and browser push notifications.
 
@@ -426,11 +426,12 @@ The SPA auto-refreshes every 15 seconds, populates a dashboard selector from `/a
 
 | Service | Image | Role |
 |---|---|---|
-| `db` | `postgres:16-alpine` | PostgreSQL service for migration and database-backed workflows. |
-| `poller` | local build | Runs `corvix watch` continuously; applies actions by default (set `CORVIX_DRY_RUN=true` to disable). Writes to shared `corvix_state` volume. |
-| `web` | local build | Runs `uvicorn corvix.web.app:app --host 0.0.0.0 --port 8000`; reads from shared `corvix_state` volume. |
+| `db` | `postgres:16-alpine` | PostgreSQL service; the shared store for the poller and web. |
+| `migrate` | local build | One-shot `alembic upgrade head`; `web` and `poller` wait for it to complete. |
+| `poller` | local build | Runs `corvix watch` continuously; applies actions by default (set `CORVIX_DRY_RUN=true` to disable). Writes notifications to PostgreSQL. |
+| `web` | local build | Runs `uvicorn corvix.web.app:app --host 0.0.0.0 --port 8000`; reads notifications from PostgreSQL. |
 
-Shared volume `corvix_state` is mounted at `/data`. The poller writes `notifications.json` there; the web service reads it. Both services mount `./config:/app/config`.
+The poller writes notification records and poller status to PostgreSQL; the web service reads them from the same database. There is no shared filesystem volume between the two. Both services mount `./config:/app/config`.
 
 Optional development override: if live-reload/source mounts are needed, add a compose override file instead of treating them as the default runtime setup.
 
@@ -450,9 +451,8 @@ Optional development override: if live-reload/source mounts are needed, add a co
 
 ## 9. Current gaps
 
-- Poller and web still use the shared JSON cache by default; PostgreSQL is not yet the default live storage path.
-- The poller/web shared file has no explicit locking; behavior relies on filesystem semantics of full-file writes.
-- Multi-user auth and browser push notifications are not yet part of the active runtime path.
+- Single-user deployments share a fixed seeded `user_id`; multi-user auth (per-user sessions/records) is not yet part of the active runtime path.
+- Browser push notifications are not yet part of the active runtime path.
 
 ---
 
@@ -543,7 +543,7 @@ database:
   url_env: DATABASE_URL          # env var holding the PostgreSQL connection string
 ```
 
-When `auth.mode` is `single_user` or absent, the system behaves as today: one token from env, JSON cache. When `multi_user`, tokens come from the `users` table and PostgreSQL is required.
+PostgreSQL is required in all modes. When `auth.mode` is `single_user` or absent, the GitHub token comes from the environment and records are stored under a fixed seeded `user_id`. When `multi_user`, tokens come from the `users` table and records are scoped per user.
 
 **Separation of concerns**: the YAML config remains the *system* config (scoring weights, rules, dashboards). Per-user state (token, preferences, subscriptions) lives in the database.
 
@@ -577,9 +577,9 @@ Non-breaking, incremental:
 
 1. Add `StorageBackend` protocol. Make `NotificationCache` conform.
 2. Add `PostgresStorage`.
-3. When `database.url_env` is set, use Postgres. Otherwise, fall back to JSON.
-4. New CLI command `corvix migrate-cache` reads the JSON file and inserts records into PostgreSQL for the configured user.
-5. Docker Compose already provisions PostgreSQL and passes `DATABASE_URL` — only the app needs to start using it.
+3. PostgreSQL is required: the poller and web both use it (the JSON cache is no longer a live store).
+4. CLI command `corvix migrate-cache` reads a legacy JSON file and inserts records into PostgreSQL for the configured user.
+5. Docker Compose provisions PostgreSQL, applies migrations via a one-shot `migrate` service, and passes `DATABASE_URL` to the app.
 
 ### 10.9 Config re-reading
 

@@ -10,8 +10,26 @@ import pytest
 from click.testing import CliRunner
 
 from corvix import cli
+from corvix.domain import PollerStatus, format_timestamp
 from corvix.presentation import DashboardRenderResult
 from corvix.services import PollCycleInput, PollingSummary
+
+
+class _DummyStorage:
+    """Minimal StorageBackend stand-in usable as a context manager."""
+
+    def __enter__(self) -> _DummyStorage:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+def _stub_storage(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: _DummyStorage())
 
 
 def _write_config(path: Path, cache_file: Path) -> None:
@@ -65,6 +83,7 @@ def test_poll_command_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         return PollingSummary(fetched=2, excluded=1, actions_taken=0, errors=[])
 
     monkeypatch.setattr(cli, "run_poll_cycle", _fake_run_poll_cycle)
+    _stub_storage(monkeypatch)
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "poll", "--dry-run"])
 
@@ -87,6 +106,7 @@ def test_poll_command_defaults_to_apply_actions(tmp_path: Path, monkeypatch: pyt
         return PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[])
 
     monkeypatch.setattr(cli, "run_poll_cycle", _fake_run_poll_cycle)
+    _stub_storage(monkeypatch)
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "poll"])
 
@@ -105,6 +125,7 @@ def test_poll_command_dry_run_env_overrides_default(tmp_path: Path, monkeypatch:
         return PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[])
 
     monkeypatch.setattr(cli, "run_poll_cycle", _fake_run_poll_cycle)
+    _stub_storage(monkeypatch)
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "poll"])
 
@@ -145,6 +166,7 @@ def test_watch_command_iterations(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         "run_watch_loop",
         lambda input, iterations=None: [PollingSummary(fetched=3, excluded=1, actions_taken=0, errors=[])],
     )
+    _stub_storage(monkeypatch)
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "watch", "--iterations", "1"])
 
@@ -161,6 +183,7 @@ def test_dashboard_command_renders(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         "render_cached_dashboards",
         lambda **_: [DashboardRenderResult(dashboard_name="triage", rows=4)],
     )
+    _stub_storage(monkeypatch)
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "dashboard"])
 
@@ -173,11 +196,55 @@ def test_dashboard_command_no_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     config_path = tmp_path / "corvix.yaml"
     _write_config(config_path, tmp_path / "notifications.json")
     monkeypatch.setattr(cli, "render_cached_dashboards", lambda **_: [])
+    _stub_storage(monkeypatch)
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "dashboard"])
 
     assert result.exit_code == 0
     assert "No dashboards rendered." in result.output
+
+
+class _StatusStorage(_DummyStorage):
+    def __init__(self, status: PollerStatus) -> None:
+        self._status = status
+
+    def load_status(self, _user_id: object) -> PollerStatus:
+        return self._status
+
+
+def _run_poller_health(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: PollerStatus) -> object:
+    runner = CliRunner()
+    config_path = tmp_path / "corvix.yaml"
+    _write_config(config_path, tmp_path / "notifications.json")
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: _StatusStorage(status))
+    return runner.invoke(cli.main, ["--config", str(config_path), "poller-health"])
+
+
+def test_poller_health_fresh_exits_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    status = PollerStatus(status="ok", last_poll_time=format_timestamp(datetime.now(tz=UTC)))
+    result = _run_poller_health(tmp_path, monkeypatch, status)
+    assert result.exit_code == 0
+    assert "ok" in result.output
+
+
+def test_poller_health_stale_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    status = PollerStatus(status="ok", last_poll_time="2000-01-01T00:00:00Z")
+    result = _run_poller_health(tmp_path, monkeypatch, status)
+    assert result.exit_code != 0
+    assert "stale" in result.output
+
+
+def test_poller_health_never_polled_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    result = _run_poller_health(tmp_path, monkeypatch, PollerStatus(status="unknown", last_poll_time=None))
+    assert result.exit_code != 0
+    assert "has not recorded" in result.output
+
+
+def test_poller_health_error_status_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    status = PollerStatus(status="error", last_poll_time=None, last_error="boom")
+    result = _run_poller_health(tmp_path, monkeypatch, status)
+    assert result.exit_code != 0
+    assert "boom" in result.output
 
 
 def test_serve_command_sets_env_vars(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

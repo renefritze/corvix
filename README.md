@@ -39,7 +39,7 @@ Notes:
 
 - Frontend assets are built as part of Docker image build.
 - Rebuild images after frontend source changes.
-- `poller` updates the shared `/data/notifications.json` cache.
+- PostgreSQL is required: the `poller` writes notifications to the database and the `web` service reads from it (no shared file). A one-shot `migrate` service applies Alembic migrations before they start.
 - Set `CORVIX_DRY_RUN=true` in `.env` to run the poller in dry-run mode (no GitHub actions).
 - `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
 
@@ -111,7 +111,7 @@ make lighthouse
 ## Platform Support
 
 - Corvix currently targets Linux/POSIX environments.
-- The JSON cache uses `fcntl` advisory file locks, so the local file-backed storage path is not supported on Windows.
+- The legacy JSON cache (used only by `corvix migrate-cache`) relies on `fcntl` advisory file locks and is not supported on Windows.
 
 ## Features
 

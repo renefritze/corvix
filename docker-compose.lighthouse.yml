@@ -10,7 +10,14 @@ services:
     environment:
       CORVIX_CONFIG: /fixtures/corvix.lighthouse.yaml
       LH_TEMPLATE: /fixtures/notifications.json
-      LH_CACHE: /var/cache/corvix/notifications.json
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+    - database_url
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports: ["4173:8000"]
     volumes:
     - ./tests/lighthouse:/fixtures:ro

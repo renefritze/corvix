@@ -19,6 +19,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # One-shot job that applies Alembic migrations before the app starts. Both
+  # the web and poller services depend on it completing so the schema exists.
+  migrate:
+    build:
+      context: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+    - database_url
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     build:
       context: .
@@ -51,10 +65,11 @@ services:
     - "8000:8000"
     volumes:
     - ./config:/app/config
-    - corvix_state:/data
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
       - CMD
@@ -87,17 +102,18 @@ services:
     env_file: .env
     volumes:
     - ./config:/app/config
-    - corvix_state:/data
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
       - CMD
-      - python
-      - -c
-      - from pathlib import Path; import time, sys; p = Path("/data/notifications.json"); sys.exit(0 if p.exists() and time.time()
-        - p.stat().st_mtime < 300 else 1)
+      - corvix
+      - --config
+      - /app/config/corvix.yaml
+      - poller-health
       interval: 30s
       timeout: 5s
       retries: 5
@@ -105,7 +121,6 @@ services:
 
 volumes:
   corvix_db:
-  corvix_state:
 
 secrets:
   postgres_password:

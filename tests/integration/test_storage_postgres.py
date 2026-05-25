@@ -14,9 +14,10 @@ from alembic import command
 from alembic.config import Config
 from cryptography.fernet import Fernet
 
+from corvix.config import AppConfig
 from corvix.crypto import encrypt_token
-from corvix.domain import Notification, NotificationRecord
-from corvix.storage import PostgresStorage
+from corvix.domain import Notification, NotificationRecord, PollerStatus
+from corvix.storage import SINGLE_USER_ID, PostgresStorage, StorageConfigError, create_storage
 
 SCORE_HIGH = 50.0
 SCORE_LOW = 10.0
@@ -26,8 +27,8 @@ SCORE_UPDATED = 99.0
 @pytest.fixture(scope="session")
 def postgres_urls() -> Generator[tuple[str, str]]:
     testcontainers = pytest.importorskip("testcontainers.postgres")
-    container = testcontainers.PostgresContainer("postgres:16-alpine")
     try:
+        container = testcontainers.PostgresContainer("postgres:16-alpine")
         container.start()
     except Exception as error:  # pragma: no cover - environment dependent
         pytest.skip(f"Could not start Postgres test container: {error}")
@@ -249,3 +250,62 @@ def test_ordering_by_snapshot_then_score(migrated_postgres_url: str, storage: Po
     _, loaded = storage.load_records(user_id=user_id)
 
     assert [record.notification.thread_id for record in loaded] == ["new-high", "new-low", "old-high"]
+
+
+@pytest.mark.integration
+def test_load_status_defaults_to_unknown(storage: PostgresStorage) -> None:
+    status = storage.load_status(user_id=uuid4())
+
+    assert status.status == "unknown"
+    assert status.last_poll_time is None
+
+
+@pytest.mark.integration
+def test_save_and_load_status_roundtrip(migrated_postgres_url: str, storage: PostgresStorage) -> None:
+    user_id = uuid4()
+    _create_user(migrated_postgres_url, user_id)
+
+    storage.save_status(
+        user_id,
+        PollerStatus(status="ok", last_poll_time="2024-01-01T00:00:00Z", last_error=None, last_error_time=None),
+    )
+    storage.save_status(
+        user_id,
+        PollerStatus(
+            status="error",
+            last_poll_time="2024-01-01T00:00:00Z",
+            last_error="boom",
+            last_error_time="2024-01-02T00:00:00Z",
+        ),
+    )
+
+    status = storage.load_status(user_id)
+    assert status.status == "error"
+    assert status.last_poll_time == "2024-01-01T00:00:00Z"
+    assert status.last_error == "boom"
+    assert status.last_error_time == "2024-01-02T00:00:00Z"
+
+
+@pytest.mark.integration
+def test_single_user_row_is_seeded(migrated_postgres_url: str, storage: PostgresStorage) -> None:
+    # The migration seeds the single-user identity so single-user deployments can
+    # write records/status without creating a user first.
+    storage.save_status(
+        SINGLE_USER_ID,
+        PollerStatus(status="ok", last_poll_time="2024-01-01T00:00:00Z", last_error=None, last_error_time=None),
+    )
+    storage.save_records(user_id=SINGLE_USER_ID, records=[_record("t1", SCORE_HIGH)], generated_at=datetime.now(tz=UTC))
+
+    _, loaded = storage.load_records(user_id=SINGLE_USER_ID)
+    assert [record.notification.thread_id for record in loaded] == ["t1"]
+    assert storage.load_status(SINGLE_USER_ID).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_storage_requires_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = AppConfig()
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL_FILE", raising=False)
+
+    with pytest.raises(StorageConfigError):
+        create_storage(config)

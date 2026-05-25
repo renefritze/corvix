@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from os import environ
 from pathlib import Path
 from typing import TypeVar
@@ -13,6 +13,7 @@ from rich.console import Console
 
 from corvix.config import AppConfig, GitHubAccountConfig, PollingConfig, load_config, write_default_config
 from corvix.db import get_database_url
+from corvix.domain import parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.services import (
@@ -22,7 +23,14 @@ from corvix.services import (
     run_poll_cycle,
     run_watch_loop,
 )
-from corvix.storage import NotificationCache, PostgresStorage
+from corvix.storage import (
+    SINGLE_USER_ID,
+    NotificationCache,
+    PostgresStorage,
+    StorageBackend,
+    StorageConfigError,
+    create_storage,
+)
 from corvix.web.app import run as run_web
 
 F = TypeVar("F", bound=Callable[..., object])
@@ -114,19 +122,18 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
     clients = _build_clients(app_config.github.accounts, app_config.polling)
-    cache = NotificationCache(path=app_config.resolve_cache_file())
-    summary = run_poll_cycle(
-        PollCycleInput(
-            config=app_config,
-            clients=clients,
-            cache=cache,
-            apply_actions=apply_actions,
+    with _build_storage(app_config) as cache:
+        summary = run_poll_cycle(
+            PollCycleInput(
+                config=app_config,
+                clients=clients,
+                cache=cache,
+                apply_actions=apply_actions,
+            )
         )
-    )
     click.echo(f"Fetched: {summary.fetched}")
     click.echo(f"Excluded from dashboards: {summary.excluded}")
     click.echo(f"Actions executed: {summary.actions_taken}")
-    click.echo(f"Cache file: {cache.path}")
     for error in summary.errors:
         click.echo(f"Action error: {error}")
 
@@ -145,16 +152,16 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
     clients = _build_clients(app_config.github.accounts, app_config.polling)
-    cache = NotificationCache(path=app_config.resolve_cache_file())
-    summaries = run_watch_loop(
-        PollCycleInput(
-            config=app_config,
-            clients=clients,
-            cache=cache,
-            apply_actions=apply_actions,
-        ),
-        iterations=iterations,
-    )
+    with _build_storage(app_config) as cache:
+        summaries = run_watch_loop(
+            PollCycleInput(
+                config=app_config,
+                clients=clients,
+                cache=cache,
+                apply_actions=apply_actions,
+            ),
+            iterations=iterations,
+        )
     for index, summary in enumerate(summaries, start=1):
         click.echo(
             f"Run {index}: fetched={summary.fetched}, excluded={summary.excluded}, actions={summary.actions_taken}",
@@ -170,14 +177,14 @@ def dashboard_command(ctx: click.Context, dashboard_name: str | None) -> None:
     """Render dashboards from the persisted cache file without polling GitHub."""
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
-    cache = NotificationCache(path=app_config.resolve_cache_file())
     console = Console()
-    results = render_cached_dashboards(
-        config=app_config,
-        cache=cache,
-        console=console,
-        dashboard_name=dashboard_name,
-    )
+    with _build_storage(app_config) as cache:
+        results = render_cached_dashboards(
+            config=app_config,
+            cache=cache,
+            console=console,
+            dashboard_name=dashboard_name,
+        )
     if not results:
         click.echo("No dashboards rendered.")
         return
@@ -204,16 +211,18 @@ def serve_command(ctx: click.Context, host: str, port: int, reload: bool) -> Non
 @main.command("migrate-cache")
 @click.option(
     "--user-id",
-    required=True,
-    help="UUID of the user to assign imported records to.",
+    default=str(SINGLE_USER_ID),
+    show_default=True,
+    help="UUID of the user to assign imported records to (defaults to the single-user identity).",
 )
 @click.pass_context
 def migrate_cache_command(ctx: click.Context, user_id: str) -> None:
-    """Import JSON cache records into PostgreSQL for a given user.
+    """Import legacy JSON cache records into PostgreSQL for a given user.
 
     Reads the cache file from the config, then upserts all records into the
     PostgreSQL database using the DATABASE_URL (or the env var named in
-    config.database.url_env).
+    config.database.url_env). This is a one-shot upgrade helper for installs
+    that still have a ``notifications.json`` file from older versions.
     """
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
@@ -232,6 +241,44 @@ def migrate_cache_command(ctx: click.Context, user_id: str) -> None:
     with PostgresStorage(connection_string=db_url) as storage:
         storage.save_records(user_id=user_id, records=records, generated_at=snapshot_time)
     click.echo(f"Migrated {len(records)} records for user {user_id}.")
+
+
+@main.command("poller-health")
+@click.pass_context
+def poller_health_command(ctx: click.Context) -> None:
+    """Exit 0 when the poller status in PostgreSQL is fresh, else fail.
+
+    Intended for container healthchecks: it reads the poller status the watch
+    loop writes to PostgreSQL and verifies a successful poll happened recently.
+    """
+    config_path = _config_path_from_context(ctx)
+    app_config = _load_app_config(config_path)
+    with _build_storage(app_config) as storage:
+        status = storage.load_status(SINGLE_USER_ID)
+    if status.status == "error":
+        msg = f"Poller reported an error: {status.last_error}"
+        raise click.ClickException(msg)
+    if not status.last_poll_time:
+        msg = "Poller has not recorded a successful poll yet."
+        raise click.ClickException(msg)
+    try:
+        last_poll = parse_timestamp(status.last_poll_time)
+    except ValueError as error:
+        msg = f"Poller status has an invalid last poll time: {status.last_poll_time!r}"
+        raise click.ClickException(msg) from error
+    age = datetime.now(tz=UTC) - last_poll
+    if age > timedelta(minutes=5):
+        msg = f"Poller is stale: {int(age.total_seconds())}s since last successful poll."
+        raise click.ClickException(msg)
+    click.echo("ok")
+
+
+def _build_storage(app_config: AppConfig) -> StorageBackend:
+    """Build the configured storage backend, surfacing config errors to the CLI."""
+    try:
+        return create_storage(app_config)
+    except StorageConfigError as error:
+        raise click.ClickException(str(error)) from error
 
 
 def _load_app_config(config_path: Path) -> AppConfig:

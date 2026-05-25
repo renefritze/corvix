@@ -68,6 +68,19 @@ class NotificationRecordRow(Base):
     user: Mapped[User] = relationship("User", back_populates="notification_records")
 
 
+class PollerStatusRow(Base):
+    """Latest poller status scoped to a user (replaces the JSON status blob)."""
+
+    __tablename__ = "poller_status"
+
+    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), primary_key=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
+    last_poll_time: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error_time: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class UserPreferences(Base):
     """Per-user preferences (theme, browser notifications)."""
 

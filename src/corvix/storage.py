@@ -15,12 +15,14 @@ from contextlib import AbstractContextManager, contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+from uuid import UUID
 
 import psycopg
 import psycopg_pool
 from psycopg.types.json import Jsonb
 
+from corvix.db import get_database_url
 from corvix.domain import (
     Notification,
     NotificationRecord,
@@ -31,8 +33,21 @@ from corvix.domain import (
 )
 from corvix.types import UserId
 
+if TYPE_CHECKING:
+    from corvix.config import AppConfig
+
 _NOTIFICATION_RECORD_COLUMNS = 18
 _DISMISSED_ROW_COLUMNS = 2
+_POLLER_STATUS_COLUMNS = 4
+
+# Fixed identity used for the single-user deployment. Multi-user deployments
+# scope records per real user; single-user mode shares this seeded row (created
+# by the Alembic migration that introduced the ``poller_status`` table).
+SINGLE_USER_ID: UUID = UUID("00000000-0000-0000-0000-000000000001")
+
+
+class StorageConfigError(RuntimeError):
+    """Raised when required storage configuration (a database URL) is missing."""
 
 
 class StorageBackend(Protocol):
@@ -47,6 +62,10 @@ class StorageBackend(Protocol):
 
     def load_records(self, user_id: UserId) -> tuple[datetime | None, list[NotificationRecord]]: ...
 
+    def save_status(self, user_id: UserId, status: PollerStatus) -> None: ...
+
+    def load_status(self, user_id: UserId) -> PollerStatus: ...
+
     def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None: ...
 
     def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None: ...
@@ -54,6 +73,29 @@ class StorageBackend(Protocol):
     def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]: ...
 
     def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]: ...
+
+    def close(self) -> None: ...
+
+    def __enter__(self) -> StorageBackend: ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+
+def create_storage(config: AppConfig) -> PostgresStorage:
+    """Return the configured PostgreSQL storage backend.
+
+    PostgreSQL is required in all deployments; the JSON cache is no longer used
+    as the shared store between the poller and the web service. Raises
+    :class:`StorageConfigError` when no database URL is configured.
+    """
+    db_url = get_database_url(config.database.url_env)
+    if not db_url:
+        msg = (
+            f"PostgreSQL is required but no database URL is configured. "
+            f"Set '{config.database.url_env}' (or '{config.database.url_env}_FILE')."
+        )
+        raise StorageConfigError(msg)
+    return PostgresStorage(connection_string=db_url)
 
 
 @dataclass(slots=True)
@@ -120,8 +162,12 @@ class NotificationCache:
         with self._shared_lock():
             return self._load_unlocked()
 
-    def save_status(self, status: PollerStatus) -> None:
-        """Persist only the poller status without touching notifications."""
+    def save_status(self, user_id: UserId, status: PollerStatus) -> None:
+        """Persist only the poller status without touching notifications.
+
+        ``user_id`` is ignored in single-user JSON mode.
+        """
+        _ = user_id
         with self._exclusive_lock():
             try:
                 _, records = self._load_unlocked()
@@ -139,8 +185,12 @@ class NotificationCache:
                     generated_at = datetime.now(tz=UTC)
             self._save_unlocked(records=records, generated_at=generated_at, poller_status=status)
 
-    def load_status(self) -> PollerStatus:
-        """Load the poller status from the cache file."""
+    def load_status(self, user_id: UserId = "") -> PollerStatus:
+        """Load the poller status from the cache file.
+
+        ``user_id`` is ignored in single-user JSON mode.
+        """
+        _ = user_id
         try:
             path_exists = self.path.exists()
         except OSError:
@@ -350,6 +400,15 @@ class NotificationCache:
         _, records = self.load()
         return [r.notification.thread_id for r in records if r.dismissed]
 
+    def close(self) -> None:
+        """No-op; the JSON backend holds no long-lived resources."""
+
+    def __enter__(self) -> NotificationCache:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
 
 @dataclass(slots=True)
 class PostgresStorage:
@@ -548,6 +607,53 @@ class PostgresStorage:
                 )
             )
         return latest_snapshot, records
+
+    def save_status(self, user_id: UserId, status: PollerStatus) -> None:
+        """Upsert the poller status row for ``user_id``."""
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO poller_status
+                        (user_id, status, last_poll_time, last_error, last_error_time, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, now())
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        status          = EXCLUDED.status,
+                        last_poll_time  = EXCLUDED.last_poll_time,
+                        last_error      = EXCLUDED.last_error,
+                        last_error_time = EXCLUDED.last_error_time,
+                        updated_at      = now()
+                    """,
+                    (
+                        user_id,
+                        status.status,
+                        status.last_poll_time,
+                        status.last_error,
+                        status.last_error_time,
+                    ),
+                )
+            conn.commit()
+
+    def load_status(self, user_id: UserId) -> PollerStatus:
+        """Load the poller status for ``user_id``, defaulting to ``unknown``."""
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT status, last_poll_time, last_error, last_error_time FROM poller_status WHERE user_id = %s",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
+        if len(row) != _POLLER_STATUS_COLUMNS:
+            msg = "Invalid row shape returned by poller_status query."
+            raise ValueError(msg)
+        return PollerStatus(
+            status=_require_str(row[0], "status"),
+            last_poll_time=_optional_str(row[1], "last_poll_time"),
+            last_error=_optional_str(row[2], "last_error"),
+            last_error_time=_optional_str(row[3], "last_error_time"),
+        )
 
     def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
         """Set dismissed=true for a specific account/thread id."""
