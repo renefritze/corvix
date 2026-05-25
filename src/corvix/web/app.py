@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -558,7 +559,7 @@ def _anchored_title_regex(title: str) -> str:
     return f"^{escaped}$"
 
 
-def _context_path_value(*, context: dict[str, object], path: str) -> tuple[bool, object | None]:
+def _context_path_value(*, context: Mapping[str, object], path: str) -> tuple[bool, object | None]:
     current: object = context
     for segment in path.split("."):
         if not isinstance(current, dict):
