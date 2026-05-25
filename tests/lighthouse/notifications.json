@@ -1,5 +1,11 @@
 {
-    "generated_at": "2024-01-01T00:00:00Z",
+    "generated_at": "2099-01-01T00:00:00Z",
+    "poller_status": {
+        "status": "ok",
+        "last_poll_time": "2099-01-01T00:00:00Z",
+        "last_error": null,
+        "last_error_time": null
+    },
     "notifications": [
         {
             "account_id": "primary",

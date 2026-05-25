@@ -11,8 +11,10 @@ from pathlib import Path
 import pytest
 from litestar.testing import TestClient
 
+import corvix.web.middleware as _mw
 from corvix.config import load_config
 from corvix.web.app import INDEX_HTML, THEMES, app
+from corvix.web.middleware import _verify_session_cookie
 
 GENERATED_AT = "2024-01-01T00:00:00Z"
 EXPECTED_POPULATED_TOTAL_ITEMS = 3
@@ -130,7 +132,7 @@ dashboards:
 def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
     response = client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
     assert payload["reason"] == "config_unavailable"
@@ -138,7 +140,7 @@ def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_health_when_poller_unknown(configured_client: TestClient) -> None:
     response = configured_client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
     assert payload["reason"] == "poller_not_running"
@@ -183,7 +185,7 @@ def test_health_when_poller_stale(configured_client: TestClient) -> None:
         encoding="utf-8",
     )
     response = configured_client.get("/api/health")
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
     assert payload["reason"] == "stale"
@@ -197,7 +199,7 @@ def test_health_when_cache_is_invalid(configured_client: TestClient) -> None:
 
     response = configured_client.get("/api/health")
 
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_cache"}
 
 
@@ -221,7 +223,7 @@ def test_health_when_poller_error_trims_last_line(configured_client: TestClient)
 
     response = configured_client.get("/api/health")
 
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {
         "status": "unhealthy",
         "reason": "poller_error",
@@ -248,7 +250,7 @@ def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) ->
 
     response = configured_client.get("/api/health")
 
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_poll_time"}
 
 
@@ -726,3 +728,285 @@ def test_load_runtime_config_invalid_yaml(client: TestClient, monkeypatch: pytes
     response = client.get("/api/dashboards")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+# ---------------------------------------------------------------------------
+# Token-based authentication tests
+# ---------------------------------------------------------------------------
+
+_SECRET = "test-secret-token"
+
+
+class TestTokenAuth:
+    """Tests for the optional CORVIX_SECRET_TOKEN authentication."""
+
+    @pytest.fixture(autouse=True)
+    def reset_middleware_cache(self) -> pytest.Generator[None, None, None]:
+        """Reset the secret TTL cache and misconfiguration flag between tests.
+
+        The middleware caches the resolved secret for 60 s to reduce file I/O.
+        Without resetting the cache, monkeypatch env-var changes would be
+        invisible within the same test session, causing false passes/failures.
+        """
+        _mw._SECRET_CACHE = None
+        _mw._MISCONFIGURED = False
+        yield
+        _mw._SECRET_CACHE = None
+        _mw._MISCONFIGURED = False
+
+    # ------------------------------------------------------------------
+    # No auth configured — backward-compatible pass-through
+    # ------------------------------------------------------------------
+
+    def test_api_no_auth_required_when_token_unset(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_ui_no_redirect_when_token_unset(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/", follow_redirects=False)
+        # Should serve the SPA directly, not redirect to /login
+        assert response.status_code == HTTPStatus.OK
+
+    # ------------------------------------------------------------------
+    # Auth enabled — API routes
+    # ------------------------------------------------------------------
+
+    def test_api_401_without_auth_header(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_api_200_with_bearer_token(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"Authorization": f"Bearer {_SECRET}"})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_200_with_x_corvix_token_header(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"X-Corvix-Token": _SECRET})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_401_with_wrong_bearer_token(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"Authorization": "Bearer wrong-token"})
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_api_401_with_wrong_x_corvix_token(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes", headers={"X-Corvix-Token": "wrong-token"})
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_api_401_response_is_json(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/api/themes")
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"detail": "Unauthorized"}
+
+    # ------------------------------------------------------------------
+    # Auth enabled — always-public paths
+    # ------------------------------------------------------------------
+
+    def test_health_always_public(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        # /api/health is always reachable without an auth header;
+        # it may return 200 (healthy) or 503 (unhealthy) but never 401.
+        response = client.get("/api/health")
+        assert response.status_code != HTTPStatus.UNAUTHORIZED
+
+    def test_login_page_always_accessible(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/login")
+        assert response.status_code == HTTPStatus.OK
+        assert b"<form" in response.content
+
+    # ------------------------------------------------------------------
+    # Auth enabled — UI routes redirect without cookie
+    # ------------------------------------------------------------------
+
+    def test_ui_redirects_to_login_without_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/login"
+
+    def test_dashboard_redirects_to_login_without_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/dashboards/triage", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/login"
+
+    # ------------------------------------------------------------------
+    # Auth enabled — login / logout flow
+    # ------------------------------------------------------------------
+
+    def test_login_sets_cookie_and_redirects_to_root(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert "corvix_session" in response.cookies
+
+    def test_login_cookie_value_is_valid_and_unexpired(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        cookie_val = response.cookies["corvix_session"]
+        assert _verify_session_cookie(_SECRET, cookie_val), "Session cookie failed verification"
+
+    def test_login_wrong_token_returns_401(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": "bad-token"})
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_ui_accessible_with_valid_session_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        # Log in first — TestClient carries the Set-Cookie automatically.
+        login_r = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert login_r.status_code == HTTPStatus.FOUND
+        # The session cookie is now in the client's cookie jar.
+        ui_r = client.get("/", follow_redirects=False)
+        assert ui_r.status_code == HTTPStatus.OK
+
+    def test_logout_clears_cookie_and_redirects_to_login(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        # Log in, then log out.
+        client.post("/login", data={"token": _SECRET})
+        response = client.get("/logout", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/login"
+
+    def test_login_page_redirects_to_root_when_auth_not_configured(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/login", follow_redirects=False)
+        assert response.status_code == HTTPStatus.FOUND
+        assert response.headers["location"] == "/"
+
+    # ------------------------------------------------------------------
+    # _FILE variant support
+    # ------------------------------------------------------------------
+
+    def test_api_200_with_bearer_token_via_file(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret_file = tmp_path / "corvix_token"
+        secret_file.write_text(_SECRET, encoding="utf-8")
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
+        response = client.get("/api/themes", headers={"Authorization": f"Bearer {_SECRET}"})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_401_without_header_via_file(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret_file = tmp_path / "corvix_token"
+        secret_file.write_text(_SECRET, encoding="utf-8")
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_login_flow_via_file(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret_file = tmp_path / "corvix_token"
+        secret_file.write_text(_SECRET, encoding="utf-8")
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
+        # Login page should show the form (not redirect to /)
+        assert client.get("/login").status_code == HTTPStatus.OK
+        # Posting the correct token should set a session cookie
+        login_r = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        assert login_r.status_code == HTTPStatus.FOUND
+        assert "corvix_session" in login_r.cookies
+        # UI should be accessible afterwards
+        assert client.get("/", follow_redirects=False).status_code == HTTPStatus.OK
+
+    # ------------------------------------------------------------------
+    # API routes accept session cookie (SPA browser flow)
+    # ------------------------------------------------------------------
+
+    def test_api_200_with_session_cookie_after_login(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """After browser login, the SPA's fetch() calls must succeed via cookie."""
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        client.post("/login", data={"token": _SECRET})  # sets corvix_session in jar
+        # No Authorization header — should succeed via cookie fallback
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_api_401_with_wrong_session_cookie(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        client.cookies.set("corvix_session", "not-the-right-hmac")
+        response = client.get("/api/themes")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    # ------------------------------------------------------------------
+    # Secure cookie flag (HTTPS detection)
+    # ------------------------------------------------------------------
+
+    def test_login_cookie_not_secure_over_http(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        # TestClient uses http:// — Secure flag should NOT be set
+        cookie_header = response.headers.get("set-cookie", "")
+        assert "secure" not in cookie_header.lower()
+
+    def test_login_cookie_is_secure_over_https(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Cookie gets the Secure flag when Litestar sees the request as HTTPS.
+
+        We create a dedicated TestClient with an ``https://`` base URL so that
+        ``request.url.scheme`` returns ``"https"``.  This is the correct
+        approach now that HTTPS detection relies on uvicorn's ``--proxy-headers``
+        flag setting the scope scheme (not raw header inspection from app code).
+        """
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        https_client = TestClient(app, base_url="https://testserver.local")
+        response = https_client.post("/login", data={"token": _SECRET}, follow_redirects=False)
+        cookie_header = response.headers.get("set-cookie", "")
+        assert "secure" in cookie_header.lower()

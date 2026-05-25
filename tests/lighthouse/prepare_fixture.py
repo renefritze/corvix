@@ -15,8 +15,8 @@ from pathlib import Path
 
 
 def main() -> int:
-    template = Path(os.environ["LH_TEMPLATE"])
-    cache = Path(os.environ["LH_CACHE"])
+    template = Path(os.environ["LH_TEMPLATE"])  # NOSONAR: path set by docker-compose, not user input
+    cache = Path(os.environ["LH_CACHE"])  # NOSONAR: path set by docker-compose, not user input
     payload = json.loads(template.read_text(encoding="utf-8"))
     now = datetime.now(tz=UTC).isoformat().replace("+00:00", "Z")
     payload["generated_at"] = now

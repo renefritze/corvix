@@ -101,6 +101,7 @@ def test_config_polling_defaults(tmp_path: Path) -> None:
     config_file.write_text("{}\n", encoding="utf-8")
     config = load_config(config_file)
     assert config.polling.interval_seconds == 60
+    assert config.polling.request_timeout_seconds == pytest.approx(30.0)
     assert config.polling.per_page == 50
     assert config.polling.max_pages == 5
 
@@ -111,6 +112,21 @@ def test_config_polling_per_page_accepts_boundaries(tmp_path: Path) -> None:
         config_file.write_text(f"polling:\n  per_page: {per_page}\n", encoding="utf-8")
         config = load_config(config_file)
         assert config.polling.per_page == per_page
+
+
+def test_config_polling_request_timeout_override(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text("polling:\n  request_timeout_seconds: 4.5\n", encoding="utf-8")
+    config = load_config(config_file)
+    assert config.polling.request_timeout_seconds == pytest.approx(4.5)
+
+
+@pytest.mark.parametrize("timeout_seconds", [0, -1, -0.1])
+def test_config_polling_request_timeout_rejects_invalid_values(tmp_path: Path, timeout_seconds: float) -> None:
+    config_file = tmp_path / "invalid-timeout.yaml"
+    config_file.write_text(f"polling:\n  request_timeout_seconds: {timeout_seconds}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="polling\\.request_timeout_seconds"):
+        load_config(config_file)
 
 
 @pytest.mark.parametrize("per_page", [0, 51, -1])

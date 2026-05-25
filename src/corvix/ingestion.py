@@ -49,13 +49,18 @@ class GitHubNotificationsClient:
     api_base_url: str = "https://api.github.com"
     account_id: str = "primary"
     account_label: str = "Primary"
+    request_timeout_seconds: float = 30.0
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
         """Fetch notifications with pagination."""
         notifications: list[Notification] = []
         page = 1
         while page <= polling.max_pages:
-            raw = self._fetch_page(polling=polling, page=page)
+            raw = self._fetch_page(
+                polling=polling,
+                page=page,
+                timeout_seconds=polling.request_timeout_seconds,
+            )
             if not raw:
                 break
             notifications.extend(
@@ -69,7 +74,7 @@ class GitHubNotificationsClient:
             page += 1
         return notifications
 
-    def _fetch_page(self, polling: PollingConfig, page: int) -> list[JsonObject]:
+    def _fetch_page(self, polling: PollingConfig, page: int, timeout_seconds: float) -> list[JsonObject]:
         query = {
             "all": str(polling.all).lower(),
             "participating": str(polling.participating).lower(),
@@ -77,7 +82,7 @@ class GitHubNotificationsClient:
             "page": str(page),
         }
         url = self._build_url("/notifications", query)
-        payload = self._request_json(url, method="GET")
+        payload = self._request_json(url, method="GET", timeout_seconds=timeout_seconds)
         if not isinstance(payload, list):
             msg = "GitHub API returned unexpected notifications payload."
             raise ValueError(msg)
@@ -116,17 +121,19 @@ class GitHubNotificationsClient:
             "User-Agent": "corvix",
         }
 
-    def _request_json(self, url: str, method: str, timeout_seconds: float = 30.0) -> JsonValue:
+    def _request_json(self, url: str, method: str, timeout_seconds: float | None = None) -> JsonValue:
         req = request.Request(url=url, method=method, headers=self._headers())
+        effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
-        with request.urlopen(req, timeout=timeout_seconds) as response:
+        with request.urlopen(req, timeout=effective_timeout) as response:
             raw = response.read().decode("utf-8")
         return _coerce_json_value(json.loads(raw))
 
-    def _request_no_content(self, url: str, method: str) -> None:
+    def _request_no_content(self, url: str, method: str, timeout_seconds: float | None = None) -> None:
         req = request.Request(url=url, method=method, headers=self._headers(), data=b"")
+        effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
-        with request.urlopen(req, timeout=30):
+        with request.urlopen(req, timeout=effective_timeout):
             return
 
     def _request_no_content_with_backoff(self, url: str, method: str, max_attempts: int = 4) -> None:

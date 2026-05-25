@@ -129,6 +129,7 @@ class PollingConfig:
     """Polling behavior for ingestion."""
 
     interval_seconds: int = 60
+    request_timeout_seconds: float = 30.0
     per_page: int = 50
     max_pages: int = 5
     all: bool = False
@@ -300,6 +301,8 @@ enrichment:
 polling:
   # Watch-loop delay between poll cycles, in seconds.
   interval_seconds: 60
+  # HTTP timeout per GitHub API request, in seconds.
+  request_timeout_seconds: 30
   # GitHub page size per request (valid range: 1-50).
   per_page: 50
   # Maximum pages to fetch per cycle to cap API usage.
@@ -748,8 +751,18 @@ def _parse_polling(value: object) -> PollingConfig:
     if not _POLLING_PER_PAGE_MIN <= per_page <= _POLLING_PER_PAGE_MAX:
         msg = f"Config value 'polling.per_page' must be between {_POLLING_PER_PAGE_MIN} and {_POLLING_PER_PAGE_MAX}."
         raise ValueError(msg)
+    request_timeout_seconds = _get_float(
+        polling,
+        "request_timeout_seconds",
+        30.0,
+        "polling.request_timeout_seconds",
+    )
+    if request_timeout_seconds <= 0:
+        msg = "Config value 'polling.request_timeout_seconds' must be greater than 0."
+        raise ValueError(msg)
     return PollingConfig(
         interval_seconds=_get_int(polling, "interval_seconds", 60, "polling.interval_seconds"),
+        request_timeout_seconds=request_timeout_seconds,
         per_page=per_page,
         max_pages=_get_int(polling, "max_pages", 5, "polling.max_pages"),
         all=_get_bool(polling, "all", False, "polling.all"),

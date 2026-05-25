@@ -3,21 +3,25 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import re
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 from importlib.resources import files
 from os import environ
 from pathlib import Path
-from typing import Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 import uvicorn
-from litestar import Litestar, Response, get, post
+from litestar import Litestar, Request, Response, get, post
 from litestar.config.compression import CompressionConfig
+from litestar.datastructures.cookie import Cookie
 from litestar.datastructures.headers import CacheControlHeader
 from litestar.exceptions import HTTPException
+from litestar.response.redirect import Redirect
 from litestar.static_files import create_static_files_router
 
 from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, available_dashboards, load_config
@@ -26,6 +30,7 @@ from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
 from corvix.storage import NotificationCache
+from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -78,18 +83,121 @@ def _asset_version_token() -> str:
 _INDEX_HTML_TEMPLATE = _STATIC_ROOT.joinpath("index.html").read_text(encoding="utf-8")
 INDEX_HTML = _INDEX_HTML_TEMPLATE.replace("__ASSET_VERSION__", _asset_version_token())
 
+_MEDIA_TYPE_HTML = "text/html"
+
+_LOGIN_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Corvix — Sign in</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex; height: 100vh;
+      align-items: center; justify-content: center;
+      background: #07111f; color: #edf3ff;
+    }
+    form {
+      display: flex; flex-direction: column; gap: 1rem;
+      min-width: 300px; padding: 2rem;
+      background: #0e1a2b; border-radius: 8px;
+    }
+    h2 { font-size: 1.4rem; color: #74c0fc; }
+    input[type=password] {
+      padding: .65rem .9rem; border-radius: 6px;
+      border: 1px solid #223753; background: #132238;
+      color: #edf3ff; font-size: 1rem;
+    }
+    input[type=password]:focus { outline: 2px solid #74c0fc; border-color: transparent; }
+    button {
+      padding: .65rem .9rem; border-radius: 6px; border: none;
+      background: #74c0fc; color: #07111f;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #a5d4ff; }
+  </style>
+</head>
+<body>
+  <form method="post" action="/login">
+    <h2>Corvix</h2>
+    <input type="password" name="token" placeholder="Secret token" required autofocus>
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>"""
+
 
 @get("/", sync_to_thread=False)
 def index() -> Response[str]:
     """Serve the dashboard single-page UI."""
-    return Response(content=INDEX_HTML, media_type="text/html")
+    return Response(content=INDEX_HTML, media_type=_MEDIA_TYPE_HTML)
 
 
 @get("/dashboards/{dashboard_name:str}", sync_to_thread=False)
 def dashboard_index(dashboard_name: str) -> Response[str]:
     """Serve the dashboard SPA for bookmarkable dashboard URLs."""
     del dashboard_name
-    return Response(content=INDEX_HTML, media_type="text/html")
+    return Response(content=INDEX_HTML, media_type=_MEDIA_TYPE_HTML)
+
+
+def _get_auth_secret() -> str:
+    """Return the configured secret, delegating to middleware._get_secret().
+
+    Using the shared implementation ensures consistent TTL caching, memoized
+    misconfiguration logging, and ``_FILE`` support in one place.
+    """
+    return _get_secret()
+
+
+@get("/login", sync_to_thread=False)
+def login_page() -> Response[Any]:
+    """Serve the login form, or redirect to / when auth is not configured."""
+    if not _get_auth_secret():
+        return Redirect("/")
+    return Response(content=_LOGIN_HTML, media_type=_MEDIA_TYPE_HTML)
+
+
+@post("/login")
+async def login(request: Request) -> Response[None]:
+    """Validate the submitted token and issue a session cookie on success.
+
+    The ``Secure`` attribute is set when the request arrived over HTTPS.
+    The scheme is read from ``request.url.scheme`` which reflects the real
+    protocol when uvicorn is started with ``--proxy-headers`` (trusting
+    ``X-Forwarded-Proto`` from a reverse proxy).  This avoids raw header
+    inspection from application code, which can be spoofed by untrusted
+    clients not behind a proxy.
+    """
+    form_data = await request.form()
+    token = str(form_data.get("token", ""))
+    secret = _get_auth_secret()
+    if not secret or not hmac.compare_digest(token, secret):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    session_val = _make_session_cookie(secret)
+    redirect: Response[None] = Redirect("/")
+    redirect.set_cookie(
+        Cookie(
+            key="corvix_session",
+            value=session_val,
+            httponly=True,
+            samesite="strict",
+            path="/",
+            max_age=SESSION_MAX_AGE_SECONDS,
+            secure=request.url.scheme == "https",
+        )
+    )
+    return redirect
+
+
+@get("/logout", sync_to_thread=False)
+def logout() -> Response[None]:
+    """Clear the session cookie and redirect to the login page."""
+    redirect: Response[None] = Redirect("/login")
+    redirect.delete_cookie("corvix_session")
+    return redirect
 
 
 def _health_error(poller_status: PollerStatus) -> dict[str, object]:
@@ -114,35 +222,40 @@ def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
     return {"status": "ok"}
 
 
+def _health_response(payload: dict[str, object]) -> Response[dict[str, object]]:
+    status_code = HTTPStatus.OK if payload.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
+    return Response(content=payload, status_code=status_code, media_type="application/json")
+
+
 @get("/api/health", sync_to_thread=False)
-def health() -> dict[str, object]:
+def health() -> Response[dict[str, object]]:
     """Health endpoint for container checks.
 
     Returns 200 with {"status": "ok"} when config and cache are readable,
     the poller is running, and the poller's last poll time is not stale.
 
-    Returns 200 with {"status": "unhealthy"} and one of these reasons:
+    Returns 503 with {"status": "unhealthy"} and one of these reasons:
     "config_unavailable", "invalid_cache", "poller_not_running",
     "poller_error", "invalid_poll_time", or "stale".
     """
     try:
         config = _load_runtime_config()
     except HTTPException:
-        return {"status": "unhealthy", "reason": "config_unavailable"}
+        return _health_response({"status": "unhealthy", "reason": "config_unavailable"})
     cache = NotificationCache(path=config.resolve_cache_file())
     try:
         poller_status = cache.load_status()
     except (OSError, json.JSONDecodeError):
-        return {"status": "unhealthy", "reason": "invalid_cache"}
+        return _health_response({"status": "unhealthy", "reason": "invalid_cache"})
     status = poller_status.get("status", "unknown")
     if status == "error":
-        return _health_error(poller_status)
+        return _health_response(_health_error(poller_status))
     if status in {"unknown", "starting"}:
-        return {"status": "unhealthy", "reason": "poller_not_running"}
+        return _health_response({"status": "unhealthy", "reason": "poller_not_running"})
     last_poll_str = poller_status.get("last_poll_time")
     if not last_poll_str:
-        return {"status": "unhealthy", "reason": "invalid_poll_time"}
-    return _health_check_staleness(last_poll_str)
+        return _health_response({"status": "unhealthy", "reason": "invalid_poll_time"})
+    return _health_response(_health_check_staleness(last_poll_str))
 
 
 @get("/api/themes", sync_to_thread=False)
@@ -291,7 +404,7 @@ def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None
     if not token:
         msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
-    client = GitHubNotificationsClient(token=token, api_base_url=account.api_base_url)
+    client = _build_github_client(config=config, account=account, token=token)
     try:
         client.dismiss_thread(thread_id)
     except Exception as error:
@@ -315,7 +428,7 @@ def _mark_notification_read_impl(account_id: str, thread_id: str) -> Response[No
         msg = f"GitHub token env var '{account.token_env}' (or '{account.token_env}_FILE') is not set."
         raise HTTPException(status_code=500, detail=msg)
 
-    client = GitHubNotificationsClient(token=token, api_base_url=account.api_base_url)
+    client = _build_github_client(config=config, account=account, token=token)
     try:
         client.mark_thread_read(thread_id)
     except Exception as error:
@@ -334,6 +447,14 @@ def _require_account(config: AppConfig, account_id: str) -> GitHubAccountConfig:
             return account
     msg = f"GitHub account '{account_id}' not found in config."
     raise HTTPException(status_code=404, detail=msg)
+
+
+def _build_github_client(config: AppConfig, account: GitHubAccountConfig, token: str) -> GitHubNotificationsClient:
+    return GitHubNotificationsClient(
+        token=token,
+        api_base_url=account.api_base_url,
+        request_timeout_seconds=config.polling.request_timeout_seconds,
+    )
 
 
 def _default_account_id(config: AppConfig) -> str:
@@ -498,6 +619,9 @@ app = Litestar(
     route_handlers=[
         index,
         dashboard_index,
+        login_page,
+        login,
+        logout,
         health,
         api_themes,
         dashboards,
@@ -513,6 +637,7 @@ app = Litestar(
             cache_control=_ASSET_CACHE_CONTROL,
         ),
     ],
+    middleware=[TokenAuthMiddleware()],
     compression_config=CompressionConfig(backend="gzip", minimum_size=500),
 )
 

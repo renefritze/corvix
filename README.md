@@ -43,6 +43,45 @@ Notes:
 - Set `CORVIX_DRY_RUN=true` in `.env` to run the poller in dry-run mode (no GitHub actions).
 - `db` uses `POSTGRES_PASSWORD_FILE`; `web` and `poller` use `GITHUB_TOKEN_FILE` and `DATABASE_URL_FILE`.
 
+## Security
+
+> ⚠️ **By default, the Corvix HTTP API is unauthenticated.**
+> Anyone who can reach port 8000 can read your GitHub notification data and trigger
+> dismiss/mark-read actions against your GitHub inbox.
+
+To enable token-based authentication, set `CORVIX_SECRET_TOKEN` in your `.env` file
+or environment before starting the `web` container:
+
+```bash
+# Generate a strong secret: openssl rand -hex 32
+CORVIX_SECRET_TOKEN=your-strong-random-secret
+```
+
+When set:
+
+- All `/api/*` endpoints (except `/api/health`) require an
+  `Authorization: Bearer <token>` or `X-Corvix-Token: <token>` header.
+- The web UI redirects to `/login` where you enter the same token; a session cookie
+  is issued on success and clears on `/logout`.
+- `/api/health` remains public so Docker health checks continue to work.
+- Static assets (`/assets/*`) are always public.
+
+You can also store the token in a Docker secrets file and point to it with
+`CORVIX_SECRET_TOKEN_FILE`:
+
+```yaml
+# docker-compose.yml (web service)
+environment:
+  CORVIX_SECRET_TOKEN_FILE: /run/secrets/corvix_token
+```
+
+**Deployment checklist:**
+
+- Set `CORVIX_SECRET_TOKEN` *or* restrict port 8000 to localhost and put a
+  TLS-terminating reverse proxy (nginx, Caddy, Traefik) with its own access
+  control in front.
+- The app does not enforce TLS itself; use a reverse proxy for HTTPS in production.
+
 ## Contributor Tooling
 
 This project uses [uv](https://github.com/astral-sh/uv) for development workflows:
