@@ -59,6 +59,7 @@ class EncryptedText(TypeDecorator):
 
     impl = Text
     cache_ok = True
+    """Marks this type as safe to use with SQLAlchemy's statement cache."""
 
     def process_bind_param(self, value: str | None, dialect: object) -> str | None:
         """Encrypt the Python value before writing it to the database."""
