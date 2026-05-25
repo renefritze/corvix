@@ -5,6 +5,7 @@ as this can have strange side effects.
 """
 
 from importlib.resources import files as resource_files
+from typing import Generator
 
 import pytest
 
@@ -21,3 +22,19 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         joined = ", ".join(missing)
         msg = f"Missing frontend assets ({joined}). Run `make frontend-build` before `pytest`."
         raise pytest.UsageError(msg)
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_config_cache() -> Generator[None, None, None]:
+    """Clear the module-level runtime-config cache before and after every test.
+
+    ``_load_runtime_config()`` caches the parsed ``AppConfig`` at module level.
+    Without resetting the cache between tests, a config loaded in one test can
+    bleed into subsequent tests that use a different ``CORVIX_CONFIG`` path,
+    causing spurious passes or failures.
+    """
+    import corvix.web.app as _web_app  # local import to avoid circular-import issues at collection time
+
+    _web_app._clear_config_cache()
+    yield
+    _web_app._clear_config_cache()
