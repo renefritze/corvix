@@ -35,6 +35,8 @@ EXPECTED_WATCH_ITERATIONS = 2
 
 
 class FakeClient:
+    api_base_url: str = "https://api.github.com"
+
     def __init__(self, notifications: list[Notification], responses: dict[str, JsonValue] | None = None) -> None:
         self._notifications = notifications
         self._responses = responses or {}

@@ -42,9 +42,14 @@ def _notification(
 
 
 class _FakeClient(JsonFetchClient):
-    def __init__(self, responses: dict[str, JsonValue]) -> None:
+    def __init__(
+        self,
+        responses: dict[str, JsonValue],
+        api_base_url: str = "https://api.example.com",
+    ) -> None:
         self.responses = responses
         self.calls: list[str] = []
+        self.api_base_url = api_base_url
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
@@ -53,9 +58,14 @@ class _FakeClient(JsonFetchClient):
 
 
 class _FakeRaiseClient(JsonFetchClient):
-    def __init__(self, exc: Exception | None = None) -> None:
+    def __init__(
+        self,
+        exc: Exception | None = None,
+        api_base_url: str = "https://api.example.com",
+    ) -> None:
         self.calls: list[str] = []
         self._exc = exc or RuntimeError("simulated failure")
+        self.api_base_url = api_base_url
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
@@ -201,7 +211,8 @@ def test_hydration_check_suite_enterprise_prefix() -> None:
             "https://ghe.example.com/api/v3/repos/org/repo/check-suites/555/check-runs?per_page=1": {
                 "check_runs": [{"html_url": "https://ghe.example.com/org/repo/actions/runs/777/job/1"}]
             }
-        }
+        },
+        api_base_url="https://ghe.example.com/api/v3",
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
