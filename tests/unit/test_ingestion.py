@@ -251,8 +251,7 @@ def test_sanitize_api_url_preserves_path_and_query() -> None:
     client = _client()
     url = "https://api.example.com/notifications/threads/42?foo=bar"
     result = client._sanitize_api_url(url)
-    assert "/notifications/threads/42" in result
-    assert "foo=bar" in result
+    assert result == "https://api.example.com/notifications/threads/42?foo=bar"
 
 
 def test_fetch_json_url_uses_sanitized_url() -> None:
@@ -260,7 +259,9 @@ def test_fetch_json_url_uses_sanitized_url() -> None:
     with patch.object(GitHubNotificationsClient, "_request_json", return_value={}) as mock_req:
         client.fetch_json_url("https://api.example.com/notifications/threads/1")
     called_url = mock_req.call_args[0][0]
-    assert "api.example.com" in called_url
+    # Assert the exact reconstructed URL, not a substring, to avoid false positives
+    # where the host string appears elsewhere in the URL (e.g. in the path).
+    assert called_url == "https://api.example.com/notifications/threads/1"
 
 
 def test_fetch_json_url_rejects_wrong_host() -> None:
