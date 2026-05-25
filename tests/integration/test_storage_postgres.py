@@ -12,7 +12,9 @@ import psycopg
 import pytest
 from alembic import command
 from alembic.config import Config
+from cryptography.fernet import Fernet
 
+from corvix.crypto import encrypt_token
 from corvix.domain import Notification, NotificationRecord
 from corvix.storage import PostgresStorage
 
@@ -44,7 +46,11 @@ def migrated_postgres_url(postgres_urls: tuple[str, str]) -> Generator[str]:
     alembic_ini = root / "alembic.ini"
     sqlalchemy_url, psycopg_url = postgres_urls
     original_database_url = os.environ.get("DATABASE_URL")
+    original_encryption_key = os.environ.get("TOKEN_ENCRYPTION_KEY")
+    # Generate a deterministic test key so encrypt_token() works in _create_user helpers.
+    test_key = Fernet.generate_key().decode()
     os.environ["DATABASE_URL"] = sqlalchemy_url
+    os.environ["TOKEN_ENCRYPTION_KEY"] = test_key
     try:
         command.upgrade(Config(str(alembic_ini)), "head")
     finally:
@@ -52,6 +58,12 @@ def migrated_postgres_url(postgres_urls: tuple[str, str]) -> Generator[str]:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = original_database_url
+        if original_encryption_key is None:
+            os.environ.pop("TOKEN_ENCRYPTION_KEY", None)
+        else:
+            os.environ["TOKEN_ENCRYPTION_KEY"] = original_encryption_key
+    # Keep the key alive for the session so encrypt_token/decrypt_token work in tests.
+    os.environ["TOKEN_ENCRYPTION_KEY"] = test_key
     yield psycopg_url
 
 
@@ -68,6 +80,8 @@ def storage(migrated_postgres_url: str) -> Generator[PostgresStorage]:
 
 def _create_user(database_url: str, user_id: UUID) -> None:
     now = datetime.now(tz=UTC)
+    # Direct psycopg inserts bypass the ORM TypeDecorator, so we must pre-encrypt.
+    token = encrypt_token("test-token")
     with psycopg.connect(database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -75,7 +89,7 @@ def _create_user(database_url: str, user_id: UUID) -> None:
                 INSERT INTO users (id, github_login, github_token, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s)
                 """,
-                (user_id, f"user-{str(user_id)[:8]}", "encrypted-token", now, now),
+                (user_id, f"user-{str(user_id)[:8]}", token, now, now),
             )
         conn.commit()
 
