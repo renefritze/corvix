@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -197,8 +198,7 @@ def test_poll_cycle_reports_missing_account_client(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     notifications = _build_notifications(now)
-    notifications[1].account_id = "secondary"
-    notifications[1].account_label = "Secondary"
+    notifications[1] = replace(notifications[1], account_id="secondary", account_label="Secondary")
     client = FakeClient(notifications)
     cache = NotificationCache(path=cache_path)
 
