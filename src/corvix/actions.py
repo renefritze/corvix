@@ -81,7 +81,6 @@ class _MarkReadHandler:
             return
         try:
             self._gateway.mark_thread_read(notification.thread_id)
-            notification.unread = False
             result.actions_taken.append("mark_read")
         except Exception as error:
             result.errors.append(f"mark_read failed for {notification.thread_id}: {error}")
@@ -111,8 +110,6 @@ class _DismissHandler:
             return
         try:
             self._gateway.dismiss_thread(notification.thread_id)
-            if self._record is not None:
-                self._record.dismissed = True
             result.actions_taken.append("dismiss")
         except Exception as error:
             result.errors.append(f"dismiss failed for {notification.thread_id}: {error}")

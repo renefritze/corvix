@@ -12,7 +12,7 @@ import os
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -294,10 +294,14 @@ class NotificationCache:
         with self._exclusive_lock():
             generated_at, records = self._load_unlocked()
             updated = False
+            updated_records = []
             for record in records:
                 if record.notification.account_id == account_id and record.notification.thread_id == thread_id:
-                    record.dismissed = True
+                    updated_records.append(replace(record, dismissed=True))
                     updated = True
+                else:
+                    updated_records.append(record)
+            records = updated_records
             if updated:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
                 try:
@@ -312,14 +316,19 @@ class NotificationCache:
         with self._exclusive_lock():
             generated_at, records = self._load_unlocked()
             updated = False
+            updated_records = []
             for record in records:
                 if (
                     record.notification.account_id == account_id
                     and record.notification.thread_id == thread_id
                     and record.notification.unread
                 ):
-                    record.notification.unread = False
+                    new_notification = replace(record.notification, unread=False)
+                    updated_records.append(replace(record, notification=new_notification))
                     updated = True
+                else:
+                    updated_records.append(record)
+            records = updated_records
             if updated:
                 timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
                 try:

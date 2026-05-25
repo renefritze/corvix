@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TypeIs
 from urllib.parse import ParseResult, quote, urlparse
@@ -51,9 +51,9 @@ class GitHubWebUrlProvider:
     timeout_seconds: float = 10.0
     name: str = "github.web_url"
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> None:
+    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> Notification:
         if notification.web_url is not None:
-            return
+            return notification
         repo_base = notification.repository_url or f"https://github.com/{notification.repository}"
         if notification.subject_url:
             direct_url = map_subject_api_url_to_web(
@@ -62,18 +62,19 @@ class GitHubWebUrlProvider:
                 repo_base=repo_base,
             )
             if direct_url is not None:
-                notification.web_url = direct_url
-                return
+                return replace(notification, web_url=direct_url)
         if notification.subject_type == "CheckSuite":
-            notification.web_url = self._resolve_check_suite(
+            web_url = self._resolve_check_suite(
                 client=client,
                 ctx=ctx,
                 notification=notification,
                 repo_base=repo_base,
             )
-            return
+            return replace(notification, web_url=web_url) if web_url is not None else notification
         if notification.subject_type == "Release" and notification.subject_url:
-            notification.web_url = self._resolve_release(client=client, ctx=ctx, subject_url=notification.subject_url)
+            web_url = self._resolve_release(client=client, ctx=ctx, subject_url=notification.subject_url)
+            return replace(notification, web_url=web_url) if web_url is not None else notification
+        return notification
 
     def _resolve_check_suite(
         self,

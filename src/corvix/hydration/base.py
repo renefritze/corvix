@@ -13,7 +13,7 @@ class HydrationProvider(Protocol):
 
     name: str
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> None: ...
+    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> Notification: ...
 
 
 class HydrationContext(RequestContext):

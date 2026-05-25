@@ -119,7 +119,7 @@ def format_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Notification:
     """Normalized notification from GitHub's notifications API."""
 
@@ -210,7 +210,7 @@ class Notification:
         )
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class NotificationRecord:
     """Scored and rule-evaluated notification persisted for dashboards."""
 

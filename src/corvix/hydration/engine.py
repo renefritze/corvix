@@ -13,6 +13,7 @@ from corvix.pipeline.base import JsonFetchClient
 class HydrationRunResult:
     """Result of hydrating one poll cycle."""
 
+    notifications: list[Notification] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
 
@@ -30,17 +31,20 @@ class HydrationEngine:
         clients_by_account: dict[str, JsonFetchClient] | None = None,
     ) -> HydrationRunResult:
         if not self.providers:
-            return HydrationRunResult(errors=[])
+            return HydrationRunResult(notifications=list(notifications), errors=[])
 
         context = HydrationContext(max_requests_per_cycle=self.max_requests_per_cycle)
         errors: list[str] = []
+        hydrated: list[Notification] = []
         for notification in notifications:
+            current = notification
             notification_client = (
                 clients_by_account.get(notification.account_id, client) if clients_by_account else client
             )
             for provider in self.providers:
                 try:
-                    provider.hydrate(notification=notification, client=notification_client, ctx=context)
+                    current = provider.hydrate(notification=current, client=notification_client, ctx=context)
                 except Exception as error:  # pragma: no cover - defensive fail-open contract
-                    errors.append(f"provider={provider.name} thread={notification.thread_id}: {error}")
-        return HydrationRunResult(errors=errors)
+                    errors.append(f"provider={provider.name} thread={current.thread_id}: {error}")
+            hydrated.append(current)
+        return HydrationRunResult(notifications=hydrated, errors=errors)
