@@ -11,6 +11,13 @@ from corvix.types import JsonValue
 class JsonFetchClient(Protocol):
     """Client capability required by data-enrichment pipelines."""
 
+    api_base_url: str
+    """Trusted base URL of the upstream API (e.g. ``https://api.github.com``).
+
+    Providers use this to construct upstream API URLs from trusted config rather
+    than from data received in API responses, which prevents SSRF taint flows.
+    """
+
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         """Fetch JSON from a fully-qualified API URL."""
         ...
