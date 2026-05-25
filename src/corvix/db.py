@@ -10,6 +10,7 @@ from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, Float, ForeignKey, 
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from corvix.crypto import EncryptedText
 from corvix.env import get_env_value
 
 USERS_ID_FK = "users.id"
@@ -26,7 +27,7 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     github_login: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
-    github_token: Mapped[str] = mapped_column(Text, nullable=False)  # Fernet-encrypted
+    github_token: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

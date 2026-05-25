@@ -176,6 +176,7 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
     "matplotlib": ("https://matplotlib.org", None),
     "Sphinx": (" https://www.sphinx-doc.org/en/master/", None),
+    "sqlalchemy": ("https://docs.sqlalchemy.org/en/20/", None),
 }
 
 
