@@ -145,7 +145,7 @@ class GitHubNotificationsClient:
 
         # nosec B310 - url is always constructed from self.api_base_url (trusted config) or
         # sanitised by _sanitize_api_url which enforces matching host and trusted scheme.
-        with request.urlopen(req, timeout=effective_timeout) as response:  # nosec B310
+        with request.urlopen(req, timeout=effective_timeout) as response:  # nosec B310  # NOSONAR python:S5144
             raw = response.read().decode("utf-8")
         return _coerce_json_value(json.loads(raw))
 
@@ -155,7 +155,7 @@ class GitHubNotificationsClient:
 
         # nosec B310 - url always originates from _build_url (self.api_base_url) after thread-id
         # validation; no external data can reach this call without passing _validate_thread_id.
-        with request.urlopen(req, timeout=effective_timeout):  # nosec B310
+        with request.urlopen(req, timeout=effective_timeout):  # nosec B310  # NOSONAR python:S5144
             return
 
     def _request_no_content_with_backoff(self, url: str, method: str, max_attempts: int = 4) -> None:
