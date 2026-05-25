@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -356,10 +357,8 @@ def test_dashboard_item_from_record() -> None:
 
 
 def test_dashboard_match_criteria_can_filter_by_context() -> None:
-    matching = _make_record(thread_id="1")
-    matching.context = {"github": {"latest_comment": {"is_ci_only": True}}}
-    non_matching = _make_record(thread_id="2")
-    non_matching.context = {"github": {"latest_comment": {"is_ci_only": False}}}
+    matching = replace(_make_record(thread_id="1"), context={"github": {"latest_comment": {"is_ci_only": True}}})
+    non_matching = replace(_make_record(thread_id="2"), context={"github": {"latest_comment": {"is_ci_only": False}}})
 
     data = build_dashboard_data(
         records=[matching, non_matching],

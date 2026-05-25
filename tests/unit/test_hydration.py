@@ -25,26 +25,34 @@ def _notification(
     subject_type: str = "PullRequest",
     subject_url: str | None = "https://api.example.com/repos/org/repo/pulls/1",
     web_url: str | None = None,
+    subject_title: str = "Test",
+    updated_at: datetime | None = None,
+    repository_url: str | None = "https://github.com/org/repo",
 ) -> Notification:
     return Notification(
         thread_id=thread_id,
         repository="org/repo",
         reason="mention",
-        subject_title="Test",
+        subject_title=subject_title,
         subject_type=subject_type,
         unread=True,
-        updated_at=datetime(2024, 1, 1, tzinfo=UTC),
+        updated_at=updated_at or datetime(2024, 1, 1, tzinfo=UTC),
         thread_url=f"https://api.example.com/notifications/threads/{thread_id}",
         subject_url=subject_url,
         web_url=web_url,
-        repository_url="https://github.com/org/repo",
+        repository_url=repository_url,
     )
 
 
 class _FakeClient(JsonFetchClient):
-    def __init__(self, responses: dict[str, JsonValue]) -> None:
+    def __init__(
+        self,
+        responses: dict[str, JsonValue],
+        api_base_url: str = "https://api.example.com",
+    ) -> None:
         self.responses = responses
         self.calls: list[str] = []
+        self.api_base_url = api_base_url
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
@@ -53,9 +61,14 @@ class _FakeClient(JsonFetchClient):
 
 
 class _FakeRaiseClient(JsonFetchClient):
-    def __init__(self, exc: Exception | None = None) -> None:
+    def __init__(
+        self,
+        exc: Exception | None = None,
+        api_base_url: str = "https://api.example.com",
+    ) -> None:
         self.calls: list[str] = []
         self._exc = exc or RuntimeError("simulated failure")
+        self.api_base_url = api_base_url
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
@@ -139,13 +152,13 @@ def test_hydration_uses_repository_url_for_direct_mapping() -> None:
         subject_type="Issue",
         subject_url="https://ghe.example.com/api/v3/repos/org/repo/issues/7",
         web_url=None,
+        repository_url="https://ghe.example.com/org/repo",
     )
-    notification.repository_url = "https://ghe.example.com/org/repo"
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
-    engine.run(notifications=[notification], client=_FakeClient(responses={}))
+    result = engine.run(notifications=[notification], client=_FakeClient(responses={}))
 
-    assert notification.web_url == "https://ghe.example.com/org/repo/issues/7"
+    assert result.notifications[0].web_url == "https://ghe.example.com/org/repo/issues/7"
 
 
 def test_hydration_thread_subject_then_check_suite_web_url() -> None:
@@ -165,8 +178,8 @@ def test_hydration_thread_subject_then_check_suite_web_url() -> None:
     result = engine.run(notifications=[notification], client=client)
 
     assert result.errors == []
-    assert notification.subject_url == "https://api.example.com/repos/org/repo/check-suites/555"
-    assert notification.web_url == "https://github.com/org/repo/actions/runs/777/job/1"
+    assert result.notifications[0].subject_url == "https://api.example.com/repos/org/repo/check-suites/555"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions/runs/777/job/1"
 
 
 def test_hydration_release_web_url_from_api_payload() -> None:
@@ -184,9 +197,9 @@ def test_hydration_release_web_url_from_api_payload() -> None:
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
-    engine.run(notifications=[notification], client=client)
+    result = engine.run(notifications=[notification], client=client)
 
-    assert notification.web_url == "https://github.com/org/repo/releases/tag/v1.2.3"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/releases/tag/v1.2.3"
 
 
 def test_hydration_check_suite_enterprise_prefix() -> None:
@@ -201,13 +214,14 @@ def test_hydration_check_suite_enterprise_prefix() -> None:
             "https://ghe.example.com/api/v3/repos/org/repo/check-suites/555/check-runs?per_page=1": {
                 "check_runs": [{"html_url": "https://ghe.example.com/org/repo/actions/runs/777/job/1"}]
             }
-        }
+        },
+        api_base_url="https://ghe.example.com/api/v3",
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
-    engine.run(notifications=[notification], client=client)
+    result = engine.run(notifications=[notification], client=client)
 
-    assert notification.web_url == "https://ghe.example.com/org/repo/actions/runs/777/job/1"
+    assert result.notifications[0].web_url == "https://ghe.example.com/org/repo/actions/runs/777/job/1"
 
 
 def test_hydration_release_enterprise_prefix() -> None:
@@ -225,9 +239,9 @@ def test_hydration_release_enterprise_prefix() -> None:
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
-    engine.run(notifications=[notification], client=client)
+    result = engine.run(notifications=[notification], client=client)
 
-    assert notification.web_url == "https://ghe.example.com/org/repo/releases/tag/v1.2.3"
+    assert result.notifications[0].web_url == "https://ghe.example.com/org/repo/releases/tag/v1.2.3"
 
 
 def test_hydration_fails_open_for_malformed_thread_payload() -> None:
@@ -243,13 +257,18 @@ def test_hydration_fails_open_for_malformed_thread_payload() -> None:
 
 
 def test_hydration_check_suite_without_subject_url_resolves_exact_run() -> None:
-    notification = _notification(thread_id="99", subject_type="CheckSuite", subject_url=None, web_url=None)
-    notification.subject_title = "Docs workflow run failed for ci_activities branch"
-    notification.updated_at = datetime(2026, 5, 17, 14, 9, 26, tzinfo=UTC)
+    notification = _notification(
+        thread_id="99",
+        subject_type="CheckSuite",
+        subject_url=None,
+        web_url=None,
+        subject_title="Docs workflow run failed for ci_activities branch",
+        updated_at=datetime(2026, 5, 17, 14, 9, 26, tzinfo=UTC),
+    )
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/99": {"subject": {"url": None}},
-            "https://api.github.com/repos/org/repo/actions/runs?branch=ci_activities&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=ci_activities&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "Docs",
@@ -272,17 +291,22 @@ def test_hydration_check_suite_without_subject_url_resolves_exact_run() -> None:
     result = engine.run(notifications=[notification], client=client)
 
     assert result.errors == []
-    assert notification.subject_url is None
-    assert notification.web_url == "https://github.com/org/repo/actions/runs/123"
+    assert result.notifications[0].subject_url is None
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions/runs/123"
 
 
 def test_hydration_check_suite_without_subject_url_falls_back_to_branch_page() -> None:
-    notification = _notification(thread_id="77", subject_type="CheckSuite", subject_url=None, web_url=None)
-    notification.subject_title = "pytest workflow run failed for feature/no-filters-dashboard branch"
+    notification = _notification(
+        thread_id="77",
+        subject_type="CheckSuite",
+        subject_url=None,
+        web_url=None,
+        subject_title="pytest workflow run failed for feature/no-filters-dashboard branch",
+    )
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/77": {"subject": {"url": None}},
-            "https://api.github.com/repos/org/repo/actions/runs?branch=feature%2Fno-filters-dashboard&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=feature%2Fno-filters-dashboard&per_page=25": {
                 "workflow_runs": []
             },
         }
@@ -292,17 +316,22 @@ def test_hydration_check_suite_without_subject_url_falls_back_to_branch_page() -
     result = engine.run(notifications=[notification], client=client)
 
     assert result.errors == []
-    assert notification.web_url == "https://github.com/org/repo/actions?query=branch%3Afeature%2Fno-filters-dashboard"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions?query=branch%3Afeature%2Fno-filters-dashboard"
 
 
 def test_hydration_check_suite_attempt_title_matches_run_attempt() -> None:
-    notification = _notification(thread_id="55", subject_type="CheckSuite", subject_url=None, web_url=None)
-    notification.subject_title = "test repo/hooks workflow run, Attempt #4 failed for task/OSS-1123 branch"
-    notification.updated_at = datetime(2026, 5, 15, 8, 44, 7, tzinfo=UTC)
+    notification = _notification(
+        thread_id="55",
+        subject_type="CheckSuite",
+        subject_url=None,
+        web_url=None,
+        subject_title="test repo/hooks workflow run, Attempt #4 failed for task/OSS-1123 branch",
+        updated_at=datetime(2026, 5, 15, 8, 44, 7, tzinfo=UTC),
+    )
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/55": {"subject": {"url": None}},
-            "https://api.github.com/repos/org/repo/actions/runs?branch=task%2FOSS-1123&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=task%2FOSS-1123&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "test repo/hooks",
@@ -325,7 +354,7 @@ def test_hydration_check_suite_attempt_title_matches_run_attempt() -> None:
     result = engine.run(notifications=[notification], client=client)
 
     assert result.errors == []
-    assert notification.web_url == "https://github.com/org/repo/actions/runs/222"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions/runs/222"
 
 
 # -- _parse_github_api_path (line 38-39) --
@@ -414,17 +443,17 @@ def test_check_suite_subject_url_api_error_falls_to_fallback() -> None:
         subject_type="CheckSuite",
         subject_url="https://api.example.com/repos/org/repo/check-suites/555",
         web_url=None,
+        subject_title="Docs workflow run failed for main branch",
     )
-    notification.subject_title = "Docs workflow run failed for main branch"
     raise_client = _FakeRaiseClient()
     engine = HydrationEngine(
         providers=[GitHubWebUrlProvider()],
         max_requests_per_cycle=2,
     )
 
-    engine.run(notifications=[notification], client=raise_client)
+    result = engine.run(notifications=[notification], client=raise_client)
 
-    assert notification.web_url == "https://github.com/org/repo/actions?query=branch%3Amain"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions?query=branch%3Amain"
 
 
 # -- _resolve_check_suite_from_subject_url (lines 140, 147, 155) --
@@ -436,11 +465,11 @@ def test_check_suite_subject_url_not_check_suite_pattern() -> None:
         subject_type="CheckSuite",
         subject_url="https://api.example.com/repos/other/repo/discussions/123",
         web_url=None,
+        subject_title="Docs workflow run failed for main branch",
     )
-    notification.subject_title = "Docs workflow run failed for main branch"
     client = _FakeClient(
         responses={
-            "https://api.github.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "Docs",
@@ -453,9 +482,9 @@ def test_check_suite_subject_url_not_check_suite_pattern() -> None:
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
-    engine.run(notifications=[notification], client=client)
+    result = engine.run(notifications=[notification], client=client)
 
-    assert notification.web_url == "https://github.com/org/repo/actions/runs/1"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions/runs/1"
 
 
 def test_check_suite_from_subject_url_non_dict_response() -> None:
@@ -463,12 +492,12 @@ def test_check_suite_from_subject_url_non_dict_response() -> None:
         subject_type="CheckSuite",
         subject_url="https://api.example.com/repos/org/repo/check-suites/555",
         web_url=None,
+        subject_title="Docs workflow run failed for main branch",
     )
-    notification.subject_title = "Docs workflow run failed for main branch"
     client = _FakeClient(
         responses={
             "https://api.example.com/repos/org/repo/check-suites/555/check-runs?per_page=1": ["not", "a", "dict"],
-            "https://api.github.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
+            "https://api.example.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "Docs",
@@ -481,9 +510,9 @@ def test_check_suite_from_subject_url_non_dict_response() -> None:
     )
     engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
 
-    engine.run(notifications=[notification], client=client)
+    result = engine.run(notifications=[notification], client=client)
 
-    assert notification.web_url == "https://github.com/org/repo/actions/runs/1"
+    assert result.notifications[0].web_url == "https://github.com/org/repo/actions/runs/1"
 
 
 def test_check_suite_from_subject_url_empty_check_runs() -> None:
@@ -549,13 +578,15 @@ def test_enterprise_check_suite_fallback() -> None:
         subject_type="CheckSuite",
         subject_url=None,
         web_url=None,
+        subject_title="CI workflow run failed for main branch",
+        repository_url="https://ghe.example.com/org/repo",
     )
-    notification.subject_title = "CI workflow run failed for main branch"
-    notification.repository_url = "https://ghe.example.com/org/repo"
     client = _FakeClient(
         responses={
             "https://api.example.com/notifications/threads/1": {"subject": {"url": None}},
-            "https://ghe.example.com/api/v3/repos/org/repo/actions/runs?branch=main&per_page=25": {
+            # _resolve_check_suite uses client.api_base_url (trusted) for the API base,
+            # not the repo_base from the notification (which could be external data).
+            "https://api.example.com/repos/org/repo/actions/runs?branch=main&per_page=25": {
                 "workflow_runs": [
                     {
                         "name": "CI",
@@ -571,7 +602,7 @@ def test_enterprise_check_suite_fallback() -> None:
     result = engine.run(notifications=[notification], client=client)
 
     assert result.errors == []
-    assert notification.web_url == "https://ghe.example.com/org/repo/actions/runs/1"
+    assert result.notifications[0].web_url == "https://ghe.example.com/org/repo/actions/runs/1"
 
 
 # -- GitHubThreadSubjectProvider edge cases (lines 26, 32) --

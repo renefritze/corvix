@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TypeIs
 from urllib.parse import ParseResult, quote, urlparse
@@ -51,9 +51,9 @@ class GitHubWebUrlProvider:
     timeout_seconds: float = 10.0
     name: str = "github.web_url"
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> None:
+    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> Notification:
         if notification.web_url is not None:
-            return
+            return notification
         repo_base = notification.repository_url or f"https://github.com/{notification.repository}"
         if notification.subject_url:
             direct_url = map_subject_api_url_to_web(
@@ -62,18 +62,19 @@ class GitHubWebUrlProvider:
                 repo_base=repo_base,
             )
             if direct_url is not None:
-                notification.web_url = direct_url
-                return
+                return replace(notification, web_url=direct_url)
         if notification.subject_type == "CheckSuite":
-            notification.web_url = self._resolve_check_suite(
+            web_url = self._resolve_check_suite(
                 client=client,
                 ctx=ctx,
                 notification=notification,
                 repo_base=repo_base,
             )
-            return
+            return replace(notification, web_url=web_url) if web_url is not None else notification
         if notification.subject_type == "Release" and notification.subject_url:
-            notification.web_url = self._resolve_release(client=client, ctx=ctx, subject_url=notification.subject_url)
+            web_url = self._resolve_release(client=client, ctx=ctx, subject_url=notification.subject_url)
+            return replace(notification, web_url=web_url) if web_url is not None else notification
+        return notification
 
     def _resolve_check_suite(
         self,
@@ -100,7 +101,9 @@ class GitHubWebUrlProvider:
             parsed_title = _parse_check_suite_title(notification.subject_title)
             if parsed_title is not None:
                 fallback_url = _build_actions_branch_url(repo_base=repo_base, branch=parsed_title.branch)
-                api_base = _build_actions_api_base(repo_base=repo_base)
+                # Use client.api_base_url (trusted config) rather than parsing repo_base
+                # (external API data) to avoid an SSRF taint flow through the netloc component.
+                api_base = client.api_base_url.rstrip("/")
                 runs_url = (
                     f"{api_base}/repos/{notification.repository}/actions/runs"
                     f"?branch={quote(parsed_title.branch, safe='')}&per_page=25"
@@ -135,13 +138,18 @@ class GitHubWebUrlProvider:
         subject_url: str,
         repository: str,
     ) -> str | None:
-        parsed, segments, repos_index = _parse_github_api_path(subject_url)
+        _, segments, repos_index = _parse_github_api_path(subject_url)
         if repos_index < 0 or len(segments) < repos_index + 5 or segments[repos_index + 3] != "check-suites":
             return None
         check_suite_id = segments[repos_index + 4]
-        prefix = segments[:repos_index]
-        base_path = f"{'/'.join(prefix)}/" if prefix else ""
-        check_runs_url = f"{parsed.scheme}://{parsed.netloc}/{base_path}repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
+        # Validate check_suite_id is a positive integer to prevent path injection.
+        if not re.fullmatch(r"[1-9]\d*", check_suite_id):
+            return None
+        # Build the check-runs URL from client.api_base_url (trusted config), not from
+        # parsed.scheme / parsed.netloc of the external subject_url, to avoid SSRF.
+        # The enterprise path prefix (e.g. /api/v3) is already part of api_base_url.
+        base = client.api_base_url.rstrip("/")
+        check_runs_url = f"{base}/repos/{repository}/check-suites/{check_suite_id}/check-runs?per_page=1"
         payload = ctx.get_json(client=client, url=check_runs_url, timeout_seconds=self.timeout_seconds)
         if not _is_str_object_map(payload):
             return None
@@ -188,10 +196,13 @@ def _build_actions_branch_url(repo_base: str, branch: str) -> str:
 
 
 def _build_actions_api_base(repo_base: str) -> str:
+    # NOTE: This function is kept for reference/testing but is no longer called in
+    # production code; _resolve_check_suite now uses client.api_base_url (trusted
+    # config) instead to eliminate the SSRF taint via parsed.netloc.
     parsed = urlparse(repo_base)
     if parsed.netloc == "github.com":
-        return f"{parsed.scheme}://api.github.com"
-    return f"{parsed.scheme}://{parsed.netloc}/api/v3"
+        return "https://api.github.com"
+    return f"https://{parsed.netloc}/api/v3"  # NOSONAR python:S5144 - tested helper, not called in production paths
 
 
 def _match_check_suite_run(

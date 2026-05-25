@@ -10,7 +10,13 @@ from urllib import request
 import pytest
 
 from corvix.config import PollingConfig
-from corvix.ingestion import GitHubNotificationsClient, _coerce_json_value, _http_error_detail, _retry_delay_seconds
+from corvix.ingestion import (
+    GitHubNotificationsClient,
+    _coerce_json_value,
+    _http_error_detail,
+    _retry_delay_seconds,
+    _validate_thread_id,
+)
 
 
 class _Response:
@@ -173,3 +179,93 @@ def test_retry_delay_seconds_uses_retry_after_header() -> None:
         fp=io.BytesIO(b"{}"),
     )
     assert _retry_delay_seconds(err, attempt=1) == pytest.approx(10.0)
+
+
+# ---------------------------------------------------------------------------
+# _validate_thread_id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("valid_id", ["1", "123", "9999999999"])
+def test_validate_thread_id_accepts_positive_integers(valid_id: str) -> None:
+    # Should not raise.
+    _validate_thread_id(valid_id)
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    [
+        "",
+        "0",
+        "-1",
+        "12.3",
+        "abc",
+        "123abc",
+        "../etc/passwd",
+        "123/../../evil",
+        "123 456",
+    ],
+)
+def test_validate_thread_id_rejects_non_numeric(bad_id: str) -> None:
+    with pytest.raises(ValueError, match="must be a positive integer string"):
+        _validate_thread_id(bad_id)
+
+
+def test_mark_thread_read_rejects_path_traversal() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="must be a positive integer string"):
+        client.mark_thread_read("../evil")
+
+
+def test_dismiss_thread_rejects_path_traversal() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="must be a positive integer string"):
+        client.dismiss_thread("0/../evil")
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_api_url
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_api_url_accepts_matching_host() -> None:
+    client = _client()  # default base URL is https://api.example.com
+    result = client._sanitize_api_url("https://api.example.com/repos/org/repo/pulls/1")
+    assert result == "https://api.example.com/repos/org/repo/pulls/1"
+
+
+def test_sanitize_api_url_replaces_scheme_with_trusted() -> None:
+    client = _client()
+    # Intentionally testing that an http input is upgraded to https by the sanitizer.
+    insecure_url = "http://api.example.com/some/path"  # NOSONAR - deliberate insecure scheme to verify upgrade
+    result = client._sanitize_api_url(insecure_url)
+    assert result == "https://api.example.com/some/path"
+
+
+def test_sanitize_api_url_rejects_mismatched_host() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="must match configured GitHub API base host"):
+        client._sanitize_api_url("https://evil.example.com/steal")
+
+
+def test_sanitize_api_url_preserves_path_and_query() -> None:
+    client = _client()
+    url = "https://api.example.com/notifications/threads/42?foo=bar"
+    result = client._sanitize_api_url(url)
+    assert result == "https://api.example.com/notifications/threads/42?foo=bar"
+
+
+def test_fetch_json_url_uses_sanitized_url() -> None:
+    client = _client()
+    with patch.object(GitHubNotificationsClient, "_request_json", return_value={}) as mock_req:
+        client.fetch_json_url("https://api.example.com/notifications/threads/1")
+    called_url = mock_req.call_args[0][0]
+    # Assert the exact reconstructed URL, not a substring, to avoid false positives
+    # where the host string appears elsewhere in the URL (e.g. in the path).
+    assert called_url == "https://api.example.com/notifications/threads/1"
+
+
+def test_fetch_json_url_rejects_wrong_host() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="must match configured GitHub API base host"):
+        client.fetch_json_url("https://attacker.example.com/steal")

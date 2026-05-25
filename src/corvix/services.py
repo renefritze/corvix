@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -101,6 +101,7 @@ def run_poll_cycle(input: PollCycleInput) -> PollingSummary:
         client=hydration_client,
         clients_by_account=hydration_clients,
     )
+    notifications = hydration_result.notifications
 
     enrichment_engine = EnrichmentEngine(
         config=input.config.enrichment,
@@ -199,7 +200,7 @@ def _process_notifications(
             notification=notification,
             score=score,
             excluded=evaluation.excluded,
-            matched_rules=evaluation.matched_rules,
+            matched_rules=tuple(evaluation.matched_rules),
             context=record_context,
         )
         gateway_client = clients_by_account.get(notification.account_id)
@@ -216,7 +217,17 @@ def _process_notifications(
                 record=record,
             ),
         )
-        record.actions_taken = action_result.actions_taken
+        new_notification = (
+            replace(notification, unread=False)
+            if "mark_read" in action_result.actions_taken
+            else notification
+        )
+        record = replace(
+            record,
+            notification=new_notification,
+            actions_taken=tuple(action_result.actions_taken),
+            dismissed=record.dismissed or "dismiss" in action_result.actions_taken,
+        )
         errors.extend(action_result.errors)
         action_count += len(action_result.actions_taken)
         if evaluation.excluded:

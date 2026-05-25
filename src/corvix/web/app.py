@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -555,7 +556,7 @@ def _anchored_title_regex(title: str) -> str:
     return f"^{escaped}$"
 
 
-def _context_path_value(*, context: dict[str, object], path: str) -> tuple[bool, object | None]:
+def _context_path_value(*, context: Mapping[str, object], path: str) -> tuple[bool, object | None]:
     current: object = context
     for segment in path.split("."):
         if not isinstance(current, dict):
@@ -641,7 +642,7 @@ app = Litestar(
 
 def run() -> None:
     """Run app with uvicorn."""
-    host = environ.get("CORVIX_WEB_HOST", "0.0.0.0")
+    host = environ.get("CORVIX_WEB_HOST", "0.0.0.0")  # nosec B104 - intentional; Docker/container deployments need all-interfaces
     port = int(environ.get("CORVIX_WEB_PORT", "8000"))
     reload_enabled = environ.get("CORVIX_WEB_RELOAD", "false").lower() in {"1", "true", "yes"}
     uvicorn.run(

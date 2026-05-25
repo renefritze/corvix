@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -35,6 +36,8 @@ EXPECTED_WATCH_ITERATIONS = 2
 
 
 class FakeClient:
+    api_base_url: str = "https://api.github.com"
+
     def __init__(self, notifications: list[Notification], responses: dict[str, JsonValue] | None = None) -> None:
         self._notifications = notifications
         self._responses = responses or {}
@@ -156,7 +159,7 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
     assert generated_at is not None
     assert len(records) == EXPECTED_FETCHED
     assert len([record for record in records if record.excluded]) == EXPECTED_EXCLUDED
-    assert records[1].actions_taken == ["mark_read"]
+    assert records[1].actions_taken == ("mark_read",)
 
 
 def test_poll_cycle_requires_at_least_one_client(tmp_path: Path) -> None:
@@ -197,8 +200,7 @@ def test_poll_cycle_reports_missing_account_client(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     notifications = _build_notifications(now)
-    notifications[1].account_id = "secondary"
-    notifications[1].account_label = "Secondary"
+    notifications[1] = replace(notifications[1], account_id="secondary", account_label="Secondary")
     client = FakeClient(notifications)
     cache = NotificationCache(path=cache_path)
 
@@ -252,7 +254,7 @@ def test_poll_cycle_persists_dismissed_records(tmp_path: Path) -> None:
     _, records = cache.load()
     by_id = {record.notification.thread_id: record for record in records}
     assert by_id["1"].dismissed is True
-    assert by_id["1"].actions_taken == ["dismiss"]
+    assert by_id["1"].actions_taken == ("dismiss",)
     assert by_id["2"].dismissed is False
 
 
@@ -406,7 +408,7 @@ def test_poll_with_global_and_repository_rules(tmp_path: Path) -> None:
     assert summary.actions_taken == 1
     assert client.marked_thread_ids == ["2"]
     assert by_id["1"].score > by_id["3"].score
-    assert by_id["2"].matched_rules == ["mute-bots", "critical-chore"]
+    assert by_id["2"].matched_rules == ("mute-bots", "critical-chore")
     assert by_id["2"].excluded is True
 
 

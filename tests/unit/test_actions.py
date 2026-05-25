@@ -94,8 +94,8 @@ def test_mark_read_action_applies() -> None:
         context=ActionExecutionContext(gateway=gw, apply_actions=True),
     )
     assert result.actions_taken == ["mark_read"]
-    assert notification.unread is False
     assert gw.marked == ["1"]
+    # notification is immutable; callers use dataclasses.replace() to propagate unread=False
 
 
 def test_mark_read_skipped_if_already_read() -> None:
@@ -160,7 +160,7 @@ def test_dismiss_action_applies() -> None:
     )
     assert result.actions_taken == ["dismiss"]
     assert client.dismissed == ["1"]
-    assert record.dismissed is True
+    # record is immutable; callers use dataclasses.replace() to propagate dismissed=True
 
 
 def test_dismiss_skipped_if_already_dismissed() -> None:

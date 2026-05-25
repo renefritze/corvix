@@ -119,7 +119,7 @@ def format_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Notification:
     """Normalized notification from GitHub's notifications API."""
 
@@ -210,17 +210,17 @@ class Notification:
         )
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class NotificationRecord:
     """Scored and rule-evaluated notification persisted for dashboards."""
 
     notification: Notification
     score: float
     excluded: bool
-    matched_rules: list[str] = field(default_factory=list)
-    actions_taken: list[str] = field(default_factory=list)
+    matched_rules: tuple[str, ...] = ()
+    actions_taken: tuple[str, ...] = ()
     dismissed: bool = False
-    context: dict[str, object] = field(default_factory=dict)
+    context: Mapping[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a JSON-serializable dictionary."""
@@ -240,8 +240,8 @@ class NotificationRecord:
             "repository_url": self.notification.repository_url,
             "score": self.score,
             "excluded": self.excluded,
-            "matched_rules": self.matched_rules,
-            "actions_taken": self.actions_taken,
+            "matched_rules": list(self.matched_rules),
+            "actions_taken": list(self.actions_taken),
             "dismissed": self.dismissed,
             "context": self.context,
         }
@@ -269,8 +269,8 @@ class NotificationRecord:
             notification=notification,
             score=_optional_float(payload, "score", 0.0, STORED_RECORD_LABEL),
             excluded=_optional_bool(payload, "excluded", False, STORED_RECORD_LABEL),
-            matched_rules=_optional_str_list(payload, "matched_rules"),
-            actions_taken=_optional_str_list(payload, "actions_taken"),
+            matched_rules=tuple(_optional_str_list(payload, "matched_rules")),
+            actions_taken=tuple(_optional_str_list(payload, "actions_taken")),
             dismissed=_optional_bool(payload, "dismissed", False, STORED_RECORD_LABEL),
             context=_optional_context(payload, "context"),
         )
