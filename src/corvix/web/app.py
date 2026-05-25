@@ -591,19 +591,28 @@ def _global_exclude_rule_snippet(*, record: NotificationRecord, match_lines: lis
 # changes.  A plain stat() per request is orders of magnitude cheaper than a
 # full YAML re-parse, so we still detect on-disk edits without re-reading
 # unconditionally on every HTTP request.
+#
+# The three cache fields live in a single mutable object so they can be
+# updated without ``global`` statements (which ruff PLW0603 flags).
 # ---------------------------------------------------------------------------
 
-_config_cache: AppConfig | None = None
-_config_cache_path: str | None = None
-_config_cache_mtime: float | None = None
+
+class _ConfigCache:
+    """Mutable container for the module-level AppConfig cache."""
+
+    config: AppConfig | None = None
+    path: str | None = None
+    mtime: float | None = None
+
+
+_config_cache = _ConfigCache()
 
 
 def _clear_config_cache() -> None:
     """Discard the cached AppConfig so the next request reloads from disk."""
-    global _config_cache, _config_cache_path, _config_cache_mtime
-    _config_cache = None
-    _config_cache_path = None
-    _config_cache_mtime = None
+    _config_cache.config = None
+    _config_cache.path = None
+    _config_cache.mtime = None
     logger.info("Config cache cleared; config will be reloaded on the next request.")
 
 
@@ -615,8 +624,6 @@ def _load_runtime_config() -> AppConfig:
     YAML is only re-parsed when either the path or the mtime differs from the
     last successful load, eliminating redundant I/O on every request.
     """
-    global _config_cache, _config_cache_path, _config_cache_mtime
-
     config_path = Path(environ.get("CORVIX_CONFIG", "corvix.yaml"))
     config_path_str = str(config_path)
 
@@ -631,11 +638,11 @@ def _load_runtime_config() -> AppConfig:
         raise HTTPException(status_code=500, detail=msg) from error
 
     if (
-        _config_cache is not None
-        and _config_cache_path == config_path_str
-        and _config_cache_mtime == mtime
+        _config_cache.config is not None
+        and _config_cache.path == config_path_str
+        and _config_cache.mtime == mtime
     ):
-        return _config_cache
+        return _config_cache.config
 
     try:
         config = load_config(config_path)
@@ -646,9 +653,9 @@ def _load_runtime_config() -> AppConfig:
         msg = f"Unable to read config at '{config_path}': {error}"
         raise HTTPException(status_code=500, detail=msg) from error
 
-    _config_cache = config
-    _config_cache_path = config_path_str
-    _config_cache_mtime = mtime
+    _config_cache.config = config
+    _config_cache.path = config_path_str
+    _config_cache.mtime = mtime
     logger.debug("Config loaded from '%s' (mtime=%.3f).", config_path, mtime)
     return config
 

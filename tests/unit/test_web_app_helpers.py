@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -144,8 +145,6 @@ def test_load_runtime_config_reloads_when_file_changes(
 
     # Overwrite — filesystem granularity may be 1 s, so nudge the mtime explicitly.
     config_path.write_text("github:\n  token_env: ANOTHER_TOKEN\n", encoding="utf-8")
-    import os
-
     new_mtime = config_path.stat().st_mtime + 1.0
     os.utime(config_path, (new_mtime, new_mtime))
 
@@ -200,7 +199,7 @@ def test_load_runtime_config_cache_not_poisoned_after_parse_error(
         web_app._load_runtime_config()
 
     # Cache must not have been populated.
-    assert web_app._config_cache is None
+    assert web_app._config_cache.config is None
 
     with pytest.raises(HTTPException):
         web_app._load_runtime_config()
