@@ -236,9 +236,10 @@ def test_sanitize_api_url_accepts_matching_host() -> None:
 
 def test_sanitize_api_url_replaces_scheme_with_trusted() -> None:
     client = _client()
-    # Input uses http but base uses https — the sanitized URL should use https.
-    result = client._sanitize_api_url("http://api.example.com/some/path")
-    assert result.startswith("https://")
+    # Intentionally testing that an http input is upgraded to https by the sanitizer.
+    insecure_url = "http://api.example.com/some/path"  # NOSONAR - deliberate insecure scheme to verify upgrade
+    result = client._sanitize_api_url(insecure_url)
+    assert result == "https://api.example.com/some/path"
 
 
 def test_sanitize_api_url_rejects_mismatched_host() -> None:
