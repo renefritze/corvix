@@ -25,7 +25,7 @@ dependencies = [
     "uvicorn",
     "asyncpg>=0.31.0",
     "cryptography",
-    "psycopg[binary]>=3.3.3",
+    "psycopg[binary,pool]>=3.3.3",
     "alembic>=1.18.4",
 ]
 

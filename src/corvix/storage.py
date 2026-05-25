@@ -11,13 +11,14 @@ import json
 import os
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import asdict, dataclass, replace
+from contextlib import AbstractContextManager, contextmanager
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
 import psycopg
+import psycopg_pool
 from psycopg.types.json import Jsonb
 
 from corvix.domain import (
@@ -357,12 +358,62 @@ class PostgresStorage:
     Uses psycopg (sync) so it is safe to use from CLI commands and the
     synchronous Litestar route handlers (sync_to_thread=False is not used
     with this backend — callers should run in a thread pool if needed).
+
+    A ``psycopg_pool.ConnectionPool`` is created at construction time so that
+    TCP connections are reused across method calls rather than being opened and
+    torn down per operation.  Call :meth:`close` when the storage is no longer
+    needed, or use it as a context manager::
+
+        with PostgresStorage(connection_string=url) as storage:
+            storage.save_records(...)
     """
 
     connection_string: str
+    min_pool_size: int = 1
+    max_pool_size: int = 10
+    _pool: psycopg_pool.ConnectionPool[psycopg.Connection[tuple[object, ...]]] | None = field(
+        init=False, repr=False, compare=False, default=None
+    )
 
-    def _connect(self) -> psycopg.Connection[tuple[object, ...]]:
-        return psycopg.connect(self.connection_string)
+    def __post_init__(self) -> None:
+        self._pool = psycopg_pool.ConnectionPool(
+            conninfo=self.connection_string,
+            min_size=self.min_pool_size,
+            max_size=self.max_pool_size,
+        )
+
+    # ------------------------------------------------------------------
+    # Lifecycle helpers
+    # ------------------------------------------------------------------
+
+    def close(self) -> None:
+        """Close all pooled connections and release resources."""
+        if self._pool is not None:
+            self._pool.close()
+            self._pool = None
+
+    def __enter__(self) -> PostgresStorage:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _connect(self) -> AbstractContextManager[psycopg.Connection[tuple[object, ...]]]:
+        """Return a pooled connection context-manager.
+
+        Usage is identical to the previous ``psycopg.connect()`` call::
+
+            with self._connect() as conn:
+                ...
+        """
+        if self._pool is None:
+            msg = "PostgresStorage pool has been closed."
+            raise RuntimeError(msg)
+        return self._pool.connection()
 
     def save_records(
         self,

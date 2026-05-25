@@ -75,7 +75,8 @@ def storage(migrated_postgres_url: str) -> Generator[PostgresStorage]:
                 "TRUNCATE TABLE notification_records, push_subscriptions, user_preferences, users RESTART IDENTITY CASCADE"
             )
         conn.commit()
-    yield PostgresStorage(connection_string=migrated_postgres_url)
+    with PostgresStorage(connection_string=migrated_postgres_url) as pg_storage:
+        yield pg_storage
 
 
 def _create_user(database_url: str, user_id: UUID) -> None:
