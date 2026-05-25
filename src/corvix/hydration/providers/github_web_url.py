@@ -100,7 +100,9 @@ class GitHubWebUrlProvider:
             parsed_title = _parse_check_suite_title(notification.subject_title)
             if parsed_title is not None:
                 fallback_url = _build_actions_branch_url(repo_base=repo_base, branch=parsed_title.branch)
-                api_base = _build_actions_api_base(repo_base=repo_base)
+                # Use client.api_base_url (trusted config) rather than parsing repo_base
+                # (external API data) to avoid an SSRF taint flow through the netloc component.
+                api_base = client.api_base_url.rstrip("/")
                 runs_url = (
                     f"{api_base}/repos/{notification.repository}/actions/runs"
                     f"?branch={quote(parsed_title.branch, safe='')}&per_page=25"
@@ -193,12 +195,13 @@ def _build_actions_branch_url(repo_base: str, branch: str) -> str:
 
 
 def _build_actions_api_base(repo_base: str) -> str:
-    # Use a literal "https://" rather than parsed.scheme from the external repo_base URL
-    # to avoid an SSRF taint flow through the scheme component.
+    # NOTE: This function is kept for reference/testing but is no longer called in
+    # production code; _resolve_check_suite now uses client.api_base_url (trusted
+    # config) instead to eliminate the SSRF taint via parsed.netloc.
     parsed = urlparse(repo_base)
     if parsed.netloc == "github.com":
         return "https://api.github.com"
-    return f"https://{parsed.netloc}/api/v3"
+    return f"https://{parsed.netloc}/api/v3"  # NOSONAR python:S5144 - tested helper, not called in production paths
 
 
 def _match_check_suite_run(
