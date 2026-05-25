@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -111,3 +112,97 @@ def test_require_account_returns_matching_account() -> None:
     account = web_app._require_account(config=config, account_id="primary")
 
     assert account.id == "primary"
+
+
+# ---------------------------------------------------------------------------
+# _load_runtime_config — mtime-based caching
+# ---------------------------------------------------------------------------
+
+
+def test_load_runtime_config_is_cached_on_second_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Second call with the same path+mtime returns the identical object."""
+    config_path = tmp_path / "corvix.yaml"
+    config_path.write_text("github:\n  token_env: GITHUB_TOKEN\n", encoding="utf-8")
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_path))
+
+    first = web_app._load_runtime_config()
+    second = web_app._load_runtime_config()
+
+    assert first is second
+
+
+def test_load_runtime_config_reloads_when_file_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Config is re-parsed when the file is overwritten (mtime advances)."""
+    config_path = tmp_path / "corvix.yaml"
+    config_path.write_text("github:\n  token_env: GITHUB_TOKEN\n", encoding="utf-8")
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_path))
+
+    first = web_app._load_runtime_config()
+
+    # Overwrite — filesystem granularity may be 1 s, so nudge the mtime explicitly.
+    config_path.write_text("github:\n  token_env: ANOTHER_TOKEN\n", encoding="utf-8")
+    new_mtime = config_path.stat().st_mtime + 1.0
+    os.utime(config_path, (new_mtime, new_mtime))
+
+    second = web_app._load_runtime_config()
+
+    assert first is not second
+    assert second.github.accounts[0].token_env == "ANOTHER_TOKEN"
+
+
+def test_clear_config_cache_forces_reload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After _clear_config_cache(), the next call re-parses from disk."""
+    config_path = tmp_path / "corvix.yaml"
+    config_path.write_text("github:\n  token_env: GITHUB_TOKEN\n", encoding="utf-8")
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_path))
+
+    first = web_app._load_runtime_config()
+    web_app._clear_config_cache()
+    second = web_app._load_runtime_config()
+
+    # Different object — it was re-parsed after the cache was cleared.
+    assert first is not second
+
+
+def test_load_runtime_config_raises_for_missing_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/corvix.yaml")
+
+    with pytest.raises(HTTPException, match="does not exist"):
+        web_app._load_runtime_config()
+
+
+def test_load_runtime_config_cache_not_poisoned_after_parse_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed load must not populate the cache; the next call retries."""
+    config_path = tmp_path / "corvix.yaml"
+    config_path.write_text("github: {}\n", encoding="utf-8")
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_path))
+
+    parse_calls: list[Path] = []
+
+    def _bad_load(path: Path) -> AppConfig:
+        parse_calls.append(path)
+        raise ValueError("bad config")
+
+    monkeypatch.setattr(web_app, "load_config", _bad_load)
+
+    with pytest.raises(HTTPException):
+        web_app._load_runtime_config()
+
+    # Cache must not have been populated.
+    assert web_app._config_cache.config is None
+
+    with pytest.raises(HTTPException):
+        web_app._load_runtime_config()
+
+    # load_config was called both times, not skipped on the second call.
+    assert len(parse_calls) == 2
