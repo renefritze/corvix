@@ -229,7 +229,7 @@ def _health_response(payload: dict[str, object]) -> Response[dict[str, object]]:
     return Response(content=payload, status_code=status_code, media_type="application/json")
 
 
-@get("/api/health", sync_to_thread=False)
+@get("/api/health")
 def health() -> Response[dict[str, object]]:
     """Health endpoint for container checks.
 
@@ -266,7 +266,7 @@ def api_themes() -> dict[str, object]:
     return {"themes": THEMES}
 
 
-@get("/api/dashboards", sync_to_thread=False)
+@get("/api/dashboards")
 def dashboards() -> dict[str, object]:
     """List configured dashboard names."""
     config = _load_runtime_config()
@@ -274,7 +274,7 @@ def dashboards() -> dict[str, object]:
     return {"dashboard_names": names}
 
 
-@get("/api/snapshot", sync_to_thread=False)
+@get("/api/snapshot")
 def snapshot(dashboard: str | None = None) -> dict[str, object]:
     """Return the selected dashboard data from cache."""
     config = _load_runtime_config()
@@ -329,10 +329,7 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     return payload
 
 
-@get(
-    "/api/notifications/{account_id:str}/{thread_id:str}/rule-snippets",
-    sync_to_thread=False,
-)
+@get("/api/notifications/{account_id:str}/{thread_id:str}/rule-snippets")
 def notification_rule_snippets(
     account_id: str,
     thread_id: str,
