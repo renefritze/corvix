@@ -262,7 +262,7 @@ def _handle_cycle_error(iteration: int, cache: NotificationCache, runs: list[Pol
     logger.exception("Poll cycle failed on iteration %d", iteration)
     runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
     try:
-        last_poll_time = cache.load_status().get("last_poll_time")
+        last_poll_time = cache.load_status().last_poll_time
     except (OSError, ValueError):
         last_poll_time = None
     try:

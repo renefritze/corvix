@@ -12,7 +12,7 @@ import os
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -211,7 +211,7 @@ class NotificationCache:
             "notifications": [record.to_dict() for record in records],
         }
         if status_to_save is not None:
-            payload["poller_status"] = dict(status_to_save)
+            payload["poller_status"] = asdict(status_to_save)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         content = json.dumps(payload, indent=2)
         temp_path: Path | None = None

@@ -12,7 +12,7 @@ from typing import IO, Any, cast, get_protocol_members
 import pytest
 from pytest import MonkeyPatch
 
-from corvix.domain import Notification, NotificationRecord
+from corvix.domain import Notification, NotificationRecord, PollerStatus
 from corvix.storage import (
     NotificationCache,
     StorageBackend,
@@ -311,12 +311,12 @@ def test_load_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
 def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     cache = _cache(tmp_path)
     cache.save_status(
-        {
-            "status": "ok",
-            "last_poll_time": "2024-01-01T00:00:00Z",
-            "last_error": None,
-            "last_error_time": None,
-        }
+        PollerStatus(
+            status="ok",
+            last_poll_time="2024-01-01T00:00:00Z",
+            last_error=None,
+            last_error_time=None,
+        )
     )
 
     calls = 0
@@ -339,12 +339,12 @@ def test_load_status_reads_unlocked_when_lock_cannot_be_opened(tmp_path: Path, m
     exist either; the read must still succeed instead of returning defaults."""
     cache = _cache(tmp_path)
     cache.save_status(
-        {
-            "status": "ok",
-            "last_poll_time": "2024-01-01T00:00:00Z",
-            "last_error": None,
-            "last_error_time": None,
-        }
+        PollerStatus(
+            status="ok",
+            last_poll_time="2024-01-01T00:00:00Z",
+            last_error=None,
+            last_error_time=None,
+        )
     )
 
     original_open = cast(Any, Path.open)
@@ -367,8 +367,8 @@ def test_load_status_reads_unlocked_when_lock_cannot_be_opened(tmp_path: Path, m
     monkeypatch.setattr(Path, "open", _deny_lock_open)
 
     status = cache.load_status()
-    assert status.get("status") == "ok"
-    assert status.get("last_poll_time") == "2024-01-01T00:00:00Z"
+    assert status.status == "ok"
+    assert status.last_poll_time == "2024-01-01T00:00:00Z"
 
 
 def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
@@ -377,12 +377,12 @@ def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
     cache.path.write_text('{"notifications": invalid', encoding="utf-8")
 
     cache.save_status(
-        {
-            "status": "error",
-            "last_poll_time": None,
-            "last_error": "boom",
-            "last_error_time": "2024-01-01T00:00:00Z",
-        }
+        PollerStatus(
+            status="error",
+            last_poll_time=None,
+            last_error="boom",
+            last_error_time="2024-01-01T00:00:00Z",
+        )
     )
 
     payload = json.loads(cache.path.read_text(encoding="utf-8"))
