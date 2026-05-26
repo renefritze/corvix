@@ -50,7 +50,7 @@ class NotificationsConfig:
     web_push: WebPushTargetConfig = field(default_factory=WebPushTargetConfig)
 
 
-def _parse_browser_tab(browser_raw: dict) -> BrowserTabTargetConfig:  # type: ignore[type-arg]
+def _parse_browser_tab(browser_raw: dict[str, object]) -> BrowserTabTargetConfig:
     """Parse and validate browser_tab config section."""
     max_per_cycle = _get_int(browser_raw, "max_per_cycle", 5, "notifications.browser_tab.max_per_cycle")
     if max_per_cycle < 0:
