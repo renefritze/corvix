@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 
 from corvix.domain import Notification
-from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.base import JsonFetchClient, RequestContext
 from corvix.pipeline.engine import PipelineEngine, PipelineRunResult, _set_nested_namespace
 from corvix.pipeline.provider import ContextProvider, FieldProvider, PipelineContext
 from corvix.types import JsonValue
@@ -413,4 +413,13 @@ def test_pipeline_context_budget_error_message() -> None:
     client = _FakeClient(responses={})
 
     with pytest.raises(RuntimeError, match="[Pp]ipeline request budget exhausted"):
+        ctx.get_json(client=client, url="https://api.example.com/anything", timeout_seconds=1.0)
+
+
+def test_request_context_base_budget_error_message() -> None:
+    """The base RequestContext raises its own budget message when exhausted."""
+    ctx = RequestContext(max_requests_per_cycle=0)
+    client = _FakeClient(responses={})
+
+    with pytest.raises(RuntimeError, match="[Rr]equest budget exhausted"):
         ctx.get_json(client=client, url="https://api.example.com/anything", timeout_seconds=1.0)

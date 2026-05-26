@@ -27,7 +27,7 @@ class EnrichmentRunResult:
         """Backward-compatible thread-keyed view of contexts."""
         output: dict[str, dict[str, object]] = {}
         for key, value in self.contexts_by_notification_key.items():
-            _, _, thread_id = key.partition(":")
+            _, _, thread_id = key.rpartition(":")
             output[thread_id] = value
         return output
 

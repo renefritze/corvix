@@ -20,13 +20,10 @@ class PipelineContext(RequestContext):
 
     def get_json(self, client: JsonFetchClient, url: str, timeout_seconds: float) -> JsonValue:
         """Fetch and cache a JSON payload; raises if the request budget is exhausted."""
-        try:
-            return super().get_json(client=client, url=url, timeout_seconds=timeout_seconds)
-        except RuntimeError as error:
-            if "budget exhausted" not in str(error).casefold():
-                raise
+        if url not in self.url_cache and self.request_count >= self.max_requests_per_cycle:
             msg = "Pipeline request budget exhausted."
-            raise RuntimeError(msg) from error
+            raise RuntimeError(msg)
+        return super().get_json(client=client, url=url, timeout_seconds=timeout_seconds)
 
 
 @runtime_checkable
