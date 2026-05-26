@@ -600,7 +600,7 @@ def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:
 
     assert summary.fetched == 1
     assert summary.errors
-    assert summary.errors[0].startswith("enrichment: provider=github.latest_comment")
+    assert summary.errors[0].startswith("pipeline: provider=github.latest_comment")
     _, records = cache.load()
     assert len(records) == 1
 

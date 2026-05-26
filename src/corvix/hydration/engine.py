@@ -1,12 +1,17 @@
-"""Hydration engine for completing canonical notification fields."""
+"""Hydration engine — thin wrapper around :class:`~corvix.pipeline.engine.PipelineEngine`.
+
+Kept for backward compatibility; new code should use
+:class:`corvix.pipeline.engine.PipelineEngine` directly.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from corvix.domain import Notification
-from corvix.hydration.base import HydrationContext, HydrationProvider
+from corvix.hydration.base import HydrationProvider
 from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.engine import PipelineEngine
 
 
 @dataclass(slots=True)
@@ -19,7 +24,12 @@ class HydrationRunResult:
 
 @dataclass(slots=True)
 class HydrationEngine:
-    """Runs hydration providers over notifications."""
+    """Runs hydration providers over notifications.
+
+    .. deprecated::
+        Prefer :class:`corvix.pipeline.engine.PipelineEngine` directly.
+        This class is a thin wrapper maintained for backward compatibility.
+    """
 
     providers: list[HydrationProvider]
     max_requests_per_cycle: int = 25
@@ -30,21 +40,13 @@ class HydrationEngine:
         client: JsonFetchClient,
         clients_by_account: dict[str, JsonFetchClient] | None = None,
     ) -> HydrationRunResult:
-        if not self.providers:
-            return HydrationRunResult(notifications=list(notifications), errors=[])
-
-        context = HydrationContext(max_requests_per_cycle=self.max_requests_per_cycle)
-        errors: list[str] = []
-        hydrated: list[Notification] = []
-        for notification in notifications:
-            current = notification
-            notification_client = (
-                clients_by_account.get(notification.account_id, client) if clients_by_account else client
-            )
-            for provider in self.providers:
-                try:
-                    current = provider.hydrate(notification=current, client=notification_client, ctx=context)
-                except Exception as error:  # pragma: no cover - defensive fail-open contract
-                    errors.append(f"provider={provider.name} thread={current.thread_id}: {error}")
-            hydrated.append(current)
-        return HydrationRunResult(notifications=hydrated, errors=errors)
+        engine = PipelineEngine(
+            providers=list(self.providers),
+            max_requests_per_cycle=self.max_requests_per_cycle,
+        )
+        result = engine.run(
+            notifications=notifications,
+            client=client,
+            clients_by_account=clients_by_account,
+        )
+        return HydrationRunResult(notifications=result.notifications, errors=result.errors)

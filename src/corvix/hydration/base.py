@@ -1,20 +1,12 @@
-"""Provider interfaces and shared context for hydration."""
+"""Provider interfaces and shared context for hydration.
+
+These names are preserved for backward compatibility; the canonical definitions
+live in :mod:`corvix.pipeline.provider`.
+"""
 
 from __future__ import annotations
 
-from typing import Protocol
+from corvix.pipeline.provider import FieldProvider as HydrationProvider
+from corvix.pipeline.provider import PipelineContext as HydrationContext
 
-from corvix.domain import Notification
-from corvix.pipeline.base import JsonFetchClient, RequestContext
-
-
-class HydrationProvider(Protocol):
-    """Protocol implemented by hydration providers."""
-
-    name: str
-
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> Notification: ...
-
-
-class HydrationContext(RequestContext):
-    """Per-cycle provider context with request budget and URL cache."""
+__all__ = ["HydrationContext", "HydrationProvider"]
