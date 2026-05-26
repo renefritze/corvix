@@ -265,6 +265,7 @@ _DEPRECATION_HEADER_VALUE = "true"
 def _health_impl(extra_headers: dict[str, str] | None = None) -> Response[dict[str, object]]:
     """Compute and return the health check response."""
     poller_status = _read_health_poller_status()
+    payload: dict[str, object]
     if isinstance(poller_status, dict):
         payload = poller_status
     elif poller_status.status == "error":
