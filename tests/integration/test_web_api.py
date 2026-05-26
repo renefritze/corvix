@@ -1202,3 +1202,9 @@ class TestObservability:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         response = client.get("/metrics")
         assert response.status_code == HTTPStatus.OK
+
+    def test_startup_hook_configures_observability(self) -> None:
+        # Entering the TestClient context manager runs the on_startup hook,
+        # which configures logging and (no-op) tracing.
+        with TestClient(app) as ctx_client:
+            assert ctx_client.get("/metrics").status_code == HTTPStatus.OK

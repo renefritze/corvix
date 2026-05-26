@@ -165,6 +165,10 @@ class TestTracingDisabled:
         monkeypatch.setattr(tracing, "_OTEL_AVAILABLE", False)
         assert tracing.setup_tracing() is False
 
+    def test_setup_returns_true_when_already_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(tracing, "_enabled", True)
+        assert tracing.setup_tracing() is True
+
 
 class TestTracingEnabled:
     def test_setup_and_span_record(self, monkeypatch: pytest.MonkeyPatch) -> None:
