@@ -119,14 +119,14 @@ class PipelineEngine:
             current = notification
             for provider in self.providers:
                 try:
-                    if hasattr(provider, "hydrate"):
-                        current = provider.hydrate(  # type: ignore[union-attr]
+                    if isinstance(provider, FieldProvider):
+                        current = provider.hydrate(
                             notification=current,
                             client=notification_client,
                             ctx=context,
                         )
-                    elif hasattr(provider, "enrich"):
-                        payload = provider.enrich(  # type: ignore[union-attr]
+                    elif isinstance(provider, ContextProvider):
+                        payload = provider.enrich(
                             notification=current,
                             client=notification_client,
                             ctx=context,
