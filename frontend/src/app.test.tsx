@@ -96,7 +96,7 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(screen.getByRole("link", { name: "One" })).toBeInTheDocument();
 		});
-		expect(fetchMock).toHaveBeenCalledWith("/api/snapshot");
+		expect(fetchMock).toHaveBeenCalledWith("/api/v1/snapshot");
 
 		const user = userEvent.setup();
 		await user.click(screen.getByLabelText("Reason filter"));
@@ -365,7 +365,7 @@ describe("App", () => {
 				if (init?.method === "POST") {
 					return { ok: true } as Response;
 				}
-				if (url.includes("/api/snapshot")) {
+				if (url.includes("/api/v1/snapshot")) {
 					return {
 						ok: true,
 						json: async () => snapshot,
@@ -393,23 +393,23 @@ describe("App", () => {
 
 		await waitFor(() => {
 			expect(fetchMock).toHaveBeenCalledWith(
-				"/api/notifications/primary/u-1/mark-read",
+				"/api/v1/notifications/primary/u-1/mark-read",
 				{ method: "POST", keepalive: true },
 			);
 		});
 
 		expect(fetchMock).not.toHaveBeenCalledWith(
-			"/api/notifications/primary/u-2/mark-read",
+			"/api/v1/notifications/primary/u-2/mark-read",
 			{ method: "POST", keepalive: true },
 		);
 		expect(fetchMock).not.toHaveBeenCalledWith(
-			"/api/notifications/primary/r-1/mark-read",
+			"/api/v1/notifications/primary/r-1/mark-read",
 			{ method: "POST", keepalive: true },
 		);
 
 		expect(
 			fetchMock.mock.calls.filter((call) =>
-				requestUrl(call[0]).startsWith("/api/snapshot"),
+				requestUrl(call[0]).startsWith("/api/v1/snapshot"),
 			).length,
 		).toBeGreaterThan(1);
 	});

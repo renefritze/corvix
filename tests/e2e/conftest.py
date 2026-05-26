@@ -160,7 +160,7 @@ def _find_free_port() -> int:
 
 def _wait_for_health(base_url: str, timeout_seconds: float = HEALTH_TIMEOUT_SECONDS) -> None:
     deadline = time.monotonic() + timeout_seconds
-    health_url = f"{base_url}/api/health"
+    health_url = f"{base_url}/api/v1/health"
     while time.monotonic() < deadline:
         try:
             with urlopen(health_url, timeout=1.0) as response:  # nosec B310  # NOSONAR python:S5144 - URL is always http://127.0.0.1:<port>/api/health (local test server)
