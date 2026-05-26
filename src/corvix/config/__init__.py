@@ -18,10 +18,10 @@ from __future__ import annotations
 
 # Re-export everything from sub-modules so ``from corvix.config import X`` works unchanged.
 from corvix.config.app import (
+    DEFAULT_CONFIG,
     AppConfig,
     AuthConfig,
     DatabaseConfig,
-    DEFAULT_CONFIG,
     EnrichmentConfig,
     GitHubLatestCommentEnrichmentConfig,
     GitHubPRStateEnrichmentConfig,
@@ -59,40 +59,34 @@ from corvix.config.rules import (
 from corvix.config.scoring import ScoringConfig
 
 __all__ = [
-    # app
+    "DEFAULT_CONFIG",
+    "DEFAULT_GITHUB_API_BASE_URL",
+    "NO_FILTERS_DASHBOARD_NAME",
     "AppConfig",
     "AuthConfig",
-    "DatabaseConfig",
-    "DEFAULT_CONFIG",
-    "EnrichmentConfig",
-    "GitHubLatestCommentEnrichmentConfig",
-    "GitHubPRStateEnrichmentConfig",
-    "PollingConfig",
-    "StateConfig",
-    "load_config",
-    "write_default_config",
-    # dashboards
-    "NO_FILTERS_DASHBOARD_NAME",
+    "BrowserTabTargetConfig",
+    "ContextPredicate",
     "DashboardSpec",
-    "available_dashboards",
-    "default_dashboard",
-    "is_no_filters_dashboard",
-    "no_filters_dashboard",
-    # github
-    "DEFAULT_GITHUB_API_BASE_URL",
+    "DatabaseConfig",
+    "EnrichmentConfig",
     "GitHubAccountConfig",
     "GitHubConfig",
-    # notifications
-    "BrowserTabTargetConfig",
+    "GitHubLatestCommentEnrichmentConfig",
+    "GitHubPRStateEnrichmentConfig",
+    "MatchCriteria",
     "NotificationsConfig",
     "NotificationsDetectConfig",
-    "WebPushTargetConfig",
-    # rules
-    "ContextPredicate",
-    "MatchCriteria",
+    "PollingConfig",
     "Rule",
     "RuleAction",
     "RuleSet",
-    # scoring
     "ScoringConfig",
+    "StateConfig",
+    "WebPushTargetConfig",
+    "available_dashboards",
+    "default_dashboard",
+    "is_no_filters_dashboard",
+    "load_config",
+    "no_filters_dashboard",
+    "write_default_config",
 ]
