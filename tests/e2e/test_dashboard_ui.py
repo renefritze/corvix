@@ -177,7 +177,7 @@ def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(ap
         response = route.fetch(timeout=5_000)
         route.fulfill(response=response)
 
-    app_page.route("**/api/snapshot*", delayed_snapshot)
+    app_page.route("**/api/v1/snapshot*", delayed_snapshot)
 
     rows = app_page.locator("tr.notification-row")
     expect(rows).to_have_count(3)
@@ -193,7 +193,7 @@ def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(ap
     expect(app_page.locator(".undo-toast")).to_have_count(0, timeout=8_000)
     expect(rows).to_have_count(1)
 
-    app_page.unroute("**/api/snapshot*", delayed_snapshot)
+    app_page.unroute("**/api/v1/snapshot*", delayed_snapshot)
 
 
 @pytest.mark.e2e
@@ -204,7 +204,7 @@ def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str
         page.wait_for_timeout(500)
         route.continue_()
 
-    page.route("**/api/snapshot", delayed_snapshot)
+    page.route("**/api/v1/snapshot", delayed_snapshot)
     page.goto(corvix_server)
     expect(page.locator("table.notification-table[aria-label='Loading notifications']")).to_be_visible()
     expect(page.locator("tr.skeleton-row")).to_have_count(9)
@@ -216,7 +216,7 @@ def test_server_error_shows_error_state(page: PageLike, corvix_server: str) -> N
     expect = pytest.importorskip("playwright.sync_api").expect
 
     page.route(
-        "**/api/snapshot",
+        "**/api/v1/snapshot",
         lambda route: route.fulfill(
             status=500,
             content_type="application/json",
