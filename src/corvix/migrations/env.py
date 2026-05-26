@@ -17,6 +17,19 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _normalize_url(url: str) -> str:
+    """Force the SQLAlchemy psycopg (v3) driver; psycopg2 is not installed.
+
+    PostgresStorage talks to psycopg directly with a plain ``postgresql://``
+    URL, so the shared DATABASE_URL secret uses that form. SQLAlchemy/Alembic
+    would otherwise default to the psycopg2 dialect, so rewrite the scheme.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 def _get_url() -> str:
     """Prefer DATABASE_URL env var over alembic.ini setting."""
     try:
@@ -24,10 +37,10 @@ def _get_url() -> str:
     except ValueError as error:
         raise RuntimeError(str(error)) from error
     if url:
-        return url
+        return _normalize_url(url)
     ini_url = config.get_main_option("sqlalchemy.url")
     if ini_url and ini_url != "driver://user:pass@localhost/dbname":
-        return ini_url
+        return _normalize_url(ini_url)
     msg = "DATABASE_URL environment variable is not set."
     raise RuntimeError(msg)
 

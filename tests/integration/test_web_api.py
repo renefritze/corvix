@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Generator
 from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
@@ -13,8 +14,17 @@ from litestar.testing import TestClient
 
 import corvix.web.middleware as _mw
 from corvix.config import load_config
-from corvix.web.app import INDEX_HTML, THEMES, app
+from corvix.storage import NotificationCache
+from corvix.web.app import INDEX_HTML, THEMES, app, set_storage_backend
 from corvix.web.middleware import _verify_session_cookie
+
+
+@pytest.fixture(autouse=True)
+def _reset_storage_backend() -> Generator[None]:
+    """Ensure each test starts and ends with no injected storage backend."""
+    set_storage_backend(None)
+    yield
+    set_storage_backend(None)
 
 GENERATED_AT = "2024-01-01T00:00:00Z"
 EXPECTED_POPULATED_TOTAL_ITEMS = 3
@@ -53,6 +63,7 @@ dashboards:
         encoding="utf-8",
     )
     monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
+    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
     return TestClient(app)
 
 
@@ -123,6 +134,7 @@ dashboards:
         encoding="utf-8",
     )
     monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
+    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
     return TestClient(app)
 
 
@@ -252,6 +264,46 @@ def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) ->
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_poll_time"}
+
+
+def _write_minimal_config(tmp_path: Path) -> Path:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+github:
+  token_env: GITHUB_TOKEN
+dashboards:
+  - name: triage
+    group_by: repository
+    sort_by: score
+""",
+        encoding="utf-8",
+    )
+    return config_file
+
+
+def test_health_storage_unavailable_without_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # No storage backend injected and no DATABASE_URL: PostgreSQL is required.
+    config_file = _write_minimal_config(tmp_path)
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL_FILE", raising=False)
+
+    response = TestClient(app).get("/api/health")
+
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+    assert response.json() == {"status": "unhealthy", "reason": "storage_unavailable"}
+
+
+def test_snapshot_storage_unavailable_returns_500(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_file = _write_minimal_config(tmp_path)
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL_FILE", raising=False)
+
+    response = TestClient(app).get("/api/snapshot")
+
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 # --- /api/themes ---

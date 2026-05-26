@@ -30,7 +30,8 @@ from corvix.pipeline.base import JsonFetchClient
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
-from corvix.storage import NotificationCache
+from corvix.storage import SINGLE_USER_ID, StorageBackend
+from corvix.types import UserId
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +69,13 @@ class PollCycleInput:
     """
 
     config: AppConfig
-    cache: NotificationCache
+    cache: StorageBackend
     clients: tuple[NotificationsClient, ...] = field(default_factory=tuple)
     client: NotificationsClient | None = None
     apply_actions: bool = False
     now: datetime | None = None
     notification_targets: list[NotificationTarget] | None = None
+    user_id: UserId = SINGLE_USER_ID
 
 
 def run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
@@ -124,10 +126,10 @@ def run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
     )
     errors.extend(f"hydration: {error}" for error in hydration_result.errors)
     errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
-    cycle_input.cache.save(
-        records=records,
-        generated_at=current_time,
-        poller_status=PollerStatus(
+    cycle_input.cache.save_records(cycle_input.user_id, records, current_time)
+    cycle_input.cache.save_status(
+        cycle_input.user_id,
+        PollerStatus(
             status="ok",
             last_poll_time=format_timestamp(current_time),
             last_error=None,
@@ -156,7 +158,7 @@ def _resolve_active_clients(cycle_input: PollCycleInput) -> tuple[NotificationsC
 
 def _load_previous_records(cycle_input: PollCycleInput) -> list[NotificationRecord]:
     if cycle_input.config.notifications.enabled and cycle_input.notification_targets:
-        _, previous_records = cycle_input.cache.load()
+        _, previous_records = cycle_input.cache.load_records(cycle_input.user_id)
         return previous_records
     return []
 
@@ -254,7 +256,9 @@ def _dispatch_notification_events(
     return dispatcher.dispatch(events)
 
 
-def _handle_cycle_error(iteration: int, cache: NotificationCache, runs: list[PollingSummary]) -> None:
+def _handle_cycle_error(
+    iteration: int, cache: StorageBackend, user_id: UserId, runs: list[PollingSummary]
+) -> None:
     """Record a poll-cycle failure and persist the error status."""
     error_time = datetime.now(tz=UTC)
     error_trace = traceback.format_exc()
@@ -262,17 +266,18 @@ def _handle_cycle_error(iteration: int, cache: NotificationCache, runs: list[Pol
     logger.exception("Poll cycle failed on iteration %d", iteration)
     runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
     try:
-        last_poll_time = cache.load_status().last_poll_time
+        last_poll_time = cache.load_status(user_id).last_poll_time
     except (OSError, ValueError):
         last_poll_time = None
     try:
         cache.save_status(
+            user_id,
             PollerStatus(
                 status="error",
                 last_poll_time=last_poll_time,
                 last_error=error_msg,
                 last_error_time=format_timestamp(error_time),
-            )
+            ),
         )
     except Exception:
         logger.warning("Failed to persist poller error status", exc_info=True)
@@ -289,7 +294,7 @@ def run_watch_loop(
         try:
             runs.append(run_poll_cycle(cycle_input))
         except Exception:
-            _handle_cycle_error(iteration, cycle_input.cache, runs)
+            _handle_cycle_error(iteration, cycle_input.cache, cycle_input.user_id, runs)
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break
@@ -299,12 +304,13 @@ def run_watch_loop(
 
 def render_cached_dashboards(
     config: AppConfig,
-    cache: NotificationCache,
+    cache: StorageBackend,
     console: Console,
     dashboard_name: str | None = None,
+    user_id: UserId = SINGLE_USER_ID,
 ) -> list[DashboardRenderResult]:
     """Load persisted records and render dashboards."""
-    generated_at, records = cache.load()
+    generated_at, records = cache.load_records(user_id)
     dashboards = _select_dashboards(config, dashboard_name)
     return render_dashboards(
         console=console,

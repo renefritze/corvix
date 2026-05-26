@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import socket
 import subprocess
@@ -17,13 +16,98 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 import pytest
+from alembic import command
+from alembic.config import Config
+from cryptography.fernet import Fernet
 
+from corvix.domain import NotificationRecord, PollerStatus, format_timestamp
+from corvix.storage import SINGLE_USER_ID, PostgresStorage
 from tests.e2e.playwright_types import PageLike
 
 HEALTH_TIMEOUT_SECONDS = 15.0
 HEALTH_POLL_INTERVAL_SECONDS = 0.2
 HTTP_OK = 200
 FIXED_TIMESTAMP = "2024-01-01T00:00:00Z"
+
+_RECORD_DICTS: list[dict[str, object]] = [
+    {
+        "thread_id": "101",
+        "repository": "org/repo-a",
+        "reason": "mention",
+        "subject_title": "Review API changes",
+        "subject_type": "PullRequest",
+        "unread": True,
+        "updated_at": FIXED_TIMESTAMP,
+        "thread_url": "https://api.github.com/notifications/threads/101",
+        "web_url": "https://github.com/org/repo-a/pull/101",
+        "score": 90.0,
+        "excluded": False,
+        "matched_rules": [],
+        "actions_taken": [],
+        "dismissed": False,
+    },
+    {
+        "thread_id": "102",
+        "repository": "org/repo-b",
+        "reason": "subscribed",
+        "subject_title": "Dependency update",
+        "subject_type": "PullRequest",
+        "unread": True,
+        "updated_at": FIXED_TIMESTAMP,
+        "thread_url": "https://api.github.com/notifications/threads/102",
+        "web_url": "https://github.com/org/repo-b/pull/102",
+        "score": 20.0,
+        "excluded": False,
+        "matched_rules": [],
+        "actions_taken": [],
+        "dismissed": False,
+    },
+    {
+        "thread_id": "103",
+        "repository": "org/repo-a",
+        "reason": "mention",
+        "subject_title": "Triage flaky integration test",
+        "subject_type": "Issue",
+        "unread": False,
+        "updated_at": FIXED_TIMESTAMP,
+        "thread_url": "https://api.github.com/notifications/threads/103",
+        "web_url": "https://github.com/org/repo-a/issues/103",
+        "score": 45.0,
+        "excluded": False,
+        "matched_rules": [],
+        "actions_taken": [],
+        "dismissed": False,
+    },
+]
+
+
+def _migrate_and_seed(sqlalchemy_url: str, psycopg_url: str) -> None:
+    """Apply migrations and seed the single-user notification records."""
+    alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
+    previous_url = os.environ.get("DATABASE_URL")
+    previous_key = os.environ.get("TOKEN_ENCRYPTION_KEY")
+    os.environ["DATABASE_URL"] = sqlalchemy_url
+    os.environ.setdefault("TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    try:
+        command.upgrade(Config(str(alembic_ini)), "head")
+    finally:
+        if previous_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous_url
+        if previous_key is None:
+            os.environ.pop("TOKEN_ENCRYPTION_KEY", None)
+        else:
+            os.environ["TOKEN_ENCRYPTION_KEY"] = previous_key
+
+    records = [NotificationRecord.from_dict(item) for item in _RECORD_DICTS]
+    now = datetime.now(tz=UTC)
+    with PostgresStorage(connection_string=psycopg_url) as storage:
+        storage.save_records(SINGLE_USER_ID, records, now)
+        storage.save_status(
+            SINGLE_USER_ID,
+            PollerStatus(status="ok", last_poll_time=format_timestamp(now), last_error=None, last_error_time=None),
+        )
 
 
 @pytest.fixture(scope="session")
@@ -91,84 +175,18 @@ def _wait_for_health(base_url: str, timeout_seconds: float = HEALTH_TIMEOUT_SECO
 
 @pytest.fixture()
 def corvix_server(tmp_path_factory: pytest.TempPathFactory, mock_github_api: str) -> Generator[str]:
-    # Function scope avoids cross-test state leakage (dismissed rows persisted in cache)
-    # and keeps CI behavior deterministic regardless of test order.
+    # Function scope avoids cross-test state leakage (dismissed rows persisted in the
+    # database) and keeps CI behavior deterministic regardless of test order.
     pytest.importorskip("playwright")
+    testcontainers = pytest.importorskip("testcontainers.postgres")
 
     base_dir = tmp_path_factory.mktemp("corvix-e2e")
-    cache_file = base_dir / "notifications.json"
     config_file = base_dir / "corvix.yaml"
-    cache_file.write_text(
-        json.dumps(
-            {
-                "generated_at": FIXED_TIMESTAMP,
-                "poller_status": {
-                    "status": "ok",
-                    "last_poll_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                    "last_error": None,
-                    "last_error_time": None,
-                },
-                "notifications": [
-                    {
-                        "thread_id": "101",
-                        "repository": "org/repo-a",
-                        "reason": "mention",
-                        "subject_title": "Review API changes",
-                        "subject_type": "PullRequest",
-                        "unread": True,
-                        "updated_at": FIXED_TIMESTAMP,
-                        "thread_url": "https://api.github.com/notifications/threads/101",
-                        "web_url": "https://github.com/org/repo-a/pull/101",
-                        "score": 90.0,
-                        "excluded": False,
-                        "matched_rules": [],
-                        "actions_taken": [],
-                        "dismissed": False,
-                    },
-                    {
-                        "thread_id": "102",
-                        "repository": "org/repo-b",
-                        "reason": "subscribed",
-                        "subject_title": "Dependency update",
-                        "subject_type": "PullRequest",
-                        "unread": True,
-                        "updated_at": FIXED_TIMESTAMP,
-                        "thread_url": "https://api.github.com/notifications/threads/102",
-                        "web_url": "https://github.com/org/repo-b/pull/102",
-                        "score": 20.0,
-                        "excluded": False,
-                        "matched_rules": [],
-                        "actions_taken": [],
-                        "dismissed": False,
-                    },
-                    {
-                        "thread_id": "103",
-                        "repository": "org/repo-a",
-                        "reason": "mention",
-                        "subject_title": "Triage flaky integration test",
-                        "subject_type": "Issue",
-                        "unread": False,
-                        "updated_at": FIXED_TIMESTAMP,
-                        "thread_url": "https://api.github.com/notifications/threads/103",
-                        "web_url": "https://github.com/org/repo-a/issues/103",
-                        "score": 45.0,
-                        "excluded": False,
-                        "matched_rules": [],
-                        "actions_taken": [],
-                        "dismissed": False,
-                    },
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
     config_file.write_text(
         f"""
 github:
   token_env: GITHUB_TOKEN
   api_base_url: {mock_github_api}
-state:
-  cache_file: {cache_file}
 dashboards:
   - name: overview
     group_by: repository
@@ -190,36 +208,50 @@ dashboards:
         encoding="utf-8",
     )
 
-    port = _find_free_port()
-    base_url = f"http://127.0.0.1:{port}"
-    env = os.environ.copy()
-    env["CORVIX_CONFIG"] = str(config_file)
-    env["PYTHONPATH"] = str(Path.cwd() / "src")
-    env["GITHUB_TOKEN"] = "dummy-e2e-token"
-    process = subprocess.Popen(
-        [
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "uvicorn",
-            "corvix.web.app:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
+    container = testcontainers.PostgresContainer("postgres:16-alpine")
     try:
-        _wait_for_health(base_url)
-        yield base_url
+        container.start()
+    except Exception as error:  # pragma: no cover - environment dependent
+        pytest.skip(f"Could not start Postgres test container: {error}")
+    try:
+        raw_url = container.get_connection_url()
+        sqlalchemy_url = raw_url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+        psycopg_url = raw_url.replace("postgresql+psycopg2://", "postgresql://", 1)
+        _migrate_and_seed(sqlalchemy_url, psycopg_url)
+
+        port = _find_free_port()
+        base_url = f"http://127.0.0.1:{port}"
+        env = os.environ.copy()
+        env["CORVIX_CONFIG"] = str(config_file)
+        env["PYTHONPATH"] = str(Path.cwd() / "src")
+        env["GITHUB_TOKEN"] = "dummy-e2e-token"
+        env["DATABASE_URL"] = psycopg_url
+        env.pop("DATABASE_URL_FILE", None)
+        process = subprocess.Popen(
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "uvicorn",
+                "corvix.web.app:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+            ],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            _wait_for_health(base_url)
+            yield base_url
+        finally:
+            process.terminate()
+            process.wait(timeout=5)
     finally:
-        process.terminate()
-        process.wait(timeout=5)
+        container.stop()
 
 
 @pytest.fixture()

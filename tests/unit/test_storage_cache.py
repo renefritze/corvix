@@ -311,6 +311,7 @@ def test_load_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
 def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     cache = _cache(tmp_path)
     cache.save_status(
+        "",
         PollerStatus(
             status="ok",
             last_poll_time="2024-01-01T00:00:00Z",
@@ -339,6 +340,7 @@ def test_load_status_reads_unlocked_when_lock_cannot_be_opened(tmp_path: Path, m
     exist either; the read must still succeed instead of returning defaults."""
     cache = _cache(tmp_path)
     cache.save_status(
+        "",
         PollerStatus(
             status="ok",
             last_poll_time="2024-01-01T00:00:00Z",
@@ -377,6 +379,7 @@ def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
     cache.path.write_text('{"notifications": invalid', encoding="utf-8")
 
     cache.save_status(
+        "",
         PollerStatus(
             status="error",
             last_poll_time=None,

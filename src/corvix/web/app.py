@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import signal
+import threading
 from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -31,7 +32,7 @@ from corvix.dashboarding import build_dashboard_data
 from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
-from corvix.storage import NotificationCache
+from corvix.storage import SINGLE_USER_ID, StorageBackend, StorageConfigError, create_storage
 from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
 
 logger = logging.getLogger(__name__)
@@ -229,26 +230,39 @@ def _health_response(payload: dict[str, object]) -> Response[dict[str, object]]:
     return Response(content=payload, status_code=status_code, media_type="application/json")
 
 
+def _read_health_poller_status() -> PollerStatus | dict[str, object]:
+    """Resolve the poller status for the health check, or a failure payload."""
+    try:
+        _load_runtime_config()
+    except HTTPException:
+        return {"status": "unhealthy", "reason": "config_unavailable"}
+    try:
+        storage = _get_storage()
+    except HTTPException:
+        return {"status": "unhealthy", "reason": "storage_unavailable"}
+    try:
+        return storage.load_status(SINGLE_USER_ID)
+    except (OSError, json.JSONDecodeError):
+        return {"status": "unhealthy", "reason": "invalid_cache"}
+    except Exception:
+        logger.exception("Failed to read poller status from storage")
+        return {"status": "unhealthy", "reason": "storage_unavailable"}
+
+
 @get("/api/health")
 def health() -> Response[dict[str, object]]:
     """Health endpoint for container checks.
 
-    Returns 200 with {"status": "ok"} when config and cache are readable,
+    Returns 200 with {"status": "ok"} when config and storage are readable,
     the poller is running, and the poller's last poll time is not stale.
 
     Returns 503 with {"status": "unhealthy"} and one of these reasons:
-    "config_unavailable", "invalid_cache", "poller_not_running",
-    "poller_error", "invalid_poll_time", or "stale".
+    "config_unavailable", "storage_unavailable", "invalid_cache",
+    "poller_not_running", "poller_error", "invalid_poll_time", or "stale".
     """
-    try:
-        config = _load_runtime_config()
-    except HTTPException:
-        return _health_response({"status": "unhealthy", "reason": "config_unavailable"})
-    cache = NotificationCache(path=config.resolve_cache_file())
-    try:
-        poller_status = cache.load_status()
-    except (OSError, json.JSONDecodeError):
-        return _health_response({"status": "unhealthy", "reason": "invalid_cache"})
+    poller_status = _read_health_poller_status()
+    if isinstance(poller_status, dict):
+        return _health_response(poller_status)
     if poller_status.status == "error":
         return _health_response(_health_error(poller_status))
     if poller_status.status in {"unknown", "starting"}:
@@ -275,12 +289,12 @@ def dashboards() -> dict[str, object]:
 
 @get("/api/snapshot")
 def snapshot(dashboard: str | None = None) -> dict[str, object]:
-    """Return the selected dashboard data from cache."""
+    """Return the selected dashboard data from storage."""
     config = _load_runtime_config()
-    cache = NotificationCache(path=config.resolve_cache_file())
-    generated_at, records = cache.load()
+    storage = _get_storage()
+    generated_at, records = storage.load_records(SINGLE_USER_ID)
     try:
-        poller_status = cache.load_status()
+        poller_status = storage.load_status(SINGLE_USER_ID)
     except (OSError, json.JSONDecodeError):
         poller_status = PollerStatus()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
@@ -333,10 +347,10 @@ def notification_rule_snippets(
     config = _load_runtime_config()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     _require_account(config=config, account_id=account_id)
-    _generated_at, records = NotificationCache(path=config.resolve_cache_file()).load()
+    _generated_at, records = _get_storage().load_records(SINGLE_USER_ID)
     record = _find_record(records=records, account_id=account_id, thread_id=thread_id)
     if record is None:
-        msg = f"Notification '{account_id}/{thread_id}' not found in cache."
+        msg = f"Notification '{account_id}/{thread_id}' not found in storage."
         raise HTTPException(status_code=404, detail=msg)
 
     base_match = _rule_match_lines(record=record, include_context=False)
@@ -405,8 +419,7 @@ def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None
         msg = f"Failed to dismiss thread {thread_id}: {error}"
         raise HTTPException(status_code=502, detail=msg) from error
 
-    cache = NotificationCache(path=config.resolve_cache_file())
-    cache.dismiss_record(user_id="", account_id=account_id, thread_id=thread_id)
+    _get_storage().dismiss_record(user_id=SINGLE_USER_ID, thread_id=thread_id, account_id=account_id)
     return Response(content=None, status_code=204)
 
 
@@ -429,8 +442,7 @@ def _mark_notification_read_impl(account_id: str, thread_id: str) -> Response[No
         msg = f"Failed to mark thread {thread_id} as read."
         raise HTTPException(status_code=502, detail=msg) from error
 
-    cache = NotificationCache(path=config.resolve_cache_file())
-    cache.mark_record_read(user_id="", account_id=account_id, thread_id=thread_id)
+    _get_storage().mark_record_read(user_id=SINGLE_USER_ID, thread_id=thread_id, account_id=account_id)
     return Response(content=None, status_code=204)
 
 
@@ -597,6 +609,48 @@ class _ConfigCache:
 
 
 _config_cache = _ConfigCache()
+
+
+class _StorageState:
+    """Mutable container for the module-level storage backend."""
+
+    backend: StorageBackend | None = None
+    lock: threading.Lock = threading.Lock()
+
+
+_storage_state = _StorageState()
+
+
+def set_storage_backend(backend: StorageBackend | None) -> None:
+    """Inject the storage backend used by route handlers.
+
+    Production wiring leaves this unset and the backend is built lazily from
+    config (PostgreSQL is required). Tests inject a backend directly and reset
+    it to ``None`` afterwards.
+    """
+    _storage_state.backend = backend
+
+
+def _get_storage() -> StorageBackend:
+    """Return the injected backend, or lazily build PostgreSQL storage from config.
+
+    The built backend is cached so its connection pool is reused across
+    requests. Building is guarded by a lock so concurrent first requests don't
+    each create (and leak) a connection pool. Raises ``HTTPException`` (500)
+    when no database is configured.
+    """
+    if _storage_state.backend is not None:
+        return _storage_state.backend
+    with _storage_state.lock:
+        if _storage_state.backend is not None:
+            return _storage_state.backend
+        config = _load_runtime_config()
+        try:
+            backend = create_storage(config)
+        except StorageConfigError as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+        _storage_state.backend = backend
+        return backend
 
 
 def _clear_config_cache() -> None:

@@ -3,14 +3,23 @@ services:
   web-lighthouse:
     build:
       context: .
+    # Migrate + seed inline rather than depending on the one-shot `migrate`
+    # service: the lighthouse job runs `up --abort-on-container-exit`, which
+    # would tear everything down the moment that one-shot container exits.
     entrypoint:
     - sh
     - -c
-    - python /fixtures/prepare_fixture.py && exec uvicorn corvix.web.app:app --host 0.0.0.0 --port 8000
+    - alembic upgrade head && python /fixtures/prepare_fixture.py && exec uvicorn corvix.web.app:app --host 0.0.0.0 --port
+      8000
     environment:
       CORVIX_CONFIG: /fixtures/corvix.lighthouse.yaml
       LH_TEMPLATE: /fixtures/notifications.json
-      LH_CACHE: /var/cache/corvix/notifications.json
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+    - database_url
+    depends_on:
+      db:
+        condition: service_healthy
     ports: ["4173:8000"]
     volumes:
     - ./tests/lighthouse:/fixtures:ro
