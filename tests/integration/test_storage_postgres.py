@@ -75,6 +75,16 @@ def storage(migrated_postgres_url: str) -> Generator[PostgresStorage]:
             cur.execute(
                 "TRUNCATE TABLE notification_records, push_subscriptions, user_preferences, users RESTART IDENTITY CASCADE"
             )
+            # TRUNCATE wipes the migration-seeded single-user row; re-seed it so each
+            # test starts from the post-migration state production relies on.
+            cur.execute(
+                """
+                INSERT INTO users (id, github_login, github_token, created_at, updated_at)
+                VALUES (%s, '__corvix_single_user__', '', now(), now())
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (SINGLE_USER_ID,),
+            )
         conn.commit()
     with PostgresStorage(connection_string=migrated_postgres_url) as pg_storage:
         yield pg_storage
