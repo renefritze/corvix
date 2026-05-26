@@ -15,6 +15,7 @@ from corvix.config import (
     DashboardSpec,
     EnrichmentConfig,
     GitHubLatestCommentEnrichmentConfig,
+    GitHubPRStateEnrichmentConfig,
     MatchCriteria,
     PollingConfig,
     Rule,
@@ -603,6 +604,59 @@ def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:
     assert summary.errors[0].startswith("pipeline: provider=github.latest_comment")
     _, records = cache.load()
     assert len(records) == 1
+
+
+def test_poll_cycle_pr_state_provider_included_when_enabled(tmp_path: Path) -> None:
+    """github_pr_state provider is registered in the pipeline when configured."""
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    config.enrichment = EnrichmentConfig(
+        enabled=True,
+        github_pr_state=GitHubPRStateEnrichmentConfig(enabled=True, timeout_seconds=1.0),
+    )
+    notifications = [
+        Notification(
+            thread_id="pr-1",
+            repository="org/repo",
+            reason="review_requested",
+            subject_title="Add feature",
+            subject_type="PullRequest",
+            unread=True,
+            updated_at=now,
+            thread_url="https://api.example.com/notifications/threads/pr-1",
+            subject_url="https://api.example.com/repos/org/repo/pulls/1",
+        )
+    ]
+    client = FakeClient(
+        notifications,
+        responses={
+            "https://api.example.com/repos/org/repo/pulls/1": {
+                "state": "open",
+                "merged": False,
+                "draft": False,
+                "user": {"login": "alice"},
+            },
+        },
+    )
+    cache = NotificationCache(path=cache_path)
+
+    summary = run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
+    )
+
+    assert summary.fetched == 1
+    assert summary.errors == []
+    _, records = cache.load()
+    assert len(records) == 1
+    pr_state = records[0].context.get("github", {}).get("pr_state", {})
+    assert pr_state.get("state") == "open"
 
 
 # --- _select_dashboards ---

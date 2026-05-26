@@ -169,15 +169,23 @@ coverage_c_regexes = {}
 coverage_ignore_c_items = {}
 
 # PyQt5 inventory is only used internally, actual link targets PySide2
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "PyQt5": ("https://www.riverbankcomputing.com/static/Docs/PyQt5", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
-    "matplotlib": ("https://matplotlib.org", None),
-    "Sphinx": (" https://www.sphinx-doc.org/en/master/", None),
-    "sqlalchemy": ("https://docs.sqlalchemy.org/en/20/", None),
-}
+# Intersphinx fetches are disabled in CI because the network policy blocks
+# external HTTP requests (403 Forbidden).  External cross-references still
+# resolve correctly in local builds and on the published docs site.
+_in_ci = bool(os.getenv("CI") or os.getenv("GITHUB_ACTIONS"))
+intersphinx_mapping: dict[str, tuple[str, str | None]] = (
+    {}
+    if _in_ci
+    else {
+        "python": ("https://docs.python.org/3", None),
+        "numpy": ("https://numpy.org/doc/stable/", None),
+        "PyQt5": ("https://www.riverbankcomputing.com/static/Docs/PyQt5", None),
+        "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
+        "matplotlib": ("https://matplotlib.org", None),
+        "Sphinx": ("https://www.sphinx-doc.org/en/master/", None),
+        "sqlalchemy": ("https://docs.sqlalchemy.org/en/20/", None),
+    }
+)
 
 
 def linkcode_resolve(domain: str, info: dict[str, str]) -> str | None:

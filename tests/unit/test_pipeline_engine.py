@@ -224,7 +224,7 @@ def test_shared_url_cache_between_field_and_context_providers() -> None:
     assert client.calls == ["https://api.example.com/shared"]
     assert result.notifications[0].web_url == "https://github.com/org/repo"
     assert result.contexts_by_notification_key["primary:1"]["test"]["caching_context"]["shared"] == {
-        "url": "https://github.com/org/repo"
+        "url": "https://github.com/org/repo",
     }
 
 
@@ -240,7 +240,7 @@ def test_shared_budget_exhausted_across_providers() -> None:
         responses={
             "https://api.example.com/1": {},
             "https://api.example.com/2": {},
-        }
+        },
     )
     engine = PipelineEngine(
         providers=[_FetchingContextProvider()],
