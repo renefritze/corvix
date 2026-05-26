@@ -72,13 +72,20 @@ class RuleSet:
 
 def _parse_match(value: object, *, section: str = "match") -> MatchCriteria:
     match = _ensure_map(value, section)
+    title_regex = _get_optional_str(match, "title_regex", f"{section}.title_regex")
+    if title_regex is not None:
+        try:
+            re.compile(title_regex)
+        except re.error as error:
+            msg = f"Config field '{section}.title_regex' contains an invalid regex: {error}."
+            raise ValueError(msg) from error
     return MatchCriteria(
         repository_in=_to_str_list(match.get("repository_in")),
         repository_glob=_to_str_list(match.get("repository_glob")),
         reason_in=_to_str_list(match.get("reason_in")),
         subject_type_in=_to_str_list(match.get("subject_type_in")),
         title_contains_any=_to_str_list(match.get("title_contains_any")),
-        title_regex=_get_optional_str(match, "title_regex", f"{section}.title_regex"),
+        title_regex=title_regex,
         unread=_get_optional_bool(match, "unread", f"{section}.unread"),
         min_score=_get_optional_float(match, "min_score", f"{section}.min_score"),
         max_age_hours=_get_optional_float(match, "max_age_hours", f"{section}.max_age_hours"),
