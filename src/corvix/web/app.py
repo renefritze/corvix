@@ -490,7 +490,7 @@ def notification_rule_snippets_deprecated(
 def dismiss_notification_deprecated(account_id: str, thread_id: str) -> Response[None]:
     """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/dismiss."""
     _dismiss_notification_impl(account_id=account_id, thread_id=thread_id)
-    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
 
 
 @post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=True)
@@ -498,14 +498,14 @@ def dismiss_notification_default_account(thread_id: str) -> Response[None]:
     """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/dismiss."""
     config = _load_runtime_config()
     _dismiss_notification_impl(account_id=_default_account_id(config), thread_id=thread_id)
-    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
 
 
 @post("/api/notifications/{account_id:str}/{thread_id:str}/mark-read", sync_to_thread=True)
 def mark_notification_read_deprecated(account_id: str, thread_id: str) -> Response[None]:
     """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/mark-read."""
     _mark_notification_read_impl(account_id=account_id, thread_id=thread_id)
-    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
 
 
 @post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=True)
@@ -513,7 +513,7 @@ def mark_notification_read_default_account(thread_id: str) -> Response[None]:
     """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/mark-read."""
     config = _load_runtime_config()
     _mark_notification_read_impl(account_id=_default_account_id(config), thread_id=thread_id)
-    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
 
 
 def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None]:
