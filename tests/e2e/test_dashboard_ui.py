@@ -216,7 +216,7 @@ def test_server_error_shows_error_state(page: PageLike, corvix_server: str) -> N
     expect = pytest.importorskip("playwright.sync_api").expect
 
     page.route(
-        "**/api/snapshot",
+        "**/api/v1/snapshot",
         lambda route: route.fulfill(
             status=500,
             content_type="application/json",
