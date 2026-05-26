@@ -55,7 +55,7 @@ class PipelineRunResult:
         """Backward-compatible thread-keyed view of :attr:`contexts_by_notification_key`."""
         output: dict[str, dict[str, object]] = {}
         for key, value in self.contexts_by_notification_key.items():
-            _, _, thread_id = key.partition(":")
+            _, _, thread_id = key.rpartition(":")
             output[thread_id] = value
         return output
 
@@ -119,14 +119,14 @@ class PipelineEngine:
             current = notification
             for provider in self.providers:
                 try:
-                    if isinstance(provider, FieldProvider):
-                        current = provider.hydrate(
+                    if hasattr(provider, "hydrate"):
+                        current = provider.hydrate(  # type: ignore[union-attr]
                             notification=current,
                             client=notification_client,
                             ctx=context,
                         )
-                    elif isinstance(provider, ContextProvider):
-                        payload = provider.enrich(
+                    elif hasattr(provider, "enrich"):
+                        payload = provider.enrich(  # type: ignore[union-attr]
                             notification=current,
                             client=notification_client,
                             ctx=context,
@@ -134,7 +134,8 @@ class PipelineEngine:
                         if payload:
                             _set_nested_namespace(contexts_by_notification_key[key], provider.name, payload)
                 except Exception as error:
-                    errors.append(f"provider={provider.name} thread={current.thread_id}: {error}")
+                    provider_name = getattr(provider, "name", repr(provider))
+                    errors.append(f"provider={provider_name} thread={current.thread_id}: {error}")
             hydrated[i] = current
 
         return PipelineRunResult(
