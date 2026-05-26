@@ -44,14 +44,20 @@ def _get_fernet() -> Fernet:
 
 def upgrade() -> None:
     """Encrypt any existing plaintext github_token values in the users table."""
-    fernet = _get_fernet()
     conn = op.get_bind()
+
+    # Resolve the key lazily on first use: a fresh database has no plaintext
+    # tokens to encrypt, so the migration must not require TOKEN_ENCRYPTION_KEY
+    # to be set (new deployments and the one-shot migrate job run with no key).
+    fernet: Fernet | None = None
 
     # Iterate without fetchall() to avoid loading all rows into memory at once.
     for row in conn.execute(sa.text("SELECT id, github_token FROM users")):
         user_id, token = row
         if not token:
             continue
+        if fernet is None:
+            fernet = _get_fernet()
         # Fernet ciphertext always starts with the version byte 0x80, which
         # encodes to "gAAAAA" in URL-safe base64.
         if token.startswith("gAAAAA"):
