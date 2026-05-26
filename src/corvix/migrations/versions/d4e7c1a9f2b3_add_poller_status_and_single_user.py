@@ -45,7 +45,7 @@ def upgrade() -> None:
         sa.text(
             """
             INSERT INTO users (id, github_login, github_token, created_at, updated_at)
-            VALUES (:user_id, '__corvix_single_user__', '', now(), now())
+            VALUES (CAST(:user_id AS uuid), '__corvix_single_user__', '', now(), now())
             ON CONFLICT (id) DO NOTHING
             """
         ).bindparams(user_id=SINGLE_USER_ID)

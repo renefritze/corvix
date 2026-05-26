@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import signal
+import threading
 from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -614,6 +615,7 @@ class _StorageState:
     """Mutable container for the module-level storage backend."""
 
     backend: StorageBackend | None = None
+    lock: threading.Lock = threading.Lock()
 
 
 _storage_state = _StorageState()
@@ -633,17 +635,22 @@ def _get_storage() -> StorageBackend:
     """Return the injected backend, or lazily build PostgreSQL storage from config.
 
     The built backend is cached so its connection pool is reused across
-    requests. Raises ``HTTPException`` (500) when no database is configured.
+    requests. Building is guarded by a lock so concurrent first requests don't
+    each create (and leak) a connection pool. Raises ``HTTPException`` (500)
+    when no database is configured.
     """
     if _storage_state.backend is not None:
         return _storage_state.backend
-    config = _load_runtime_config()
-    try:
-        backend = create_storage(config)
-    except StorageConfigError as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
-    _storage_state.backend = backend
-    return backend
+    with _storage_state.lock:
+        if _storage_state.backend is not None:
+            return _storage_state.backend
+        config = _load_runtime_config()
+        try:
+            backend = create_storage(config)
+        except StorageConfigError as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+        _storage_state.backend = backend
+        return backend
 
 
 def _clear_config_cache() -> None:

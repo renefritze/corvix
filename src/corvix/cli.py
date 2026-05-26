@@ -267,8 +267,14 @@ def poller_health_command(ctx: click.Context) -> None:
         msg = f"Poller status has an invalid last poll time: {status.last_poll_time!r}"
         raise click.ClickException(msg) from error
     age = datetime.now(tz=UTC) - last_poll
-    if age > timedelta(minutes=5):
-        msg = f"Poller is stale: {int(age.total_seconds())}s since last successful poll."
+    # Allow two poll cycles (with a 5-minute floor) before flagging staleness so a
+    # single delayed cycle or a longer configured interval doesn't trip the check.
+    threshold_seconds = max(300, app_config.polling.interval_seconds * 2)
+    if age > timedelta(seconds=threshold_seconds):
+        msg = (
+            f"Poller is stale: {int(age.total_seconds())}s since last successful poll "
+            f"(threshold: {threshold_seconds}s)."
+        )
         raise click.ClickException(msg)
     click.echo("ok")
 
