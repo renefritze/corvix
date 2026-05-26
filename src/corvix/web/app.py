@@ -32,6 +32,9 @@ from corvix.dashboarding import build_dashboard_data
 from corvix.domain import NotificationRecord, PollerStatus, parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
+from corvix.observability import configure_logging, setup_tracing
+from corvix.observability import metrics as _metrics
+from corvix.observability.middleware import ObservabilityMiddleware
 from corvix.storage import SINGLE_USER_ID, StorageBackend, StorageConfigError, create_storage
 from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
 
@@ -385,6 +388,16 @@ def health() -> Response[dict[str, object]]:
     "poller_not_running", "poller_error", "invalid_poll_time", or "stale".
     """
     return _health_impl()
+
+
+@get("/metrics", sync_to_thread=False)
+def metrics_endpoint() -> Response[bytes]:
+    """Expose Prometheus metrics in text exposition format for scraping."""
+    payload, content_type = _metrics.render_latest()
+    # Litestar appends "; charset=utf-8" to text media types, so strip any
+    # charset already present in the Prometheus content type to avoid a duplicate.
+    media_type = content_type.split("; charset=", 1)[0]
+    return Response(content=payload, media_type=media_type)
 
 
 @get("/api/v1/themes", sync_to_thread=False)
@@ -859,6 +872,16 @@ def _dashboard_names(dashboards: list[DashboardSpec]) -> list[str]:
     return [dashboard.name for dashboard in available]
 
 
+def _configure_observability() -> None:
+    """Configure structured logging and optional tracing at app startup.
+
+    Runs as a Litestar startup hook so it applies whether the app is launched
+    via ``corvix serve`` or directly through ``uvicorn corvix.web.app:app``.
+    """
+    configure_logging()
+    setup_tracing(service_name="corvix-web")
+
+
 app = Litestar(
     route_handlers=[
         index,
@@ -866,6 +889,7 @@ app = Litestar(
         login_page,
         login,
         logout,
+        metrics_endpoint,
         # /api/v1/ — versioned routes (current)
         health,
         api_themes,
@@ -890,7 +914,8 @@ app = Litestar(
             cache_control=_ASSET_CACHE_CONTROL,
         ),
     ],
-    middleware=[TokenAuthMiddleware()],
+    middleware=[ObservabilityMiddleware(), TokenAuthMiddleware()],
+    on_startup=[_configure_observability],
     compression_config=CompressionConfig(backend="gzip", minimum_size=500),
 )
 
