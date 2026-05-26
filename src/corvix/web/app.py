@@ -249,47 +249,45 @@ def _read_health_poller_status() -> PollerStatus | dict[str, object]:
         return {"status": "unhealthy", "reason": "storage_unavailable"}
 
 
-@get("/api/health")
-def health() -> Response[dict[str, object]]:
-    """Health endpoint for container checks.
+_DEPRECATION_HEADER = "Deprecation"
+_DEPRECATION_HEADER_VALUE = "true"
 
-    Returns 200 with {"status": "ok"} when config and storage are readable,
-    the poller is running, and the poller's last poll time is not stale.
 
-    Returns 503 with {"status": "unhealthy"} and one of these reasons:
-    "config_unavailable", "storage_unavailable", "invalid_cache",
-    "poller_not_running", "poller_error", "invalid_poll_time", or "stale".
-    """
+# ---------------------------------------------------------------------------
+# Implementation helpers
+# These plain (non-decorated) functions contain the business logic shared
+# between the versioned /api/v1/ route handlers and the deprecated /api/
+# backward-compat wrappers.  Never call the decorated Litestar route handlers
+# directly — use these helpers instead.
+# ---------------------------------------------------------------------------
+
+
+def _health_impl(extra_headers: dict[str, str] | None = None) -> Response[dict[str, object]]:
+    """Compute and return the health check response."""
     poller_status = _read_health_poller_status()
     if isinstance(poller_status, dict):
-        return _health_response(poller_status)
-    if poller_status.status == "error":
-        return _health_response(_health_error(poller_status))
-    if poller_status.status in {"unknown", "starting"}:
-        return _health_response({"status": "unhealthy", "reason": "poller_not_running"})
-    last_poll_str = poller_status.last_poll_time
-    if not last_poll_str:
-        return _health_response({"status": "unhealthy", "reason": "invalid_poll_time"})
-    return _health_response(_health_check_staleness(last_poll_str))
+        payload = poller_status
+    elif poller_status.status == "error":
+        payload = _health_error(poller_status)
+    elif poller_status.status in {"unknown", "starting"}:
+        payload = {"status": "unhealthy", "reason": "poller_not_running"}
+    else:
+        last_poll_str = poller_status.last_poll_time
+        if not last_poll_str:
+            payload = {"status": "unhealthy", "reason": "invalid_poll_time"}
+        else:
+            payload = _health_check_staleness(last_poll_str)
+    status_code = HTTPStatus.OK if payload.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
+    return Response(
+        content=payload,
+        status_code=int(status_code),
+        media_type="application/json",
+        headers=extra_headers,
+    )
 
 
-@get("/api/themes", sync_to_thread=False)
-def api_themes() -> dict[str, object]:
-    """Return available theme presets."""
-    return {"themes": THEMES}
-
-
-@get("/api/dashboards")
-def dashboards() -> dict[str, object]:
-    """List configured dashboard names."""
-    config = _load_runtime_config()
-    names = _dashboard_names(config.dashboards)
-    return {"dashboard_names": names}
-
-
-@get("/api/snapshot")
-def snapshot(dashboard: str | None = None) -> dict[str, object]:
-    """Return the selected dashboard data from storage."""
+def _snapshot_impl(dashboard: str | None = None) -> dict[str, object]:
+    """Compute and return the snapshot payload dict."""
     config = _load_runtime_config()
     storage = _get_storage()
     generated_at, records = storage.load_records(SINGLE_USER_ID)
@@ -337,13 +335,12 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
     return payload
 
 
-@get("/api/notifications/{account_id:str}/{thread_id:str}/rule-snippets")
-def notification_rule_snippets(
+def _notification_rule_snippets_impl(
     account_id: str,
     thread_id: str,
     dashboard: str | None = None,
 ) -> dict[str, object]:
-    """Return prefilled ignore-rule snippets for a notification."""
+    """Compute and return the rule-snippets payload dict."""
     config = _load_runtime_config()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     _require_account(config=config, account_id=account_id)
@@ -352,7 +349,6 @@ def notification_rule_snippets(
     if record is None:
         msg = f"Notification '{account_id}/{thread_id}' not found in storage."
         raise HTTPException(status_code=404, detail=msg)
-
     base_match = _rule_match_lines(record=record, include_context=False)
     context_match = _rule_match_lines(record=record, include_context=True)
     return {
@@ -371,7 +367,56 @@ def notification_rule_snippets(
     }
 
 
-@post("/api/notifications/{account_id:str}/{thread_id:str}/dismiss", sync_to_thread=True)
+# ---------------------------------------------------------------------------
+# /api/v1/ — versioned route handlers (current API)
+# ---------------------------------------------------------------------------
+
+
+@get("/api/v1/health")
+def health() -> Response[dict[str, object]]:
+    """Health endpoint for container checks.
+
+    Returns 200 with {"status": "ok"} when config and storage are readable,
+    the poller is running, and the poller's last poll time is not stale.
+
+    Returns 503 with {"status": "unhealthy"} and one of these reasons:
+    "config_unavailable", "storage_unavailable", "invalid_cache",
+    "poller_not_running", "poller_error", "invalid_poll_time", or "stale".
+    """
+    return _health_impl()
+
+
+@get("/api/v1/themes", sync_to_thread=False)
+def api_themes() -> dict[str, object]:
+    """Return available theme presets."""
+    return {"themes": THEMES}
+
+
+@get("/api/v1/dashboards")
+def dashboards() -> dict[str, object]:
+    """List configured dashboard names."""
+    config = _load_runtime_config()
+    names = _dashboard_names(config.dashboards)
+    return {"dashboard_names": names}
+
+
+@get("/api/v1/snapshot")
+def snapshot(dashboard: str | None = None) -> dict[str, object]:
+    """Return the selected dashboard data from storage."""
+    return _snapshot_impl(dashboard=dashboard)
+
+
+@get("/api/v1/notifications/{account_id:str}/{thread_id:str}/rule-snippets")
+def notification_rule_snippets(
+    account_id: str,
+    thread_id: str,
+    dashboard: str | None = None,
+) -> dict[str, object]:
+    """Return prefilled ignore-rule snippets for a notification."""
+    return _notification_rule_snippets_impl(account_id=account_id, thread_id=thread_id, dashboard=dashboard)
+
+
+@post("/api/v1/notifications/{account_id:str}/{thread_id:str}/dismiss", sync_to_thread=True)
 def dismiss_notification(account_id: str, thread_id: str) -> Response[None]:
     """Dismiss a notification thread (removes it from the GitHub inbox).
 
@@ -381,24 +426,93 @@ def dismiss_notification(account_id: str, thread_id: str) -> Response[None]:
     return _dismiss_notification_impl(account_id=account_id, thread_id=thread_id)
 
 
-@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=True)
-def dismiss_notification_default_account(thread_id: str) -> Response[None]:
-    """Backward-compatible dismiss endpoint for default account."""
-    config = _load_runtime_config()
-    return _dismiss_notification_impl(account_id=_default_account_id(config), thread_id=thread_id)
-
-
-@post("/api/notifications/{account_id:str}/{thread_id:str}/mark-read", sync_to_thread=True)
+@post("/api/v1/notifications/{account_id:str}/{thread_id:str}/mark-read", sync_to_thread=True)
 def mark_notification_read(account_id: str, thread_id: str) -> Response[None]:
     """Mark a notification thread as read in GitHub and local storage."""
     return _mark_notification_read_impl(account_id=account_id, thread_id=thread_id)
 
 
+# ---------------------------------------------------------------------------
+# Deprecated /api/ routes — kept for backward compatibility during transition.
+# All routes below mirror their /api/v1/ counterparts but include a
+# ``Deprecation: true`` response header (RFC 8594). Clients should migrate to
+# the /api/v1/ equivalents. These routes will be removed in a future release.
+# ---------------------------------------------------------------------------
+
+_DEPRECATED_HEADERS = {_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE}
+
+
+@get("/api/health")
+def health_deprecated() -> Response[dict[str, object]]:
+    """Deprecated: use /api/v1/health."""
+    return _health_impl(extra_headers=_DEPRECATED_HEADERS)
+
+
+@get("/api/themes", sync_to_thread=False)
+def api_themes_deprecated() -> Response[dict[str, object]]:
+    """Deprecated: use /api/v1/themes."""
+    return Response(content={"themes": THEMES}, headers=_DEPRECATED_HEADERS)
+
+
+@get("/api/dashboards")
+def dashboards_deprecated() -> Response[dict[str, object]]:
+    """Deprecated: use /api/v1/dashboards."""
+    config = _load_runtime_config()
+    names = _dashboard_names(config.dashboards)
+    return Response(content={"dashboard_names": names}, headers=_DEPRECATED_HEADERS)
+
+
+@get("/api/snapshot")
+def snapshot_deprecated(dashboard: str | None = None) -> Response[dict[str, object]]:
+    """Deprecated: use /api/v1/snapshot."""
+    return Response(content=_snapshot_impl(dashboard=dashboard), headers=_DEPRECATED_HEADERS)
+
+
+@get("/api/notifications/{account_id:str}/{thread_id:str}/rule-snippets")
+def notification_rule_snippets_deprecated(
+    account_id: str,
+    thread_id: str,
+    dashboard: str | None = None,
+) -> Response[dict[str, object]]:
+    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/rule-snippets."""
+    return Response(
+        content=_notification_rule_snippets_impl(
+            account_id=account_id,
+            thread_id=thread_id,
+            dashboard=dashboard,
+        ),
+        headers=_DEPRECATED_HEADERS,
+    )
+
+
+@post("/api/notifications/{account_id:str}/{thread_id:str}/dismiss", sync_to_thread=True)
+def dismiss_notification_deprecated(account_id: str, thread_id: str) -> Response[None]:
+    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/dismiss."""
+    _dismiss_notification_impl(account_id=account_id, thread_id=thread_id)
+    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+
+
+@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=True)
+def dismiss_notification_default_account(thread_id: str) -> Response[None]:
+    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/dismiss."""
+    config = _load_runtime_config()
+    _dismiss_notification_impl(account_id=_default_account_id(config), thread_id=thread_id)
+    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+
+
+@post("/api/notifications/{account_id:str}/{thread_id:str}/mark-read", sync_to_thread=True)
+def mark_notification_read_deprecated(account_id: str, thread_id: str) -> Response[None]:
+    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/mark-read."""
+    _mark_notification_read_impl(account_id=account_id, thread_id=thread_id)
+    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
+
+
 @post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=True)
 def mark_notification_read_default_account(thread_id: str) -> Response[None]:
-    """Backward-compatible mark-read endpoint for default account."""
+    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/mark-read."""
     config = _load_runtime_config()
-    return _mark_notification_read_impl(account_id=_default_account_id(config), thread_id=thread_id)
+    _mark_notification_read_impl(account_id=_default_account_id(config), thread_id=thread_id)
+    return Response(content=None, status_code=204, headers={_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE})
 
 
 def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None]:
@@ -751,14 +865,23 @@ app = Litestar(
         login_page,
         login,
         logout,
+        # /api/v1/ — versioned routes (current)
         health,
         api_themes,
         dashboards,
         snapshot,
         notification_rule_snippets,
         dismiss_notification,
-        dismiss_notification_default_account,
         mark_notification_read,
+        # /api/ — deprecated routes (backward compat; scheduled for removal)
+        health_deprecated,
+        api_themes_deprecated,
+        dashboards_deprecated,
+        snapshot_deprecated,
+        notification_rule_snippets_deprecated,
+        dismiss_notification_deprecated,
+        dismiss_notification_default_account,
+        mark_notification_read_deprecated,
         mark_notification_read_default_account,
         create_static_files_router(
             path="/assets",

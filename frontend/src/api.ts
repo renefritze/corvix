@@ -4,8 +4,8 @@ export async function fetchSnapshot(
 	dashboard?: string,
 ): Promise<SnapshotPayload> {
 	const url = dashboard
-		? `/api/snapshot?dashboard=${encodeURIComponent(dashboard)}`
-		: "/api/snapshot";
+		? `/api/v1/snapshot?dashboard=${encodeURIComponent(dashboard)}`
+		: "/api/v1/snapshot";
 	const res = await fetch(url);
 	if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`);
 	return res.json() as Promise<SnapshotPayload>;
@@ -16,7 +16,7 @@ export async function dismissNotification(
 	threadId: string,
 ): Promise<void> {
 	const res = await fetch(
-		`/api/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/dismiss`,
+		`/api/v1/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/dismiss`,
 		{ method: "POST" },
 	);
 	if (!res.ok) {
@@ -39,7 +39,7 @@ export async function markNotificationRead(
 	threadId: string,
 ): Promise<void> {
 	const res = await fetch(
-		`/api/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/mark-read`,
+		`/api/v1/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/mark-read`,
 		{ method: "POST", keepalive: true },
 	);
 	if (!res.ok) throw new Error(`Mark read failed: ${res.status}`);
@@ -52,7 +52,7 @@ export async function fetchRuleSnippets(
 ): Promise<RuleSnippetsPayload> {
 	const query = dashboard ? `?dashboard=${encodeURIComponent(dashboard)}` : "";
 	const res = await fetch(
-		`/api/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/rule-snippets${query}`,
+		`/api/v1/notifications/${encodeURIComponent(accountId)}/${encodeURIComponent(threadId)}/rule-snippets${query}`,
 	);
 	if (!res.ok) {
 		let detail = "";

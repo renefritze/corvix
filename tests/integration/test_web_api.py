@@ -143,7 +143,7 @@ dashboards:
 
 def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
-    response = client.get("/api/health")
+    response = client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
@@ -151,7 +151,7 @@ def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_health_when_poller_unknown(configured_client: TestClient) -> None:
-    response = configured_client.get("/api/health")
+    response = configured_client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
@@ -175,7 +175,7 @@ def test_health_when_poller_healthy(configured_client: TestClient) -> None:
         ),
         encoding="utf-8",
     )
-    response = configured_client.get("/api/health")
+    response = configured_client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"status": "ok"}
 
@@ -196,7 +196,7 @@ def test_health_when_poller_stale(configured_client: TestClient) -> None:
         ),
         encoding="utf-8",
     )
-    response = configured_client.get("/api/health")
+    response = configured_client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     payload = response.json()
     assert payload["status"] == "unhealthy"
@@ -209,7 +209,7 @@ def test_health_when_cache_is_invalid(configured_client: TestClient) -> None:
     cache_file = load_config(config_path).resolve_cache_file()
     cache_file.write_text('{"poller_status": invalid', encoding="utf-8")
 
-    response = configured_client.get("/api/health")
+    response = configured_client.get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_cache"}
@@ -233,7 +233,7 @@ def test_health_when_poller_error_trims_last_line(configured_client: TestClient)
         encoding="utf-8",
     )
 
-    response = configured_client.get("/api/health")
+    response = configured_client.get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {
@@ -260,7 +260,7 @@ def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) ->
         encoding="utf-8",
     )
 
-    response = configured_client.get("/api/health")
+    response = configured_client.get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "invalid_poll_time"}
@@ -289,7 +289,7 @@ def test_health_storage_unavailable_without_database(tmp_path: Path, monkeypatch
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_URL_FILE", raising=False)
 
-    response = TestClient(app).get("/api/health")
+    response = TestClient(app).get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unhealthy", "reason": "storage_unavailable"}
@@ -301,7 +301,7 @@ def test_snapshot_storage_unavailable_returns_500(tmp_path: Path, monkeypatch: p
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_URL_FILE", raising=False)
 
-    response = TestClient(app).get("/api/snapshot")
+    response = TestClient(app).get("/api/v1/snapshot")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -310,7 +310,7 @@ def test_snapshot_storage_unavailable_returns_500(tmp_path: Path, monkeypatch: p
 
 
 def test_themes_endpoint(client: TestClient) -> None:
-    response = client.get("/api/themes")
+    response = client.get("/api/v1/themes")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert "themes" in payload
@@ -319,14 +319,14 @@ def test_themes_endpoint(client: TestClient) -> None:
 
 
 def test_themes_have_required_vars(client: TestClient) -> None:
-    themes = client.get("/api/themes").json()["themes"]
+    themes = client.get("/api/v1/themes").json()["themes"]
     required_vars = {"bg", "surface", "surface_elevated", "ink", "muted", "accent", "line", "ok", "danger"}
     for name, preset in themes.items():
         assert set(preset.keys()) == required_vars, f"Theme '{name}' missing vars"
 
 
 def test_themes_match_python_constant(client: TestClient) -> None:
-    assert client.get("/api/themes").json()["themes"] == THEMES
+    assert client.get("/api/v1/themes").json()["themes"] == THEMES
 
 
 def test_themes_have_midnight_and_graphite() -> None:
@@ -383,7 +383,7 @@ def test_index_html_is_spa_shell() -> None:
 
 
 def test_dashboards_endpoint(configured_client: TestClient) -> None:
-    response = configured_client.get("/api/dashboards")
+    response = configured_client.get("/api/v1/dashboards")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert "dashboard_names" in payload
@@ -392,7 +392,7 @@ def test_dashboards_endpoint(configured_client: TestClient) -> None:
 
 def test_dashboards_no_config_returns_500(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
-    response = client.get("/api/dashboards")
+    response = client.get("/api/v1/dashboards")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -400,7 +400,7 @@ def test_dashboards_no_config_returns_500(client: TestClient, monkeypatch: pytes
 
 
 def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
-    response = configured_client.get("/api/snapshot")
+    response = configured_client.get("/api/v1/snapshot")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
@@ -418,7 +418,7 @@ def test_snapshot_returns_dashboard_data(configured_client: TestClient) -> None:
 
 
 def test_snapshot_selects_by_name(configured_client: TestClient) -> None:
-    response = configured_client.get("/api/snapshot?dashboard=triage")
+    response = configured_client.get("/api/v1/snapshot?dashboard=triage")
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "triage"
@@ -426,18 +426,18 @@ def test_snapshot_selects_by_name(configured_client: TestClient) -> None:
 
 
 def test_snapshot_unknown_dashboard_returns_404(configured_client: TestClient) -> None:
-    response = configured_client.get("/api/snapshot?dashboard=nonexistent")
+    response = configured_client.get("/api/v1/snapshot?dashboard=nonexistent")
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 def test_snapshot_no_config_returns_500(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
-    response = client.get("/api/snapshot")
+    response = client.get("/api/v1/snapshot")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 def test_snapshot_with_notifications(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/snapshot?dashboard=overview")
+    response = populated_client.get("/api/v1/snapshot?dashboard=overview")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -449,14 +449,14 @@ def test_snapshot_with_notifications(populated_client: TestClient) -> None:
 
 
 def test_snapshot_multiple_dashboards(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/dashboards")
+    response = populated_client.get("/api/v1/dashboards")
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()["dashboard_names"] == ["overview", "triage", "no filters"]
 
 
 def test_snapshot_respects_dashboard_filters(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/snapshot?dashboard=triage")
+    response = populated_client.get("/api/v1/snapshot?dashboard=triage")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -490,7 +490,7 @@ def test_snapshot_no_filters_bypasses_excluded_flag(configured_client: TestClien
         encoding="utf-8",
     )
 
-    response = configured_client.get("/api/snapshot?dashboard=no%20filters")
+    response = configured_client.get("/api/v1/snapshot?dashboard=no%20filters")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -502,7 +502,7 @@ def test_snapshot_no_filters_bypasses_excluded_flag(configured_client: TestClien
 
 
 def test_snapshot_sorting_order(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/snapshot?dashboard=overview")
+    response = populated_client.get("/api/v1/snapshot?dashboard=overview")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -511,7 +511,7 @@ def test_snapshot_sorting_order(populated_client: TestClient) -> None:
 
 
 def test_rule_snippets_endpoint_returns_dashboard_and_global_snippets(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/notifications/primary/101/rule-snippets?dashboard=overview")
+    response = populated_client.get("/api/v1/notifications/primary/101/rule-snippets?dashboard=overview")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -550,7 +550,7 @@ def test_rule_snippets_endpoint_returns_context_variants(
         ),
         encoding="utf-8",
     )
-    response = configured_client.get("/api/notifications/primary/ctx-1/rule-snippets?dashboard=triage")
+    response = configured_client.get("/api/v1/notifications/primary/ctx-1/rule-snippets?dashboard=triage")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -561,7 +561,7 @@ def test_rule_snippets_endpoint_returns_context_variants(
 
 
 def test_rule_snippets_endpoint_unknown_thread_returns_404(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/notifications/primary/missing/rule-snippets?dashboard=overview")
+    response = populated_client.get("/api/v1/notifications/primary/missing/rule-snippets?dashboard=overview")
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
@@ -592,7 +592,7 @@ def test_rule_snippets_endpoint_escapes_special_characters(
         encoding="utf-8",
     )
 
-    response = configured_client.get("/api/notifications/primary/escape-1/rule-snippets?dashboard=triage")
+    response = configured_client.get("/api/v1/notifications/primary/escape-1/rule-snippets?dashboard=triage")
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
@@ -606,7 +606,7 @@ def test_rule_snippets_endpoint_escapes_special_characters(
 
 
 def test_rule_snippets_endpoint_unknown_account_returns_404(populated_client: TestClient) -> None:
-    response = populated_client.get("/api/notifications/missing/101/rule-snippets?dashboard=overview")
+    response = populated_client.get("/api/v1/notifications/missing/101/rule-snippets?dashboard=overview")
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
@@ -620,7 +620,7 @@ def test_dismiss_without_token_returns_500(
 ) -> None:
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
-    response = configured_client.post("/api/notifications/123/dismiss")
+    response = configured_client.post("/api/v1/notifications/primary/123/dismiss")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -632,7 +632,7 @@ def test_dismiss_success(configured_client: TestClient, monkeypatch: pytest.Monk
         lambda _self, thread_id: calls.append(thread_id),
     )
 
-    response = configured_client.post("/api/notifications/abc123/dismiss")
+    response = configured_client.post("/api/v1/notifications/primary/abc123/dismiss")
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert calls == ["abc123"]
@@ -649,7 +649,7 @@ def test_dismiss_success_with_explicit_account_route(
         lambda _self, thread_id: calls.append(thread_id),
     )
 
-    response = configured_client.post("/api/notifications/primary/abc123/dismiss")
+    response = configured_client.post("/api/v1/notifications/primary/abc123/dismiss")
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert calls == ["abc123"]
@@ -663,7 +663,7 @@ def test_dismiss_github_error_returns_502(configured_client: TestClient, monkeyp
 
     monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.dismiss_thread", _raise)
 
-    response = configured_client.post("/api/notifications/123/dismiss")
+    response = configured_client.post("/api/v1/notifications/primary/123/dismiss")
 
     assert response.status_code == HTTPStatus.BAD_GATEWAY
     assert "Failed to dismiss thread" in response.text
@@ -675,7 +675,7 @@ def test_dismiss_token_env_error_returns_500(
 ) -> None:
     monkeypatch.setattr("corvix.web.app.get_env_value", _raise_bad_env)
 
-    response = configured_client.post("/api/notifications/123/dismiss")
+    response = configured_client.post("/api/v1/notifications/primary/123/dismiss")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -686,7 +686,7 @@ def test_mark_read_without_token_returns_500(
 ) -> None:
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
-    response = configured_client.post("/api/notifications/123/mark-read")
+    response = configured_client.post("/api/v1/notifications/primary/123/mark-read")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -698,7 +698,7 @@ def test_mark_read_success(configured_client: TestClient, monkeypatch: pytest.Mo
         lambda _self, thread_id: calls.append(thread_id),
     )
 
-    response = configured_client.post("/api/notifications/abc123/mark-read")
+    response = configured_client.post("/api/v1/notifications/primary/abc123/mark-read")
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert calls == ["abc123"]
@@ -715,7 +715,7 @@ def test_mark_read_success_with_explicit_account_route(
         lambda _self, thread_id: calls.append(thread_id),
     )
 
-    response = configured_client.post("/api/notifications/primary/abc123/mark-read")
+    response = configured_client.post("/api/v1/notifications/primary/abc123/mark-read")
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert calls == ["abc123"]
@@ -736,7 +736,7 @@ def test_mark_read_updates_cache_unread_state(configured_client: TestClient, mon
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.mark_thread_read", lambda *_args: None)
 
-    response = configured_client.post("/api/notifications/1/mark-read")
+    response = configured_client.post("/api/v1/notifications/primary/1/mark-read")
     assert response.status_code == HTTPStatus.NO_CONTENT
 
     payload = json.loads(cache_file.read_text(encoding="utf-8"))
@@ -754,7 +754,7 @@ def test_mark_read_github_error_returns_502(configured_client: TestClient, monke
 
     monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.mark_thread_read", _raise)
 
-    response = configured_client.post("/api/notifications/123/mark-read")
+    response = configured_client.post("/api/v1/notifications/primary/123/mark-read")
 
     assert response.status_code == HTTPStatus.BAD_GATEWAY
     assert "Failed to mark thread" in response.text
@@ -767,7 +767,7 @@ def test_mark_read_token_env_error_returns_500(
 ) -> None:
     monkeypatch.setattr("corvix.web.app.get_env_value", _raise_bad_env)
 
-    response = configured_client.post("/api/notifications/123/mark-read")
+    response = configured_client.post("/api/v1/notifications/primary/123/mark-read")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -777,7 +777,7 @@ def test_load_runtime_config_invalid_yaml(client: TestClient, monkeypatch: pytes
     bad_config.write_text("github: [\n", encoding="utf-8")
     monkeypatch.setenv("CORVIX_CONFIG", str(bad_config))
 
-    response = client.get("/api/dashboards")
+    response = client.get("/api/v1/dashboards")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -815,7 +815,7 @@ class TestTokenAuth:
     ) -> None:
         monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
         monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
-        response = client.get("/api/themes")
+        response = client.get("/api/v1/themes")
         assert response.status_code == HTTPStatus.OK
 
     def test_ui_no_redirect_when_token_unset(
@@ -835,42 +835,42 @@ class TestTokenAuth:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.get("/api/themes")
+        response = client.get("/api/v1/themes")
         assert response.status_code == HTTPStatus.UNAUTHORIZED
 
     def test_api_200_with_bearer_token(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.get("/api/themes", headers={"Authorization": f"Bearer {_SECRET}"})
+        response = client.get("/api/v1/themes", headers={"Authorization": f"Bearer {_SECRET}"})
         assert response.status_code == HTTPStatus.OK
 
     def test_api_200_with_x_corvix_token_header(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.get("/api/themes", headers={"X-Corvix-Token": _SECRET})
+        response = client.get("/api/v1/themes", headers={"X-Corvix-Token": _SECRET})
         assert response.status_code == HTTPStatus.OK
 
     def test_api_401_with_wrong_bearer_token(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.get("/api/themes", headers={"Authorization": "Bearer wrong-token"})
+        response = client.get("/api/v1/themes", headers={"Authorization": "Bearer wrong-token"})
         assert response.status_code == HTTPStatus.UNAUTHORIZED
 
     def test_api_401_with_wrong_x_corvix_token(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.get("/api/themes", headers={"X-Corvix-Token": "wrong-token"})
+        response = client.get("/api/v1/themes", headers={"X-Corvix-Token": "wrong-token"})
         assert response.status_code == HTTPStatus.UNAUTHORIZED
 
     def test_api_401_response_is_json(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
-        response = client.get("/api/themes")
+        response = client.get("/api/v1/themes")
         assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Unauthorized"}
 
@@ -884,7 +884,7 @@ class TestTokenAuth:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         # /api/health is always reachable without an auth header;
         # it may return 200 (healthy) or 503 (unhealthy) but never 401.
-        response = client.get("/api/health")
+        response = client.get("/api/v1/health")
         assert response.status_code != HTTPStatus.UNAUTHORIZED
 
     def test_login_page_always_accessible(
@@ -983,7 +983,7 @@ class TestTokenAuth:
         secret_file.write_text(_SECRET, encoding="utf-8")
         monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
         monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
-        response = client.get("/api/themes", headers={"Authorization": f"Bearer {_SECRET}"})
+        response = client.get("/api/v1/themes", headers={"Authorization": f"Bearer {_SECRET}"})
         assert response.status_code == HTTPStatus.OK
 
     def test_api_401_without_header_via_file(
@@ -993,7 +993,7 @@ class TestTokenAuth:
         secret_file.write_text(_SECRET, encoding="utf-8")
         monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
         monkeypatch.setenv("CORVIX_SECRET_TOKEN_FILE", str(secret_file))
-        response = client.get("/api/themes")
+        response = client.get("/api/v1/themes")
         assert response.status_code == HTTPStatus.UNAUTHORIZED
 
     def test_login_flow_via_file(
@@ -1023,7 +1023,7 @@ class TestTokenAuth:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         client.post("/login", data={"token": _SECRET})  # sets corvix_session in jar
         # No Authorization header — should succeed via cookie fallback
-        response = client.get("/api/themes")
+        response = client.get("/api/v1/themes")
         assert response.status_code == HTTPStatus.OK
 
     def test_api_401_with_wrong_session_cookie(
@@ -1031,7 +1031,7 @@ class TestTokenAuth:
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         client.cookies.set("corvix_session", "not-the-right-hmac")
-        response = client.get("/api/themes")
+        response = client.get("/api/v1/themes")
         assert response.status_code == HTTPStatus.UNAUTHORIZED
 
     # ------------------------------------------------------------------
@@ -1062,3 +1062,102 @@ class TestTokenAuth:
         response = https_client.post("/login", data={"token": _SECRET}, follow_redirects=False)
         cookie_header = response.headers.get("set-cookie", "")
         assert "secure" in cookie_header.lower()
+
+
+# ---------------------------------------------------------------------------
+# Deprecated /api/ routes — backward compat during versioning transition
+# ---------------------------------------------------------------------------
+
+
+class TestDeprecatedApiRoutes:
+    """Deprecated /api/ routes must still work and carry a Deprecation header."""
+
+    def test_health_deprecated_responds(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
+        response = client.get("/api/health")
+        assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+        assert response.headers.get("Deprecation") == "true"
+
+    def test_themes_deprecated_returns_same_data(self, client: TestClient) -> None:
+        v1_resp = client.get("/api/v1/themes")
+        dep_resp = client.get("/api/themes")
+        assert dep_resp.status_code == HTTPStatus.OK
+        assert dep_resp.json() == v1_resp.json()
+        assert dep_resp.headers.get("Deprecation") == "true"
+
+    def test_dashboards_deprecated_returns_same_data(self, configured_client: TestClient) -> None:
+        v1_resp = configured_client.get("/api/v1/dashboards")
+        dep_resp = configured_client.get("/api/dashboards")
+        assert dep_resp.status_code == HTTPStatus.OK
+        assert dep_resp.json() == v1_resp.json()
+        assert dep_resp.headers.get("Deprecation") == "true"
+
+    def test_snapshot_deprecated_returns_same_data(self, configured_client: TestClient) -> None:
+        v1_resp = configured_client.get("/api/v1/snapshot")
+        dep_resp = configured_client.get("/api/snapshot")
+        assert dep_resp.status_code == HTTPStatus.OK
+        assert dep_resp.json() == v1_resp.json()
+        assert dep_resp.headers.get("Deprecation") == "true"
+
+    def test_rule_snippets_deprecated_returns_same_data(self, populated_client: TestClient) -> None:
+        v1_resp = populated_client.get("/api/v1/notifications/primary/101/rule-snippets?dashboard=overview")
+        dep_resp = populated_client.get("/api/notifications/primary/101/rule-snippets?dashboard=overview")
+        assert dep_resp.status_code == HTTPStatus.OK
+        assert dep_resp.json() == v1_resp.json()
+        assert dep_resp.headers.get("Deprecation") == "true"
+
+    def test_dismiss_deprecated_carries_deprecation_header(
+        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GITHUB_TOKEN", "token")
+        monkeypatch.setattr(
+            "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
+            lambda _self, _tid: None,
+        )
+        response = configured_client.post("/api/notifications/primary/abc123/dismiss")
+        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert response.headers.get("Deprecation") == "true"
+
+    def test_dismiss_default_account_deprecated_carries_deprecation_header(
+        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GITHUB_TOKEN", "token")
+        monkeypatch.setattr(
+            "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
+            lambda _self, _tid: None,
+        )
+        response = configured_client.post("/api/notifications/abc123/dismiss")
+        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert response.headers.get("Deprecation") == "true"
+
+    def test_mark_read_deprecated_carries_deprecation_header(
+        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GITHUB_TOKEN", "token")
+        monkeypatch.setattr(
+            "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
+            lambda _self, _tid: None,
+        )
+        response = configured_client.post("/api/notifications/primary/abc123/mark-read")
+        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert response.headers.get("Deprecation") == "true"
+
+    def test_mark_read_default_account_deprecated_carries_deprecation_header(
+        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GITHUB_TOKEN", "token")
+        monkeypatch.setattr(
+            "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
+            lambda _self, _tid: None,
+        )
+        response = configured_client.post("/api/notifications/abc123/mark-read")
+        assert response.status_code == HTTPStatus.NO_CONTENT
+        assert response.headers.get("Deprecation") == "true"
+
+    def test_health_deprecated_is_public_without_auth(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
+        response = client.get("/api/health")
+        assert response.status_code != HTTPStatus.UNAUTHORIZED

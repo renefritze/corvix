@@ -15,7 +15,7 @@ describe("api", () => {
 		} as Response);
 
 		await expect(fetchSnapshot("triage")).resolves.toEqual(payload);
-		expect(fetchMock).toHaveBeenCalledWith("/api/snapshot?dashboard=triage");
+		expect(fetchMock).toHaveBeenCalledWith("/api/v1/snapshot?dashboard=triage");
 	});
 
 	it("fetchSnapshot throws on non-OK responses", async () => {
@@ -62,7 +62,7 @@ describe("api", () => {
 			markNotificationRead("primary", "thread/3"),
 		).resolves.toBeUndefined();
 		expect(fetchMock).toHaveBeenCalledWith(
-			"/api/notifications/primary/thread%2F3/mark-read",
+			"/api/v1/notifications/primary/thread%2F3/mark-read",
 			{
 				method: "POST",
 				keepalive: true,
@@ -89,7 +89,7 @@ describe("api", () => {
 			fetchRuleSnippets("primary", "thread/4", "my board"),
 		).resolves.toEqual(payload);
 		expect(fetchMock).toHaveBeenCalledWith(
-			"/api/notifications/primary/thread%2F4/rule-snippets?dashboard=my%20board",
+			"/api/v1/notifications/primary/thread%2F4/rule-snippets?dashboard=my%20board",
 		);
 	});
 
