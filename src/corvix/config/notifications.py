@@ -50,6 +50,28 @@ class NotificationsConfig:
     web_push: WebPushTargetConfig = field(default_factory=WebPushTargetConfig)
 
 
+def _parse_browser_tab(browser_raw: dict) -> BrowserTabTargetConfig:  # type: ignore[type-arg]
+    """Parse and validate browser_tab config section."""
+    max_per_cycle = _get_int(browser_raw, "max_per_cycle", 5, "notifications.browser_tab.max_per_cycle")
+    if max_per_cycle < 0:
+        msg = "Config value 'notifications.browser_tab.max_per_cycle' must be >= 0."
+        raise ValueError(msg)
+    cooldown_seconds = _get_int(
+        browser_raw,
+        "cooldown_seconds",
+        10,
+        "notifications.browser_tab.cooldown_seconds",
+    )
+    if cooldown_seconds < 0:
+        msg = "Config value 'notifications.browser_tab.cooldown_seconds' must be >= 0."
+        raise ValueError(msg)
+    return BrowserTabTargetConfig(
+        enabled=_get_bool(browser_raw, "enabled", True, "notifications.browser_tab.enabled"),
+        max_per_cycle=max_per_cycle,
+        cooldown_seconds=cooldown_seconds,
+    )
+
+
 def _parse_notifications(value: object) -> NotificationsConfig:
     notif = _ensure_map(value, "notifications")
     detect_raw = _ensure_map(notif.get("detect", {}), "notifications.detect")
@@ -61,16 +83,7 @@ def _parse_notifications(value: object) -> NotificationsConfig:
             include_read=_get_bool(detect_raw, "include_read", False, "notifications.detect.include_read"),
             min_score=_get_float(detect_raw, "min_score", 0.0, "notifications.detect.min_score"),
         ),
-        browser_tab=BrowserTabTargetConfig(
-            enabled=_get_bool(browser_raw, "enabled", True, "notifications.browser_tab.enabled"),
-            max_per_cycle=_get_int(browser_raw, "max_per_cycle", 5, "notifications.browser_tab.max_per_cycle"),
-            cooldown_seconds=_get_int(
-                browser_raw,
-                "cooldown_seconds",
-                10,
-                "notifications.browser_tab.cooldown_seconds",
-            ),
-        ),
+        browser_tab=_parse_browser_tab(browser_raw),
         web_push=WebPushTargetConfig(
             enabled=_get_bool(web_push_raw, "enabled", False, "notifications.web_push.enabled"),
             vapid_public_key_env=_get_str(
