@@ -11,6 +11,7 @@ service-name override are Corvix-specific.
 
 from __future__ import annotations
 
+import atexit
 import logging
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -63,6 +64,7 @@ def setup_tracing(service_name: str | None = None) -> bool:
     provider = TracerProvider(resource=Resource.create({"service.name": resolved_name}))
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
+    atexit.register(provider.shutdown)
     _enabled = True
     logger.info("OpenTelemetry tracing enabled", extra={"service_name": resolved_name})
     return True

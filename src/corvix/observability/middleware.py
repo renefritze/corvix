@@ -65,7 +65,7 @@ class ObservabilityMiddleware(ASGIMiddleware):
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = message["status"]
-                headers = list(message.get("headers", []))
+                headers = [h for h in message.get("headers", []) if h[0].lower() != _REQUEST_ID_HEADER]
                 headers.append((_REQUEST_ID_HEADER, request_id_bytes))
                 message["headers"] = headers
             await send(message)
@@ -76,7 +76,9 @@ class ObservabilityMiddleware(ASGIMiddleware):
                 await next_app(scope, receive, send_wrapper)
         finally:
             duration = time.perf_counter() - start
-            endpoint = _endpoint_label(scope)
-            metrics.http_requests_total.labels(method, endpoint, str(status_code)).inc()
-            metrics.http_request_duration_seconds.labels(method, endpoint).observe(duration)
-            reset_log_context(previous_context)
+            try:
+                endpoint = _endpoint_label(scope)
+                metrics.http_requests_total.labels(method, endpoint, str(status_code)).inc()
+                metrics.http_request_duration_seconds.labels(method, endpoint).observe(duration)
+            finally:
+                reset_log_context(previous_context)
