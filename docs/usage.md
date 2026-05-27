@@ -109,3 +109,10 @@ notifications:
 - `POST /api/notifications/{thread_id}/dismiss`
 - `POST /api/notifications/{account_id}/{thread_id}/mark-read`
 - `POST /api/notifications/{thread_id}/mark-read`
+- `GET /metrics` — Prometheus metrics (always public)
+
+## Observability
+
+Corvix emits structured JSON logs, exposes Prometheus metrics at `/metrics`, and
+supports optional OpenTelemetry tracing. See [Observability](observability.md)
+for the full list of metrics and environment variables.

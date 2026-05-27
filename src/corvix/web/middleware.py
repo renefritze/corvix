@@ -55,7 +55,10 @@ SESSION_MAX_AGE_SECONDS: int = 24 * 60 * 60  # 24 hours
 # making unrelated paths like /assets-private/ public.
 # Both the versioned (/api/v1/health) and the deprecated (/api/health) health
 # endpoints are always public so container health checks never need credentials.
-_PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/api/v1/health", "/login", "/logout", "/assets"})
+# ``/metrics`` is public so Prometheus can scrape without credentials.
+_PUBLIC_EXACT: frozenset[str] = frozenset(
+    {"/api/health", "/api/v1/health", "/metrics", "/login", "/logout", "/assets"}
+)
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/",)
 
 # ---------------------------------------------------------------------------
