@@ -65,9 +65,7 @@ class _TaggingFieldProvider:
     name: str = "test.field"
     tag: str = "TAGGED"
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
-        del client
-        del ctx
+    def hydrate(self, notification: Notification, _client: JsonFetchClient, _ctx: PipelineContext) -> Notification:
         return replace(notification, web_url=self.tag)
 
 
@@ -82,9 +80,7 @@ class _CapturingContextProvider:
         if self.seen_web_urls is None:
             self.seen_web_urls = []
 
-    def enrich(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> dict[str, object]:
-        del client
-        del ctx
+    def enrich(self, notification: Notification, _client: JsonFetchClient, _ctx: PipelineContext) -> dict[str, object]:
         self.seen_web_urls.append(notification.web_url)
         return {"captured_web_url": notification.web_url}
 
@@ -130,8 +126,7 @@ class _BoomProvider:
 
     name: str = "test.boom"
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
-        del client, ctx
+    def hydrate(self, notification: Notification, _client: JsonFetchClient, _ctx: PipelineContext) -> Notification:
         raise RuntimeError(f"boom {notification.thread_id}")
 
 
