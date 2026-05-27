@@ -119,8 +119,7 @@ class _CachingContextProvider:
 
     name: str = "test.caching_context"
 
-    def enrich(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> dict[str, object]:
-        del notification  # only the shared cache URL is needed
+    def enrich(self, _notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> dict[str, object]:
         payload = ctx.get_json(client=client, url="https://api.example.com/shared", timeout_seconds=1.0)
         return {"shared": payload}
 
@@ -308,8 +307,7 @@ def test_clients_by_account_routes_to_correct_client() -> None:
     class _SpyFieldProvider:
         name: str = "test.spy"
 
-        def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
-            del ctx
+        def hydrate(self, notification: Notification, client: JsonFetchClient, _ctx: PipelineContext) -> Notification:
             seen.append((notification.thread_id, client.api_base_url))
             return notification
 
@@ -333,8 +331,7 @@ def test_missing_account_falls_back_to_default_client() -> None:
     class _SpyProvider:
         name: str = "test.spy"
 
-        def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
-            del ctx
+        def hydrate(self, notification: Notification, client: JsonFetchClient, _ctx: PipelineContext) -> Notification:
             seen.append(client.api_base_url)
             return notification
 

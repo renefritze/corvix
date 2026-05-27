@@ -75,9 +75,9 @@ def _apply_provider(
     returned unchanged; any payload is merged into *notification_context*.
     """
     if isinstance(provider, FieldProvider):
-        return provider.hydrate(notification=current, client=notification_client, ctx=context)
+        return provider.hydrate(current, notification_client, context)
     if isinstance(provider, ContextProvider):
-        payload = provider.enrich(notification=current, client=notification_client, ctx=context)
+        payload = provider.enrich(current, notification_client, context)
         if payload:
             _set_nested_namespace(notification_context, provider.name, payload)
     return current

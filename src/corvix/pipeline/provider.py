@@ -42,6 +42,7 @@ class FieldProvider(Protocol):
         notification: Notification,
         client: JsonFetchClient,
         ctx: PipelineContext,
+        /,
     ) -> Notification:
         """Return a notification with any missing required fields filled in."""
         ...
@@ -62,6 +63,7 @@ class ContextProvider(Protocol):
         notification: Notification,
         client: JsonFetchClient,
         ctx: PipelineContext,
+        /,
     ) -> dict[str, object]:
         """Return a mapping of context data to attach under this provider's namespace."""
         ...
