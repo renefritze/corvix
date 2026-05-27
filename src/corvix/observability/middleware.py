@@ -35,7 +35,7 @@ def _endpoint_label(scope: Scope) -> str:
     route_handler = scope.get("route_handler")
     paths = getattr(route_handler, "paths", None)
     if paths:
-        return sorted(paths)[0]
+        return min(paths)
     return _UNKNOWN_ENDPOINT
 
 
