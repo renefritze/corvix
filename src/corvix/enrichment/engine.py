@@ -25,11 +25,7 @@ class EnrichmentRunResult:
     @property
     def contexts_by_thread_id(self) -> dict[str, dict[str, object]]:
         """Backward-compatible thread-keyed view of contexts."""
-        output: dict[str, dict[str, object]] = {}
-        for key, value in self.contexts_by_notification_key.items():
-            _, _, thread_id = key.rpartition(":")
-            output[thread_id] = value
-        return output
+        return {key.rpartition(":")[2]: value for key, value in self.contexts_by_notification_key.items()}
 
 
 @dataclass(slots=True)

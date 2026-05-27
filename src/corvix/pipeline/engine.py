@@ -10,7 +10,7 @@ from corvix.pipeline.base import JsonFetchClient
 from corvix.pipeline.provider import ContextProvider, FieldProvider, PipelineContext
 
 
-def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
+def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:  # NOSONAR
     return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
