@@ -60,6 +60,29 @@ class PipelineRunResult:
         return output
 
 
+def _apply_provider(
+    provider: FieldProvider | ContextProvider,
+    current: Notification,
+    notification_client: JsonFetchClient,
+    context: PipelineContext,
+    notification_context: dict[str, object],
+) -> Notification:
+    """Dispatch one provider and return the (possibly updated) notification.
+
+    For :class:`~corvix.pipeline.provider.FieldProvider` the returned
+    notification may differ from *current*.  For
+    :class:`~corvix.pipeline.provider.ContextProvider` the notification is
+    returned unchanged; any payload is merged into *notification_context*.
+    """
+    if isinstance(provider, FieldProvider):
+        return provider.hydrate(notification=current, client=notification_client, ctx=context)
+    if isinstance(provider, ContextProvider):
+        payload = provider.enrich(notification=current, client=notification_client, ctx=context)
+        if payload:
+            _set_nested_namespace(notification_context, provider.name, payload)
+    return current
+
+
 @dataclass(slots=True)
 class PipelineEngine:
     """Runs field-completion and context-enrichment providers in a single unified pass.
@@ -119,20 +142,13 @@ class PipelineEngine:
             current = notification
             for provider in self.providers:
                 try:
-                    if isinstance(provider, FieldProvider):
-                        current = provider.hydrate(
-                            notification=current,
-                            client=notification_client,
-                            ctx=context,
-                        )
-                    elif isinstance(provider, ContextProvider):
-                        payload = provider.enrich(
-                            notification=current,
-                            client=notification_client,
-                            ctx=context,
-                        )
-                        if payload:
-                            _set_nested_namespace(contexts_by_notification_key[key], provider.name, payload)
+                    current = _apply_provider(
+                        provider=provider,
+                        current=current,
+                        notification_client=notification_client,
+                        context=context,
+                        notification_context=contexts_by_notification_key[key],
+                    )
                 except Exception as error:
                     provider_name = getattr(provider, "name", repr(provider))
                     errors.append(f"provider={provider_name} thread={current.thread_id}: {error}")

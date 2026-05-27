@@ -120,21 +120,19 @@ class _CachingContextProvider:
     name: str = "test.caching_context"
 
     def enrich(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> dict[str, object]:
+        del notification  # only the shared cache URL is needed
         payload = ctx.get_json(client=client, url="https://api.example.com/shared", timeout_seconds=1.0)
         return {"shared": payload}
 
 
 @dataclass(slots=True)
 class _BoomProvider:
-    """Always raises."""
+    """Always raises when dispatched as a FieldProvider."""
 
     name: str = "test.boom"
-    is_field: bool = False
 
     def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
-        raise RuntimeError(f"boom {notification.thread_id}")
-
-    def enrich(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> dict[str, object]:
+        del client, ctx
         raise RuntimeError(f"boom {notification.thread_id}")
 
 
@@ -264,10 +262,7 @@ def test_shared_budget_exhausted_across_providers() -> None:
 
 def test_field_provider_failure_is_non_fatal() -> None:
     n = _notification()
-    # _BoomProvider has both hydrate and enrich; isinstance picks FieldProvider first
-    # if hydrate is checked. We use it as a FieldProvider via is_field=False but
-    # the class has hydrate() so it matches FieldProvider protocol.
-    boom = _BoomProvider(is_field=True)
+    boom = _BoomProvider()
     engine = PipelineEngine(providers=[boom])
 
     result = engine.run(notifications=[n], client=_FakeClient(responses={}))
@@ -314,6 +309,7 @@ def test_clients_by_account_routes_to_correct_client() -> None:
         name: str = "test.spy"
 
         def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
+            del ctx
             seen.append((notification.thread_id, client.api_base_url))
             return notification
 
@@ -338,6 +334,7 @@ def test_missing_account_falls_back_to_default_client() -> None:
         name: str = "test.spy"
 
         def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
+            del ctx
             seen.append(client.api_base_url)
             return notification
 
