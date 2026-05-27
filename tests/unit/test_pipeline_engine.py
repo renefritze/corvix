@@ -93,7 +93,7 @@ class _FetchingContextProvider:
 
     def enrich(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> dict[str, object]:
         url = f"https://api.example.com/{notification.thread_id}"
-        ctx.get_json(client=client, url=url, timeout_seconds=1.0)
+        _ = ctx.get_json(client=client, url=url, timeout_seconds=1.0)
         return {"ok": True}
 
 
@@ -307,7 +307,7 @@ def test_clients_by_account_routes_to_correct_client() -> None:
             return notification
 
     engine = PipelineEngine(providers=[_SpyFieldProvider()])
-    engine.run(
+    _ = engine.run(
         notifications=[n1, n2],
         client=default_client,
         clients_by_account={"account-a": client_a, "account-b": client_b},
@@ -331,7 +331,7 @@ def test_missing_account_falls_back_to_default_client() -> None:
             return notification
 
     engine = PipelineEngine(providers=[_SpyProvider()])
-    engine.run(notifications=[n], client=default_client, clients_by_account={"other-account": _FakeClient({})})
+    _ = engine.run(notifications=[n], client=default_client, clients_by_account={"other-account": _FakeClient({})})
 
     assert seen == ["https://default.example.com"]
 
