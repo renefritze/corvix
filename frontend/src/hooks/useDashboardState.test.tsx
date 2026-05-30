@@ -73,6 +73,7 @@ describe("useDashboardState", () => {
 			expect(screen.getByTestId("current")).toHaveTextContent("overview"),
 		);
 
+		const pushSpy = vi.spyOn(globalThis.history, "pushState");
 		await user.click(screen.getByRole("button", { name: "select-triage" }));
 		await waitFor(() =>
 			expect(screen.getByTestId("current")).toHaveTextContent("triage"),
@@ -80,6 +81,22 @@ describe("useDashboardState", () => {
 		await waitFor(() =>
 			expect(globalThis.location.pathname).toBe("/dashboards/triage"),
 		);
+		expect(pushSpy).toHaveBeenCalledWith({}, "", "/dashboards/triage");
+	});
+
+	it("replaces history when normalizing the URL automatically", async () => {
+		setPath("/");
+		mockSnapshotByDashboard();
+		const pushSpy = vi.spyOn(globalThis.history, "pushState");
+		const replaceSpy = vi.spyOn(globalThis.history, "replaceState");
+
+		render(<Harness />);
+
+		await waitFor(() =>
+			expect(globalThis.location.pathname).toBe("/dashboards/overview"),
+		);
+		expect(replaceSpy).toHaveBeenCalledWith({}, "", "/dashboards/overview");
+		expect(pushSpy).not.toHaveBeenCalled();
 	});
 
 	it("falls back to the default dashboard for an unknown URL name", async () => {

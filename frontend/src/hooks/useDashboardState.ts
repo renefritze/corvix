@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useSnapshot } from "./useSnapshot";
 
 const DASHBOARD_PATH_PREFIX = "/dashboards/";
@@ -25,18 +25,36 @@ function dashboardPath(name: string | undefined): string {
  * Owns dashboard selection and keeps it in sync with the URL, fetching the
  * matching snapshot. Falls back to the first configured dashboard when the
  * selected name is unknown (e.g. after navigating to a stale link).
+ *
+ * Only user-initiated selections push a new history entry; automatic
+ * normalization (initial load, popstate, falling back from an unknown name)
+ * replaces the current entry so the back button can't get stuck in a redirect
+ * loop.
  */
 export function useDashboardState() {
-	const [dashboard, setDashboard] = useState<string | undefined>(() => {
+	const [dashboard, setDashboardState] = useState<string | undefined>(() => {
 		if (typeof globalThis.window === "undefined") {
 			return undefined;
 		}
 		return parseDashboardFromPath(globalThis.window.location.pathname);
 	});
+	// True when the pending dashboard change came from a user action (the
+	// picker) rather than from URL normalization, so the next sync pushes.
+	const userNavigated = useRef(false);
 
 	const snapshotState = useSnapshot(dashboard);
 	const dashboardNames = snapshotState.snapshot?.dashboard_names ?? [];
 	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
+
+	// Expose the latest names to the popstate listener without re-subscribing
+	// it on every snapshot refresh (which happens every 15s).
+	const dashboardNamesRef = useRef(dashboardNames);
+	dashboardNamesRef.current = dashboardNames;
+
+	const setDashboard = useCallback((name: string | undefined) => {
+		userNavigated.current = true;
+		setDashboardState(name);
+	}, []);
 
 	useEffect(() => {
 		if (typeof globalThis.window === "undefined") {
@@ -46,20 +64,17 @@ export function useDashboardState() {
 			const fromPath = parseDashboardFromPath(
 				globalThis.window.location.pathname,
 			);
-			if (!fromPath) {
-				setDashboard(undefined);
+			const names = dashboardNamesRef.current;
+			if (fromPath && names.length > 0 && !names.includes(fromPath)) {
+				setDashboardState(undefined);
 				return;
 			}
-			if (dashboardNames.length > 0 && !dashboardNames.includes(fromPath)) {
-				setDashboard(undefined);
-				return;
-			}
-			setDashboard(fromPath);
+			setDashboardState(fromPath);
 		};
 		globalThis.window.addEventListener("popstate", handlePopState);
 		return () =>
 			globalThis.window.removeEventListener("popstate", handlePopState);
-	}, [dashboardNames]);
+	}, []);
 
 	useEffect(() => {
 		if (typeof globalThis.window === "undefined") {
@@ -69,7 +84,7 @@ export function useDashboardState() {
 			return;
 		}
 		if (dashboard && !dashboardNames.includes(dashboard)) {
-			setDashboard(undefined);
+			setDashboardState(undefined);
 		}
 	}, [dashboard, dashboardNames]);
 
@@ -79,10 +94,19 @@ export function useDashboardState() {
 		}
 		const targetPath = dashboardPath(currentDashboard ?? undefined);
 		if (globalThis.window.location.pathname === targetPath) {
+			userNavigated.current = false;
 			return;
 		}
-		globalThis.window.history.pushState({}, "", targetPath);
-	}, [currentDashboard]);
+		if (userNavigated.current) {
+			globalThis.window.history.pushState({}, "", targetPath);
+			userNavigated.current = false;
+		} else {
+			globalThis.window.history.replaceState({}, "", targetPath);
+		}
+		// `dashboard` is included so that resetting an unknown name to the
+		// default (which leaves `currentDashboard` unchanged) still re-syncs the
+		// URL, e.g. after navigating back to a stale dashboard link.
+	}, [currentDashboard, dashboard]);
 
 	return {
 		...snapshotState,
