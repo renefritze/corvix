@@ -321,31 +321,43 @@ def _parse_enrichment(value: object) -> EnrichmentConfig:
         enrichment.get("github_pr_state", {}),
         "enrichment.github_pr_state",
     )
+    max_requests_per_cycle = _get_int(
+        enrichment,
+        "max_requests_per_cycle",
+        25,
+        "enrichment.max_requests_per_cycle",
+    )
+    if max_requests_per_cycle < 0:
+        msg = "Config value 'enrichment.max_requests_per_cycle' must be >= 0."
+        raise ValueError(msg)
+    latest_comment_timeout = _get_float(
+        latest_comment_raw,
+        "timeout_seconds",
+        10.0,
+        "enrichment.github_latest_comment.timeout_seconds",
+    )
+    if latest_comment_timeout <= 0:
+        msg = "Config value 'enrichment.github_latest_comment.timeout_seconds' must be greater than 0."
+        raise ValueError(msg)
+    pr_state_timeout = _get_float(
+        pr_state_raw,
+        "timeout_seconds",
+        10.0,
+        "enrichment.github_pr_state.timeout_seconds",
+    )
+    if pr_state_timeout <= 0:
+        msg = "Config value 'enrichment.github_pr_state.timeout_seconds' must be greater than 0."
+        raise ValueError(msg)
     return EnrichmentConfig(
         enabled=_get_bool(enrichment, "enabled", False, "enrichment.enabled"),
-        max_requests_per_cycle=_get_int(
-            enrichment,
-            "max_requests_per_cycle",
-            25,
-            "enrichment.max_requests_per_cycle",
-        ),
+        max_requests_per_cycle=max_requests_per_cycle,
         github_latest_comment=GitHubLatestCommentEnrichmentConfig(
             enabled=_get_bool(latest_comment_raw, "enabled", False, "enrichment.github_latest_comment.enabled"),
-            timeout_seconds=_get_float(
-                latest_comment_raw,
-                "timeout_seconds",
-                10.0,
-                "enrichment.github_latest_comment.timeout_seconds",
-            ),
+            timeout_seconds=latest_comment_timeout,
         ),
         github_pr_state=GitHubPRStateEnrichmentConfig(
             enabled=_get_bool(pr_state_raw, "enabled", False, "enrichment.github_pr_state.enabled"),
-            timeout_seconds=_get_float(
-                pr_state_raw,
-                "timeout_seconds",
-                10.0,
-                "enrichment.github_pr_state.timeout_seconds",
-            ),
+            timeout_seconds=pr_state_timeout,
         ),
     )
 
@@ -372,7 +384,11 @@ def _parse_database(value: object) -> DatabaseConfig:
 
 def load_config(path: Path) -> AppConfig:
     """Load and validate YAML config from disk."""
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as error:
+        msg = f"Failed to parse config file '{path}': {error}"
+        raise ValueError(msg) from error
     if not isinstance(data, dict):
         msg = "Top-level YAML must be a map/object."
         raise ValueError(msg)

@@ -6,12 +6,15 @@ import json
 import logging
 import re
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from urllib import error as url_error
 from urllib import parse, request
 
 from corvix.config import PollingConfig
 from corvix.domain import Notification
+from corvix.observability import metrics, span
 from corvix.types import JsonObject, JsonValue
 
 logger = logging.getLogger(__name__)
@@ -142,13 +145,35 @@ class GitHubNotificationsClient:
             "User-Agent": "corvix",
         }
 
+    @contextmanager
+    def _instrument_request(self, method: str) -> Iterator[None]:
+        """Record GitHub API request count/latency metrics and a trace span.
+
+        Labels successful calls ``"success"`` and failed calls by HTTP status
+        code (for ``HTTPError``) or ``"error"`` (for other failures).
+        """
+        start = time.perf_counter()
+        status = "success"
+        with span("github.api.request", {"http.request.method": method}):
+            try:
+                yield
+            except url_error.HTTPError as error:
+                status = str(error.code)
+                raise
+            except Exception:
+                status = "error"
+                raise
+            finally:
+                metrics.github_api_requests_total.labels(method, status).inc()
+                metrics.github_api_request_duration_seconds.labels(method).observe(time.perf_counter() - start)
+
     def _request_json(self, url: str, method: str, timeout_seconds: float | None = None) -> JsonValue:
         req = request.Request(url=url, method=method, headers=self._headers())  # NOSONAR python:S5144
         effective_timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
 
         # nosec B310 - url is always constructed from self.api_base_url (trusted config) or
         # sanitised by _sanitize_api_url which enforces matching host and trusted scheme.
-        with request.urlopen(req, timeout=effective_timeout) as response:  # nosec B310  # NOSONAR python:S5144
+        with self._instrument_request(method), request.urlopen(req, timeout=effective_timeout) as response:  # nosec B310  # NOSONAR python:S5144
             raw = response.read().decode("utf-8")
         return _coerce_json_value(json.loads(raw))
 
@@ -158,7 +183,7 @@ class GitHubNotificationsClient:
 
         # nosec B310 - url always originates from _build_url (self.api_base_url) after thread-id
         # validation; no external data can reach this call without passing _validate_thread_id.
-        with request.urlopen(req, timeout=effective_timeout):  # nosec B310  # NOSONAR python:S5144
+        with self._instrument_request(method), request.urlopen(req, timeout=effective_timeout):  # nosec B310  # NOSONAR python:S5144
             return
 
     def _request_no_content_with_backoff(self, url: str, method: str, max_attempts: int = 4) -> None:

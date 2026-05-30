@@ -376,3 +376,136 @@ rules:
 
     with pytest.raises(ValueError, match="Expected a list"):
         load_config(config_file)
+
+
+# ---------------------------------------------------------------------------
+# Issue #93 — follow-up validation
+# ---------------------------------------------------------------------------
+
+
+def test_title_regex_valid_does_not_raise(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+rules:
+  global:
+    - name: bots
+      match:
+        title_regex: ".*bot.*"
+      actions:
+        - type: mark_read
+""",
+        encoding="utf-8",
+    )
+    config = load_config(config_file)
+    assert config.rules.global_rules[0].match.title_regex == ".*bot.*"
+
+
+def test_title_regex_invalid_raises(tmp_path: Path) -> None:
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        """
+rules:
+  global:
+    - name: bad-regex
+      match:
+        title_regex: "("
+      actions:
+        - type: mark_read
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"match\.title_regex.*invalid regex"):
+        load_config(config_file)
+
+
+def test_title_regex_none_does_not_raise(tmp_path: Path) -> None:
+    """Absent title_regex is fine (no validation needed)."""
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text("{}\n", encoding="utf-8")
+    config = load_config(config_file)
+    assert config.rules.global_rules == []
+
+
+@pytest.mark.parametrize("max_requests", [-1, -100])
+def test_enrichment_max_requests_per_cycle_rejects_negative(tmp_path: Path, max_requests: int) -> None:
+    config_file = tmp_path / f"enrichment-{max_requests}.yaml"
+    config_file.write_text(
+        f"enrichment:\n  max_requests_per_cycle: {max_requests}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="enrichment\\.max_requests_per_cycle"):
+        load_config(config_file)
+
+
+def test_enrichment_max_requests_per_cycle_accepts_zero(tmp_path: Path) -> None:
+    config_file = tmp_path / "enrichment-zero.yaml"
+    config_file.write_text("enrichment:\n  max_requests_per_cycle: 0\n", encoding="utf-8")
+    config = load_config(config_file)
+    assert config.enrichment.max_requests_per_cycle == 0
+
+
+@pytest.mark.parametrize("timeout", [0, -1, -0.5])
+def test_enrichment_latest_comment_timeout_rejects_non_positive(tmp_path: Path, timeout: float) -> None:
+    config_file = tmp_path / f"enrichment-lc-timeout-{timeout}.yaml"
+    config_file.write_text(
+        f"enrichment:\n  github_latest_comment:\n    timeout_seconds: {timeout}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="enrichment\\.github_latest_comment\\.timeout_seconds"):
+        load_config(config_file)
+
+
+@pytest.mark.parametrize("timeout", [0, -1, -0.5])
+def test_enrichment_pr_state_timeout_rejects_non_positive(tmp_path: Path, timeout: float) -> None:
+    config_file = tmp_path / f"enrichment-pr-timeout-{timeout}.yaml"
+    config_file.write_text(
+        f"enrichment:\n  github_pr_state:\n    timeout_seconds: {timeout}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="enrichment\\.github_pr_state\\.timeout_seconds"):
+        load_config(config_file)
+
+
+def test_load_config_yaml_error_raises_valueerror(tmp_path: Path) -> None:
+    config_file = tmp_path / "broken.yaml"
+    # Write deliberately malformed YAML (tab inside flow scalar triggers error)
+    config_file.write_bytes(b"key: [\x09invalid\n")
+    with pytest.raises(ValueError, match="Failed to parse config file"):
+        load_config(config_file)
+
+
+@pytest.mark.parametrize("max_per_cycle", [-1, -10])
+def test_browser_tab_max_per_cycle_rejects_negative(tmp_path: Path, max_per_cycle: int) -> None:
+    config_file = tmp_path / f"notif-max-{max_per_cycle}.yaml"
+    config_file.write_text(
+        f"notifications:\n  browser_tab:\n    max_per_cycle: {max_per_cycle}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="notifications\\.browser_tab\\.max_per_cycle"):
+        load_config(config_file)
+
+
+def test_browser_tab_max_per_cycle_accepts_zero(tmp_path: Path) -> None:
+    config_file = tmp_path / "notif-max-zero.yaml"
+    config_file.write_text("notifications:\n  browser_tab:\n    max_per_cycle: 0\n", encoding="utf-8")
+    config = load_config(config_file)
+    assert config.notifications.browser_tab.max_per_cycle == 0
+
+
+@pytest.mark.parametrize("cooldown_seconds", [-1, -60])
+def test_browser_tab_cooldown_seconds_rejects_negative(tmp_path: Path, cooldown_seconds: int) -> None:
+    config_file = tmp_path / f"notif-cooldown-{cooldown_seconds}.yaml"
+    config_file.write_text(
+        f"notifications:\n  browser_tab:\n    cooldown_seconds: {cooldown_seconds}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="notifications\\.browser_tab\\.cooldown_seconds"):
+        load_config(config_file)
+
+
+def test_browser_tab_cooldown_seconds_accepts_zero(tmp_path: Path) -> None:
+    config_file = tmp_path / "notif-cooldown-zero.yaml"
+    config_file.write_text("notifications:\n  browser_tab:\n    cooldown_seconds: 0\n", encoding="utf-8")
+    config = load_config(config_file)
+    assert config.notifications.browser_tab.cooldown_seconds == 0

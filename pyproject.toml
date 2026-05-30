@@ -27,10 +27,16 @@ dependencies = [
     "cryptography",
     "psycopg[binary,pool]>=3.3.3",
     "alembic>=1.18.4",
+    "prometheus-client>=0.21",
 ]
 
 [project.optional-dependencies]
 e2e = ["pytest-playwright>=0.7.1"]
+otel = [
+    "opentelemetry-api>=1.30",
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp-proto-http>=1.30",
+]
 
 [tool.hatch.version]
 source = "vcs"
@@ -69,6 +75,9 @@ dev = [
     "pytest-regressions",
     "pytest-datadir",
     "testcontainers[postgres]>=4.14.2",
+    "opentelemetry-api>=1.30",
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp-proto-http>=1.30",
 ]
 
 [project.urls]

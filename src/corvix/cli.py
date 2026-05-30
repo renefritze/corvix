@@ -16,6 +16,7 @@ from corvix.db import get_database_url
 from corvix.domain import parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
+from corvix.observability import configure_logging, setup_tracing
 from corvix.services import (
     NotificationsClient,
     PollCycleInput,
@@ -91,6 +92,8 @@ def _apply_actions_option() -> Callable[[F], F]:
 @click.pass_context
 def main(ctx: click.Context, config_path: Path) -> None:
     """Corvix local GitHub notifications dashboard."""
+    configure_logging()
+    setup_tracing(service_name="corvix-poller")
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = config_path
     if ctx.invoked_subcommand is None:

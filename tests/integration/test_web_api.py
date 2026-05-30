@@ -1161,3 +1161,50 @@ class TestDeprecatedApiRoutes:
         monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
         response = client.get("/api/health")
         assert response.status_code != HTTPStatus.UNAUTHORIZED
+
+
+class TestObservability:
+    """Tests for the /metrics endpoint and request-ID instrumentation."""
+
+    @pytest.fixture(autouse=True)
+    def reset_middleware_cache(self) -> Generator[None]:
+        _mw._SECRET_CACHE = None
+        _mw._MISCONFIGURED = False
+        yield
+        _mw._SECRET_CACHE = None
+        _mw._MISCONFIGURED = False
+
+    def test_metrics_endpoint_returns_prometheus_text(self, client: TestClient) -> None:
+        response = client.get("/metrics")
+        assert response.status_code == HTTPStatus.OK
+        content_type = response.headers["content-type"]
+        assert content_type.startswith("text/plain")
+        # The Prometheus charset must not be duplicated by the framework.
+        assert content_type.count("charset=") == 1
+        assert "corvix_http_requests_total" in response.text
+
+    def test_metrics_records_request_count_by_endpoint(self, client: TestClient) -> None:
+        client.get("/metrics")
+        body = client.get("/metrics").text
+        assert 'corvix_http_requests_total{endpoint="/metrics",method="GET",status="200"}' in body
+
+    def test_response_carries_request_id_header(self, client: TestClient) -> None:
+        response = client.get("/metrics")
+        assert response.headers.get("x-request-id")
+
+    def test_request_id_echoes_inbound_header(self, client: TestClient) -> None:
+        response = client.get("/metrics", headers={"X-Request-ID": "trace-123"})
+        assert response.headers.get("x-request-id") == "trace-123"
+
+    def test_metrics_public_when_auth_enabled(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/metrics")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_startup_hook_configures_observability(self) -> None:
+        # Entering the TestClient context manager runs the on_startup hook,
+        # which configures logging and (no-op) tracing.
+        with TestClient(app) as ctx_client:
+            assert ctx_client.get("/metrics").status_code == HTTPStatus.OK

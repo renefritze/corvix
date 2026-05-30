@@ -10,6 +10,7 @@ caption: 'Contents:'
 readme
 quickstart
 usage
+observability
 new_notification_target
 spec
 contributing

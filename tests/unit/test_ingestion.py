@@ -120,6 +120,41 @@ def test_request_json_reads_and_decodes_payload() -> None:
     assert mock_urlopen.call_args.kwargs["timeout"] == pytest.approx(1.5)
 
 
+def _api_request_count(method: str, status: str) -> float:
+    from prometheus_client import REGISTRY  # noqa: PLC0415
+
+    value = REGISTRY.get_sample_value(
+        "corvix_github_api_requests_total",
+        {"method": method, "status": status},
+    )
+    return value or 0.0
+
+
+def test_request_json_records_http_error_status_metric() -> None:
+    client = _client()
+    err = url_error.HTTPError(
+        url="https://api.example.com/notifications", code=503, msg="boom", hdrs=None, fp=io.BytesIO(b"")
+    )
+    before = _api_request_count("GET", "503")
+    with (
+        patch.object(request, "urlopen", side_effect=err),
+        pytest.raises(url_error.HTTPError),
+    ):
+        client._request_json("https://api.example.com/notifications", method="GET")
+    assert _api_request_count("GET", "503") == before + 1
+
+
+def test_request_no_content_records_error_status_metric() -> None:
+    client = _client()
+    before = _api_request_count("PATCH", "error")
+    with (
+        patch.object(request, "urlopen", side_effect=RuntimeError("network down")),
+        pytest.raises(RuntimeError),
+    ):
+        client._request_no_content("https://api.example.com/notifications/threads/1", method="PATCH")
+    assert _api_request_count("PATCH", "error") == before + 1
+
+
 def test_request_json_uses_client_default_timeout() -> None:
     client = GitHubNotificationsClient(
         token="test-token", api_base_url="https://api.example.com", request_timeout_seconds=2.5

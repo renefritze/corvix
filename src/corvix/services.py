@@ -22,6 +22,7 @@ from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
 from corvix.notifications.models import DispatchResult
 from corvix.notifications.targets.base import NotificationTarget
+from corvix.observability import metrics, span
 from corvix.pipeline.base import JsonFetchClient
 from corvix.pipeline.engine import PipelineEngine
 from corvix.pipeline.provider import ContextProvider, FieldProvider
@@ -83,7 +84,36 @@ def run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
     ``cycle_input.config.notifications.enabled`` is ``True``) the poll cycle will
     detect newly-arrived unread notifications and fan-out delivery to each
     target after saving the snapshot.
+
+    Wraps the cycle in a trace span and records poll-cycle metrics (count,
+    duration, notifications fetched, actions taken, errors).
     """
+    start = time.perf_counter()
+    with span("poll_cycle"):
+        try:
+            summary = _run_poll_cycle(cycle_input)
+        except Exception:
+            metrics.poll_cycle_duration_seconds.observe(time.perf_counter() - start)
+            metrics.poll_cycles_total.labels("error").inc()
+            metrics.poll_cycle_errors_total.inc()
+            raise
+        metrics.poll_cycle_duration_seconds.observe(time.perf_counter() - start)
+        metrics.poll_cycles_total.labels("success").inc()
+        metrics.notifications_fetched_total.inc(summary.fetched)
+        metrics.actions_taken_total.inc(summary.actions_taken)
+        logger.info(
+            "poll cycle complete",
+            extra={
+                "fetched": summary.fetched,
+                "excluded": summary.excluded,
+                "actions_taken": summary.actions_taken,
+                "errors": len(summary.errors),
+            },
+        )
+        return summary
+
+
+def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
     current_time = cycle_input.now if cycle_input.now is not None else datetime.now(tz=UTC)
     active_clients = _resolve_active_clients(cycle_input)
     previous_records = _load_previous_records(cycle_input)
