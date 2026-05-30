@@ -21,10 +21,10 @@ export class ErrorBoundary extends Component<
 		this.setState({ hasError: true, error });
 	}
 
-	private reset = () => {
+	private reset(): void {
 		this.setState({ hasError: false, error: null });
 		this.props.onRetry?.();
-	};
+	}
 
 	render() {
 		if (this.state.hasError) {
@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<
 				<div class="empty-state error-state">
 					<p class="empty-title">Something went wrong</p>
 					<p class="empty-body">{errorMessage}</p>
-					<button type="button" onClick={this.reset}>
+					<button type="button" onClick={() => { this.reset(); }}>
 						Try again
 					</button>
 				</div>
