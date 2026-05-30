@@ -1,11 +1,4 @@
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "preact/hooks";
-import { fetchRuleSnippets, markNotificationRead } from "./api";
+import { useCallback, useMemo, useRef, useState } from "preact/hooks";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FilterBar } from "./components/FilterBar";
@@ -16,81 +9,42 @@ import { PollerWarning } from "./components/PollerWarning";
 import { Toolbar } from "./components/Toolbar";
 import { UndoToast } from "./components/UndoToast";
 import { useBrowserNotifications } from "./hooks/useBrowserNotifications";
+import { useDashboardState } from "./hooks/useDashboardState";
 import { useDismiss } from "./hooks/useDismiss";
-import { useFilters } from "./hooks/useFilters";
+import { useFilterSort } from "./hooks/useFilterSort";
+import { useIgnoreRuleDialog } from "./hooks/useIgnoreRuleDialog";
 import { useKeyboard } from "./hooks/useKeyboard";
-import { useSnapshot } from "./hooks/useSnapshot";
-import { useSort } from "./hooks/useSort";
+import { useMarkRead } from "./hooks/useMarkRead";
 import { notificationKey } from "./types";
-import type { DashboardItem, RuleSnippetsPayload, SortColumn } from "./types";
-
-const DASHBOARD_PATH_PREFIX = "/dashboards/";
-
-function mapDashboardSortToColumn(sortBy: string): SortColumn {
-	if (sortBy === "title") return "subject_title";
-	if (sortBy === "repository") return "repository";
-	if (sortBy === "subject_type") return "subject_type";
-	if (sortBy === "reason") return "reason";
-	if (sortBy === "updated_at") return "updated_at";
-	return "score";
-}
-
-function parseDashboardFromPath(pathname: string): string | undefined {
-	if (!pathname.startsWith(DASHBOARD_PATH_PREFIX)) {
-		return undefined;
-	}
-	const rawName = pathname.slice(DASHBOARD_PATH_PREFIX.length);
-	if (!rawName) {
-		return undefined;
-	}
-	return decodeURIComponent(rawName);
-}
-
-function dashboardPath(name: string | undefined): string {
-	if (!name) {
-		return "/";
-	}
-	return `${DASHBOARD_PATH_PREFIX}${encodeURIComponent(name)}`;
-}
+import type { DashboardItem } from "./types";
 
 export function App() {
-	const [dashboard, setDashboard] = useState<string | undefined>(() => {
-		if (typeof globalThis.window === "undefined") {
-			return undefined;
-		}
-		return parseDashboardFromPath(globalThis.window.location.pathname);
-	});
 	const [toastError, setToastError] = useState<string | null>(null);
 	const [showShortcuts, setShowShortcuts] = useState(false);
-	const [ignoreMenu, setIgnoreMenu] = useState<{
-		item: DashboardItem;
-		x: number;
-		y: number;
-	} | null>(null);
-	const [ignoreDialogItem, setIgnoreDialogItem] =
-		useState<DashboardItem | null>(null);
-	const [markingGroupNames, setMarkingGroupNames] = useState<Set<string>>(
-		new Set(),
-	);
-	const [ignoreSnippets, setIgnoreSnippets] =
-		useState<RuleSnippetsPayload | null>(null);
-	const [ignoreLoading, setIgnoreLoading] = useState(false);
-	const [ignoreError, setIgnoreError] = useState<string | null>(null);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
 
-	const { snapshot, loading, refreshing, manualRefreshing, error, refresh } =
-		useSnapshot(dashboard);
-	const { filters, setFilter, clearFilters } = useFilters();
-	const configuredSortColumn = useMemo(
-		() => mapDashboardSortToColumn(snapshot?.sort_by ?? "score"),
-		[snapshot?.sort_by],
-	);
-	const configuredSortDirection =
-		snapshot?.descending === false ? "asc" : "desc";
-	const { sortColumn, sortDirection, handleSort } = useSort(
-		configuredSortColumn,
-		configuredSortDirection,
-	);
+	const {
+		snapshot,
+		loading,
+		refreshing,
+		manualRefreshing,
+		error,
+		refresh,
+		dashboardNames,
+		currentDashboard,
+		setDashboard,
+	} = useDashboardState();
+
+	const {
+		filters,
+		setFilter,
+		clearFilters,
+		sortColumn,
+		sortDirection,
+		handleSort,
+		dashboardAllowsRead,
+		effectiveUnreadFilter,
+	} = useFilterSort(snapshot);
 
 	const allItems = useMemo<DashboardItem[]>(() => {
 		if (!snapshot) return [];
@@ -107,13 +61,23 @@ export function App() {
 		setToastError,
 		currentThreadIds,
 	);
-
 	const hiddenIds = hiddenThreadIds;
-	const dashboardAllowsRead = snapshot?.include_read ?? true;
-	const effectiveUnreadFilter =
-		dashboardAllowsRead || filters.unread === "unread"
-			? filters.unread
-			: "unread";
+
+	const { markingGroupNames, openTarget, markGroupRead } = useMarkRead(
+		refresh,
+		setToastError,
+	);
+
+	const {
+		menu: ignoreMenu,
+		dialogItem: ignoreDialogItem,
+		snippets: ignoreSnippets,
+		loading: ignoreLoading,
+		error: ignoreError,
+		requestRule: requestIgnoreRule,
+		openDialog: openIgnoreDialog,
+		closeDialog: closeIgnoreDialog,
+	} = useIgnoreRuleDialog(currentDashboard);
 
 	const notifConfig = snapshot?.notifications_config?.browser_tab ?? null;
 	const {
@@ -126,9 +90,6 @@ export function App() {
 		items: allItems,
 		config: notifConfig,
 	});
-
-	const dashboardNames = snapshot?.dashboard_names ?? [];
-	const currentDashboard = dashboard ?? dashboardNames[0] ?? null;
 
 	const filteredGroups = useMemo(() => {
 		if (!snapshot) return [];
@@ -165,176 +126,12 @@ export function App() {
 		if (accountId && threadId) dismiss(accountId, threadId);
 	}, [dismiss]);
 
-	const handleOpenTarget = useCallback(
-		(accountId: string, threadId: string) => {
-			void markNotificationRead(accountId, threadId)
-				.then(() => refresh())
-				.catch((err: unknown) => {
-					setToastError(
-						err instanceof Error ? err.message : "Mark read failed",
-					);
-				});
-		},
-		[refresh],
-	);
-
-	const handleMarkGroupRead = useCallback(
-		(groupName: string, items: DashboardItem[]) => {
-			const unreadItems = items.filter((item) => item.unread);
-			if (unreadItems.length === 0) return;
-			setMarkingGroupNames((prev) => {
-				const next = new Set(prev);
-				next.add(groupName);
-				return next;
-			});
-			void Promise.allSettled(
-				unreadItems.map((item) =>
-					markNotificationRead(item.account_id, item.thread_id),
-				),
-			)
-				.then((results) => {
-					const failures = results.filter(
-						(result) => result.status === "rejected",
-					).length;
-					if (failures > 0) {
-						setToastError(
-							`Mark all read failed for ${failures} notification${failures > 1 ? "s" : ""}`,
-						);
-					}
-				})
-				.finally(() => {
-					setMarkingGroupNames((prev) => {
-						const next = new Set(prev);
-						next.delete(groupName);
-						return next;
-					});
-					return refresh();
-				});
-		},
-		[refresh],
-	);
-
-	const handleRequestIgnoreRule = useCallback(
-		(item: DashboardItem, position: { x: number; y: number }) => {
-			setIgnoreMenu({ item, x: position.x, y: position.y });
-		},
-		[],
-	);
-
-	const openIgnoreDialog = useCallback((item: DashboardItem) => {
-		setIgnoreDialogItem(item);
-		setIgnoreMenu(null);
-	}, []);
-
-	const closeIgnoreDialog = useCallback(() => {
-		setIgnoreDialogItem(null);
-		setIgnoreSnippets(null);
-		setIgnoreError(null);
-		setIgnoreLoading(false);
-	}, []);
-
-	useEffect(() => {
-		if (!ignoreMenu) return;
-		const handleClickAway = () => setIgnoreMenu(null);
-		const handleEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				setIgnoreMenu(null);
-			}
-		};
-		globalThis.addEventListener("click", handleClickAway);
-		globalThis.addEventListener("keydown", handleEscape);
-		return () => {
-			globalThis.removeEventListener("click", handleClickAway);
-			globalThis.removeEventListener("keydown", handleEscape);
-		};
-	}, [ignoreMenu]);
-
-	useEffect(() => {
-		if (!ignoreDialogItem) {
-			return;
-		}
-		let cancelled = false;
-		setIgnoreLoading(true);
-		setIgnoreError(null);
-		setIgnoreSnippets(null);
-		void fetchRuleSnippets(
-			ignoreDialogItem.account_id,
-			ignoreDialogItem.thread_id,
-			currentDashboard ?? undefined,
-		)
-			.then((payload) => {
-				if (cancelled) return;
-				setIgnoreSnippets(payload);
-			})
-			.catch((error: unknown) => {
-				if (cancelled) return;
-				setIgnoreError(
-					error instanceof Error
-						? error.message
-						: "Failed to load rule snippets",
-				);
-			})
-			.finally(() => {
-				if (cancelled) return;
-				setIgnoreLoading(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [ignoreDialogItem, currentDashboard]);
-
 	useKeyboard({
 		onRefresh: refresh,
 		onFocusFilters: () => filterBarRef.current?.focus(),
 		onDismissFocused: handleDismissFocused,
 		onToggleShortcuts: () => setShowShortcuts((prev) => !prev),
 	});
-
-	useEffect(() => {
-		if (typeof globalThis.window === "undefined") {
-			return;
-		}
-		const handlePopState = () => {
-			const fromPath = parseDashboardFromPath(
-				globalThis.window.location.pathname,
-			);
-			if (!fromPath) {
-				setDashboard(undefined);
-				return;
-			}
-			if (dashboardNames.length > 0 && !dashboardNames.includes(fromPath)) {
-				setDashboard(undefined);
-				return;
-			}
-			setDashboard(fromPath);
-		};
-		globalThis.window.addEventListener("popstate", handlePopState);
-		return () =>
-			globalThis.window.removeEventListener("popstate", handlePopState);
-	}, [dashboardNames]);
-
-	useEffect(() => {
-		if (typeof globalThis.window === "undefined") {
-			return;
-		}
-		if (dashboardNames.length === 0) {
-			return;
-		}
-		if (dashboard && !dashboardNames.includes(dashboard)) {
-			setDashboard(undefined);
-		}
-	}, [dashboard, dashboardNames]);
-
-	useEffect(() => {
-		if (typeof globalThis.window === "undefined") {
-			return;
-		}
-		const targetPath = dashboardPath(currentDashboard ?? undefined);
-		if (globalThis.window.location.pathname === targetPath) {
-			return;
-		}
-		globalThis.window.history.pushState({}, "", targetPath);
-	}, [currentDashboard]);
 
 	let boardContent = <LoadingSkeleton />;
 	if (!loading) {
@@ -371,10 +168,10 @@ export function App() {
 						sortDirection={sortDirection}
 						onSort={handleSort}
 						onDismiss={dismiss}
-						onMarkGroupRead={handleMarkGroupRead}
+						onMarkGroupRead={markGroupRead}
 						markingGroupNames={markingGroupNames}
-						onOpenTarget={handleOpenTarget}
-						onRequestIgnoreRule={handleRequestIgnoreRule}
+						onOpenTarget={openTarget}
+						onRequestIgnoreRule={requestIgnoreRule}
 						pendingDismissals={new Set(pending.keys())}
 					/>
 				</ErrorBoundary>
