@@ -7,6 +7,7 @@ import {
 } from "preact/hooks";
 import { fetchRuleSnippets, markNotificationRead } from "./api";
 import { EmptyState } from "./components/EmptyState";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FilterBar } from "./components/FilterBar";
 import { IgnoreRuleDialog } from "./components/IgnoreRuleDialog";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
@@ -363,18 +364,20 @@ export function App() {
 			);
 		} else {
 			boardContent = (
-				<NotificationTable
-					groups={filteredGroups}
-					sortColumn={sortColumn}
-					sortDirection={sortDirection}
-					onSort={handleSort}
-					onDismiss={dismiss}
-					onMarkGroupRead={handleMarkGroupRead}
-					markingGroupNames={markingGroupNames}
-					onOpenTarget={handleOpenTarget}
-					onRequestIgnoreRule={handleRequestIgnoreRule}
-					pendingDismissals={new Set(pending.keys())}
-				/>
+				<ErrorBoundary onRetry={refresh}>
+					<NotificationTable
+						groups={filteredGroups}
+						sortColumn={sortColumn}
+						sortDirection={sortDirection}
+						onSort={handleSort}
+						onDismiss={dismiss}
+						onMarkGroupRead={handleMarkGroupRead}
+						markingGroupNames={markingGroupNames}
+						onOpenTarget={handleOpenTarget}
+						onRequestIgnoreRule={handleRequestIgnoreRule}
+						pendingDismissals={new Set(pending.keys())}
+					/>
+				</ErrorBoundary>
 			);
 		}
 	}
@@ -450,15 +453,19 @@ export function App() {
 					</button>
 				</div>
 			)}
-			<IgnoreRuleDialog
-				open={ignoreDialogItem !== null}
-				item={ignoreDialogItem}
-				dashboardName={currentDashboard}
-				snippets={ignoreSnippets}
-				loading={ignoreLoading}
-				error={ignoreError}
-				onClose={closeIgnoreDialog}
-			/>
+			{ignoreDialogItem !== null && (
+				<ErrorBoundary onRetry={closeIgnoreDialog}>
+					<IgnoreRuleDialog
+						open
+						item={ignoreDialogItem}
+						dashboardName={currentDashboard}
+						snippets={ignoreSnippets}
+						loading={ignoreLoading}
+						error={ignoreError}
+						onClose={closeIgnoreDialog}
+					/>
+				</ErrorBoundary>
+			)}
 			{toastError && (
 				<div class="error-toast" role="alert">
 					{toastError}
