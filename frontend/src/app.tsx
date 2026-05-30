@@ -456,7 +456,7 @@ export function App() {
 			{ignoreDialogItem !== null && (
 				<ErrorBoundary onRetry={closeIgnoreDialog}>
 					<IgnoreRuleDialog
-						open={ignoreDialogItem !== null}
+						open
 						item={ignoreDialogItem}
 						dashboardName={currentDashboard}
 						snippets={ignoreSnippets}

@@ -11,7 +11,7 @@ function Bomb({ shouldThrow }: { readonly shouldThrow: boolean }) {
 
 describe("ErrorBoundary", () => {
 	beforeEach(() => {
-		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockReturnValue(undefined);
 	});
 
 	afterEach(() => {
