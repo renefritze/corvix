@@ -1,22 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { makeSnapshot } from "../test/fixtures";
+import { type FetchInput, requestUrl, setPath } from "../test/http";
 import {
 	parseDashboardFromPath,
 	useDashboardState,
 } from "./useDashboardState";
-
-type FetchInput = string | URL | Request;
-
-function requestUrl(input: FetchInput): string {
-	if (typeof input === "string") return input;
-	if (input instanceof URL) return input.toString();
-	return input.url;
-}
-
-function setPath(path: string): void {
-	globalThis.history.pushState({}, "", path);
-}
 
 function Harness() {
 	const { currentDashboard, dashboardNames, setDashboard, loading } =

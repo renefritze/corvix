@@ -1,15 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { makeItem } from "../test/fixtures";
+import { requestUrl } from "../test/http";
 import { useMarkRead } from "./useMarkRead";
-
-type FetchInput = string | URL | Request;
-
-function requestUrl(input: FetchInput): string {
-	if (typeof input === "string") return input;
-	if (input instanceof URL) return input.toString();
-	return input.url;
-}
 
 function Harness({
 	onRefresh,
