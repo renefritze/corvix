@@ -73,15 +73,16 @@ describe("ErrorBoundary", () => {
 	});
 
 	it("handles non-Error thrown values gracefully without crashing", () => {
-		function StringBomb() {
-			throw "string error message";
+		function NonErrorBomb() {
+			const thrown: unknown = { code: 404 };
+			throw thrown;
 		}
 		render(
 			<ErrorBoundary>
-				<StringBomb />
+				<NonErrorBomb />
 			</ErrorBoundary>,
 		);
 		expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-		expect(screen.getByText("string error message")).toBeInTheDocument();
+		expect(screen.getByText("[object Object]")).toBeInTheDocument();
 	});
 });
