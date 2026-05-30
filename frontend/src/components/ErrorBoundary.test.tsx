@@ -74,7 +74,8 @@ describe("ErrorBoundary", () => {
 
 	it("handles non-Error thrown values gracefully without crashing", () => {
 		function NonErrorBomb() {
-			throw { code: 404 };
+			const thrown: unknown = { code: 404 };
+			throw thrown;
 		}
 		render(
 			<ErrorBoundary>

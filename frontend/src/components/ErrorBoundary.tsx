@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<
 				<div class="empty-state error-state">
 					<p class="empty-title">Something went wrong</p>
 					<p class="empty-body">{errorMessage}</p>
-					<button type="button" onClick={() => { this.reset(); }}>
+					<button type="button" onClick={() => this.reset()}>
 						Try again
 					</button>
 				</div>
