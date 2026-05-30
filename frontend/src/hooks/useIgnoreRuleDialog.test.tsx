@@ -56,43 +56,53 @@ function Harness({ dashboard }: { dashboard: string | null }) {
 	);
 }
 
+function renderHarness(dashboard: string | null = "overview") {
+	const user = userEvent.setup();
+	render(<Harness dashboard={dashboard} />);
+	return user;
+}
+
+function mockSnippetFetch(response: Partial<Response>) {
+	return vi.spyOn(globalThis, "fetch").mockResolvedValue(response as Response);
+}
+
+// Opens the context menu, then dismisses it via the given window event and
+// asserts the menu is gone.
+async function expectMenuDismissedBy(
+	user: ReturnType<typeof userEvent.setup>,
+	event: Event,
+) {
+	await user.click(screen.getByRole("button", { name: "request" }));
+	expect(screen.getByTestId("menu")).toHaveTextContent("10,20");
+	await flushEffects();
+	globalThis.dispatchEvent(event);
+	await waitFor(() =>
+		expect(screen.getByTestId("menu")).toHaveTextContent("none"),
+	);
+}
+
 describe("useIgnoreRuleDialog", () => {
 	it("opens the context menu at the requested position", async () => {
-		const user = userEvent.setup();
-		render(<Harness dashboard="overview" />);
+		const user = renderHarness();
 		await user.click(screen.getByRole("button", { name: "request" }));
 		expect(screen.getByTestId("menu")).toHaveTextContent("10,20");
 	});
 
 	it("closes the menu on outside click and on Escape", async () => {
-		const user = userEvent.setup();
-		render(<Harness dashboard="overview" />);
-
-		await user.click(screen.getByRole("button", { name: "request" }));
-		expect(screen.getByTestId("menu")).toHaveTextContent("10,20");
-		await flushEffects();
-		globalThis.dispatchEvent(new MouseEvent("click"));
-		await waitFor(() =>
-			expect(screen.getByTestId("menu")).toHaveTextContent("none"),
-		);
-
-		await user.click(screen.getByRole("button", { name: "request" }));
-		expect(screen.getByTestId("menu")).toHaveTextContent("10,20");
-		await flushEffects();
-		globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-		await waitFor(() =>
-			expect(screen.getByTestId("menu")).toHaveTextContent("none"),
+		const user = renderHarness();
+		await expectMenuDismissedBy(user, new MouseEvent("click"));
+		await expectMenuDismissedBy(
+			user,
+			new KeyboardEvent("keydown", { key: "Escape" }),
 		);
 	});
 
 	it("loads snippets when the dialog opens and clears the menu", async () => {
-		const user = userEvent.setup();
-		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+		const fetchMock = mockSnippetFetch({
 			ok: true,
 			json: async () => SNIPPETS,
-		} as Response);
-
-		render(<Harness dashboard="overview" />);
+		});
+		const user = renderHarness();
 		await user.click(screen.getByRole("button", { name: "request" }));
 		await user.click(screen.getByRole("button", { name: "open" }));
 
@@ -110,14 +120,8 @@ describe("useIgnoreRuleDialog", () => {
 	});
 
 	it("surfaces a snippet fetch error", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(globalThis, "fetch").mockResolvedValue({
-			ok: false,
-			status: 500,
-			json: async () => ({}),
-		} as Response);
-
-		render(<Harness dashboard="overview" />);
+		mockSnippetFetch({ ok: false, status: 500, json: async () => ({}) });
+		const user = renderHarness();
 		await user.click(screen.getByRole("button", { name: "open" }));
 
 		await waitFor(() =>
@@ -128,13 +132,8 @@ describe("useIgnoreRuleDialog", () => {
 	});
 
 	it("resets dialog state on close", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(globalThis, "fetch").mockResolvedValue({
-			ok: true,
-			json: async () => SNIPPETS,
-		} as Response);
-
-		render(<Harness dashboard="overview" />);
+		mockSnippetFetch({ ok: true, json: async () => SNIPPETS });
+		const user = renderHarness();
 		await user.click(screen.getByRole("button", { name: "open" }));
 		await waitFor(() =>
 			expect(screen.getByTestId("snippets")).toHaveTextContent(
