@@ -453,17 +453,19 @@ export function App() {
 					</button>
 				</div>
 			)}
-			<ErrorBoundary onRetry={closeIgnoreDialog}>
-				<IgnoreRuleDialog
-					open={ignoreDialogItem !== null}
-					item={ignoreDialogItem}
-					dashboardName={currentDashboard}
-					snippets={ignoreSnippets}
-					loading={ignoreLoading}
-					error={ignoreError}
-					onClose={closeIgnoreDialog}
-				/>
-			</ErrorBoundary>
+			{ignoreDialogItem !== null && (
+				<ErrorBoundary onRetry={closeIgnoreDialog}>
+					<IgnoreRuleDialog
+						open={ignoreDialogItem !== null}
+						item={ignoreDialogItem}
+						dashboardName={currentDashboard}
+						snippets={ignoreSnippets}
+						loading={ignoreLoading}
+						error={ignoreError}
+						onClose={closeIgnoreDialog}
+					/>
+				</ErrorBoundary>
+			)}
 			{toastError && (
 				<div class="error-toast" role="alert">
 					{toastError}

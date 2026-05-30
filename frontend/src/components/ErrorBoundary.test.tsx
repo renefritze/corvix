@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { ErrorBoundary } from "./ErrorBoundary";
 
-function Bomb({ shouldThrow }: { shouldThrow: boolean }) {
+function Bomb({ shouldThrow }: { readonly shouldThrow: boolean }) {
 	if (shouldThrow) {
 		throw new Error("render failed");
 	}
@@ -70,5 +70,18 @@ describe("ErrorBoundary", () => {
 
 		await user.click(screen.getByRole("button", { name: "Try again" }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("handles non-Error thrown values gracefully without crashing", () => {
+		function StringBomb() {
+			throw "string error message";
+		}
+		render(
+			<ErrorBoundary>
+				<StringBomb />
+			</ErrorBoundary>,
+		);
+		expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+		expect(screen.getByText("string error message")).toBeInTheDocument();
 	});
 });

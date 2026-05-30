@@ -7,30 +7,35 @@ interface ErrorBoundaryProps {
 }
 
 interface ErrorBoundaryState {
-	readonly error: Error | null;
+	readonly hasError: boolean;
+	readonly error: unknown;
 }
 
 export class ErrorBoundary extends Component<
 	ErrorBoundaryProps,
 	ErrorBoundaryState
 > {
-	state: ErrorBoundaryState = { error: null };
+	state: ErrorBoundaryState = { hasError: false, error: null };
 
-	componentDidCatch(error: Error): void {
-		this.setState({ error });
+	componentDidCatch(error: unknown): void {
+		this.setState({ hasError: true, error });
 	}
 
 	private reset = () => {
-		this.setState({ error: null });
+		this.setState({ hasError: false, error: null });
 		this.props.onRetry?.();
 	};
 
 	render() {
-		if (this.state.error) {
+		if (this.state.hasError) {
+			const errorMessage =
+				this.state.error instanceof Error
+					? this.state.error.message
+					: String(this.state.error ?? "Unknown error");
 			return (
 				<div class="empty-state error-state">
 					<p class="empty-title">Something went wrong</p>
-					<p class="empty-body">{this.state.error.message}</p>
+					<p class="empty-body">{errorMessage}</p>
 					<button type="button" onClick={this.reset}>
 						Try again
 					</button>
