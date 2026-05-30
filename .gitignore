@@ -725,3 +725,4 @@ _version.py
 .pre-commit-cache/
 .playwright-cli/
 .agents/settings.local.json
+docs/_build*

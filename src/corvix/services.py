@@ -14,12 +14,8 @@ from rich.console import Console
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import AppConfig, DashboardSpec, PollingConfig, available_dashboards
 from corvix.domain import Notification, NotificationRecord, PollerStatus, format_timestamp, notification_key
-from corvix.enrichment.base import EnrichmentProvider
-from corvix.enrichment.engine import EnrichmentEngine
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
-from corvix.hydration.base import HydrationProvider
-from corvix.hydration.engine import HydrationEngine
 from corvix.hydration.providers.github_thread_subject import GitHubThreadSubjectProvider
 from corvix.hydration.providers.github_web_url import GitHubWebUrlProvider
 from corvix.notifications.detector import detect_new_unread_events
@@ -28,6 +24,8 @@ from corvix.notifications.models import DispatchResult
 from corvix.notifications.targets.base import NotificationTarget
 from corvix.observability import metrics, span
 from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.engine import PipelineEngine
+from corvix.pipeline.provider import ContextProvider, FieldProvider
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
@@ -122,40 +120,26 @@ def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
 
     notifications, clients_by_account = _fetch_notifications(cycle_input.config.polling, active_clients)
 
-    hydration_engine = HydrationEngine(
-        providers=_build_hydration_providers(),
+    pipeline_providers = _build_pipeline_providers(cycle_input.config)
+    pipeline_engine = PipelineEngine(
+        providers=pipeline_providers,
         max_requests_per_cycle=cycle_input.config.enrichment.max_requests_per_cycle,
     )
-    hydration_client = active_clients[0]
-    hydration_clients: dict[str, JsonFetchClient] = dict(clients_by_account)
-    hydration_result = hydration_engine.run(
+    pipeline_result = pipeline_engine.run(
         notifications=notifications,
-        client=hydration_client,
-        clients_by_account=hydration_clients,
+        client=active_clients[0],
+        clients_by_account=dict(clients_by_account),
     )
-    notifications = hydration_result.notifications
-
-    enrichment_engine = EnrichmentEngine(
-        config=cycle_input.config.enrichment,
-        providers=_build_enrichment_providers(cycle_input.config),
-    )
-    enrichment_client = active_clients[0]
-    enrichment_clients: dict[str, JsonFetchClient] = dict(clients_by_account)
-    enrichment_result = enrichment_engine.run(
-        notifications=notifications,
-        client=enrichment_client,
-        clients_by_account=enrichment_clients,
-    )
+    notifications = pipeline_result.notifications
 
     records, excluded, action_count, errors = _process_notifications(
         notifications=notifications,
         cycle_input=cycle_input,
         current_time=current_time,
         clients_by_account=clients_by_account,
-        contexts_by_notification_key=enrichment_result.contexts_by_notification_key,
+        contexts_by_notification_key=pipeline_result.contexts_by_notification_key,
     )
-    errors.extend(f"hydration: {error}" for error in hydration_result.errors)
-    errors.extend(f"enrichment: {error}" for error in enrichment_result.errors)
+    errors.extend(f"pipeline: {error}" for error in pipeline_result.errors)
     cycle_input.cache.save_records(cycle_input.user_id, records, current_time)
     cycle_input.cache.save_status(
         cycle_input.user_id,
@@ -361,25 +345,29 @@ def _select_dashboards(config: AppConfig, dashboard_name: str | None) -> list[Da
     return selected
 
 
-def _build_enrichment_providers(config: AppConfig) -> list[EnrichmentProvider]:
-    providers: list[EnrichmentProvider] = []
-    if config.enrichment.github_latest_comment.enabled:
-        providers.append(
-            GitHubLatestCommentProvider(
-                timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
-            )
-        )
-    if config.enrichment.github_pr_state.enabled:
-        providers.append(
-            GitHubPRStateProvider(
-                timeout_seconds=config.enrichment.github_pr_state.timeout_seconds,
-            )
-        )
-    return providers
+def _build_pipeline_providers(config: AppConfig) -> list[FieldProvider | ContextProvider]:
+    """Return the ordered list of pipeline providers for one poll cycle.
 
-
-def _build_hydration_providers() -> list[HydrationProvider]:
-    return [
+    Field-completion providers run first so that context providers see fully
+    hydrated notifications (e.g. ``web_url`` is already populated when
+    enrichment starts).  Context providers are only included when enrichment
+    is enabled in config.
+    """
+    providers: list[FieldProvider | ContextProvider] = [
         GitHubThreadSubjectProvider(),
         GitHubWebUrlProvider(),
     ]
+    if config.enrichment.enabled:
+        if config.enrichment.github_latest_comment.enabled:
+            providers.append(
+                GitHubLatestCommentProvider(
+                    timeout_seconds=config.enrichment.github_latest_comment.timeout_seconds,
+                )
+            )
+        if config.enrichment.github_pr_state.enabled:
+            providers.append(
+                GitHubPRStateProvider(
+                    timeout_seconds=config.enrichment.github_pr_state.timeout_seconds,
+                )
+            )
+    return providers
