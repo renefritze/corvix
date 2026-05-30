@@ -74,9 +74,9 @@ def _apply_provider(
     :class:`~corvix.pipeline.provider.ContextProvider` the notification is
     returned unchanged; any payload is merged into *notification_context*.
     """
-    if hasattr(provider, "hydrate"):
+    if isinstance(provider, FieldProvider):
         return provider.hydrate(current, notification_client, context)
-    if hasattr(provider, "enrich"):
+    if isinstance(provider, ContextProvider):
         payload = provider.enrich(current, notification_client, context)
         if payload:
             _set_nested_namespace(notification_context, provider.name, payload)
