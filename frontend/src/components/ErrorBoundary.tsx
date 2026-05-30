@@ -1,5 +1,5 @@
 import { Component } from "preact";
-import type { ComponentChildren } from "preact";
+import type { ComponentChildren, ErrorInfo } from "preact";
 
 interface ErrorBoundaryProps {
 	readonly children: ComponentChildren;
@@ -17,7 +17,7 @@ export class ErrorBoundary extends Component<
 > {
 	state: ErrorBoundaryState = { hasError: false, error: null };
 
-	componentDidCatch(error: unknown): void {
+	componentDidCatch(error: unknown, _errorInfo: ErrorInfo): void {
 		this.setState({ hasError: true, error });
 	}
 
