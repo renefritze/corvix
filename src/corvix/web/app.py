@@ -458,14 +458,34 @@ def _snapshot_event_body(dashboard: str | None) -> str:
     return json.dumps(payload, separators=(",", ":"), default=str)
 
 
+def _snapshot_error_payload(error: Exception) -> str:
+    """Serialize an SSE ``snapshot-error`` payload for *error*.
+
+    ``HTTPException`` carries a client-safe detail and status code; any other
+    exception is reported generically (its message is not leaked to the client).
+    """
+    if isinstance(error, HTTPException):
+        detail = error.detail if isinstance(error.detail, str) else "Unable to build snapshot."
+        status_code = error.status_code
+    else:
+        detail = "Internal server error."
+        status_code = 500
+    return json.dumps({"detail": detail, "status_code": status_code})
+
+
 async def _snapshot_event_generator(dashboard: str | None) -> AsyncIterator[ServerSentEventMessage]:
     """Yield SSE messages for *dashboard*, pushing only on change.
 
     Emits a ``snapshot`` event whenever the serialized payload differs from the
-    last one sent, an ``error`` event when the payload cannot be produced, and a
-    comment-only keep-alive when nothing has changed for a while (so proxies do
-    not drop an idle connection).  The blocking storage read runs in a worker
-    thread to avoid stalling the event loop.
+    last one sent, a ``snapshot-error`` event when the payload cannot be
+    produced, and a comment-only keep-alive when nothing has changed for a while
+    (so proxies do not drop an idle connection).  The blocking storage read runs
+    in a worker thread to avoid stalling the event loop.
+
+    Any error building the snapshot is reported to the client and the stream
+    keeps running, recovering on a later tick; this avoids tearing down the
+    connection (and triggering a client reconnection storm) on a transient
+    storage or serialization failure.
     """
     interval = _sse_poll_interval()
     last_digest: str | None = None
@@ -473,14 +493,12 @@ async def _snapshot_event_generator(dashboard: str | None) -> AsyncIterator[Serv
     while True:
         try:
             body = await asyncio.to_thread(_snapshot_event_body, dashboard)
-        except HTTPException as error:
-            detail = error.detail if isinstance(error.detail, str) else "Unable to build snapshot."
+        except Exception as error:
+            if not isinstance(error, HTTPException):
+                logger.exception("Unexpected error building SSE snapshot")
             # A distinct event name (not "error") so it does not collide with
             # the EventSource connection-error event on the client.
-            yield ServerSentEventMessage(
-                data=json.dumps({"detail": detail, "status_code": error.status_code}),
-                event="snapshot-error",
-            )
+            yield ServerSentEventMessage(data=_snapshot_error_payload(error), event="snapshot-error")
             last_digest = None
             last_emit = monotonic()
             await asyncio.sleep(interval)

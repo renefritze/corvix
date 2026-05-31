@@ -190,4 +190,24 @@ describe("useSnapshot (SSE)", () => {
 		unmount();
 		expect(source.closed).toBe(true);
 	});
+
+	it("does not start polling when an error fires after unmount", async () => {
+		vi.useFakeTimers();
+		const { unmount } = render(<Harness />);
+		await vi.waitFor(() => {
+			expect(MockEventSource.instances).toHaveLength(1);
+		});
+		const source = MockEventSource.instances[0];
+		const callsBefore = vi.mocked(fetchSnapshot).mock.calls.length;
+
+		unmount();
+		// A late error dispatched during/after close must not start a fallback
+		// interval that would outlive the unmounted component.
+		act(() => {
+			source.emitConnectionError(MockEventSource.CLOSED);
+		});
+		await vi.advanceTimersByTimeAsync(30_000);
+
+		expect(vi.mocked(fetchSnapshot).mock.calls.length).toBe(callsBefore);
+	});
 });

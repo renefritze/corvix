@@ -43,18 +43,18 @@ def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_sse_poll_interval_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CORVIX_SSE_POLL_INTERVAL_SECONDS", raising=False)
-    assert _sse_poll_interval() == web_app._SSE_DEFAULT_POLL_INTERVAL_SECONDS
+    assert _sse_poll_interval() == pytest.approx(web_app._SSE_DEFAULT_POLL_INTERVAL_SECONDS)
 
 
 def test_sse_poll_interval_custom(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_SSE_POLL_INTERVAL_SECONDS", "1.5")
-    assert _sse_poll_interval() == 1.5
+    assert _sse_poll_interval() == pytest.approx(1.5)
 
 
 @pytest.mark.parametrize("raw", ["not-a-number", "0", "-2"])
 def test_sse_poll_interval_falls_back(raw: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_SSE_POLL_INTERVAL_SECONDS", raw)
-    assert _sse_poll_interval() == web_app._SSE_DEFAULT_POLL_INTERVAL_SECONDS
+    assert _sse_poll_interval() == pytest.approx(web_app._SSE_DEFAULT_POLL_INTERVAL_SECONDS)
 
 
 # --- _snapshot_event_generator ---
@@ -105,6 +105,22 @@ def test_generator_emits_error_event_on_http_exception(monkeypatch: pytest.Monke
     assert messages[0].event == "snapshot-error"
     payload = json.loads(messages[0].data)
     assert payload == {"detail": "config broken", "status_code": 500}
+
+
+def test_generator_reports_unexpected_error_without_leaking_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom(_dashboard: str | None) -> str:
+        raise RuntimeError("psycopg connection refused: host=secret-db")
+
+    monkeypatch.setattr(web_app, "_snapshot_event_body", _boom)
+
+    messages = asyncio.run(_drain(_snapshot_event_generator(None), 1))
+
+    assert messages[0].event == "snapshot-error"
+    payload = json.loads(messages[0].data)
+    # The raw exception text must not be leaked to the client.
+    assert payload == {"detail": "Internal server error.", "status_code": 500}
 
 
 def test_generator_recovers_after_error(monkeypatch: pytest.MonkeyPatch) -> None:

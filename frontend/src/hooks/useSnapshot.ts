@@ -86,15 +86,24 @@ export function useSnapshot(dashboard: string | undefined) {
 		// SSE path: the server pushes a snapshot only when the data changes, so
 		// no interval is needed. We poll only as a fallback once the connection
 		// is permanently closed (e.g. the endpoint is unavailable).
+		//
+		// `active` guards against late events firing after the effect is torn
+		// down (e.g. an `onerror` dispatched during/after `source.close()`),
+		// which would otherwise start an orphaned interval or update unmounted
+		// state.
+		let active = true;
 		let pollId: ReturnType<typeof setInterval> | null = null;
 		const startPollingFallback = () => {
-			if (pollId === null) {
-				pollId = setInterval(() => load("auto"), REFRESH_INTERVAL_MS);
+			if (active && pollId === null) {
+				pollId = setInterval(() => {
+					if (active) load("auto");
+				}, REFRESH_INTERVAL_MS);
 			}
 		};
 
 		const source = new EventSource(snapshotEventsUrl(dashboard));
 		source.addEventListener("snapshot", (event) => {
+			if (!active) return;
 			try {
 				const data = JSON.parse(
 					(event as MessageEvent).data,
@@ -107,18 +116,20 @@ export function useSnapshot(dashboard: string | undefined) {
 			}
 		});
 		source.addEventListener("snapshot-error", (event) => {
+			if (!active) return;
 			const detail = parseErrorDetail((event as MessageEvent).data);
 			setError(detail);
 		});
 		source.onerror = () => {
 			// EventSource auto-reconnects on transient errors; only fall back to
 			// polling once the connection is definitively closed.
-			if (source.readyState === EventSource.CLOSED) {
+			if (active && source.readyState === EventSource.CLOSED) {
 				startPollingFallback();
 			}
 		};
 
 		return () => {
+			active = false;
 			source.close();
 			if (pollId !== null) clearInterval(pollId);
 		};
