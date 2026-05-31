@@ -35,7 +35,9 @@ describe("ErrorBoundary", () => {
 		);
 		expect(screen.getByText("Something went wrong")).toBeInTheDocument();
 		expect(screen.getByText("render failed")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Try again" }),
+		).toBeInTheDocument();
 	});
 
 	it("resets error state when Try again is clicked", async () => {
