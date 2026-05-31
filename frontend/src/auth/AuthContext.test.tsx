@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { fetchSnapshot, setUnauthorizedHandler } from "../api";
+import { mockResponse } from "../test/http";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 function Probe() {
@@ -56,11 +57,13 @@ describe("AuthProvider", () => {
 	});
 
 	it("bridges an API 401 into the unauthenticated state", async () => {
-		vi.spyOn(globalThis, "fetch").mockResolvedValue({
-			ok: false,
-			status: 401,
-			json: async () => ({ detail: "session gone" }),
-		} as Response);
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			mockResponse({
+				ok: false,
+				status: 401,
+				json: async () => ({ detail: "session gone" }),
+			}),
+		);
 
 		render(
 			<AuthProvider>

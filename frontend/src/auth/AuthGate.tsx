@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { DEFAULT_UNAUTHORIZED_MESSAGE } from "../api";
 import { useAuth } from "./AuthContext";
 
 interface AuthGateProps {
@@ -23,9 +24,7 @@ export function AuthGate({ children }: AuthGateProps) {
 			<main class="board">
 				<div class="empty-state error-state auth-gate" role="alert">
 					<p class="empty-title">Sign in required</p>
-					<p class="empty-body">
-						{message ?? "Your session has expired or you are not signed in."}
-					</p>
+					<p class="empty-body">{message ?? DEFAULT_UNAUTHORIZED_MESSAGE}</p>
 					<button type="button" onClick={reset}>
 						Try again
 					</button>

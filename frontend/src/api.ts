@@ -1,6 +1,6 @@
 import type { RuleSnippetsPayload, SnapshotPayload } from "./types";
 
-const DEFAULT_UNAUTHORIZED_MESSAGE =
+export const DEFAULT_UNAUTHORIZED_MESSAGE =
 	"Your session has expired or you are not signed in.";
 
 /**
