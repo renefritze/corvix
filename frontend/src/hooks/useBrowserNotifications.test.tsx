@@ -232,6 +232,111 @@ describe("useBrowserNotifications", () => {
 		expect(NotificationMock.instances).toHaveLength(1);
 	});
 
+	it("re-notifies unread items whose seen entry has expired (TTL)", async () => {
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+		const stale = Date.now() - 8 * 24 * 60 * 60 * 1000; // 8 days > 7-day TTL
+		localStorage.setItem(
+			"corvix.notifications.browser.seen",
+			JSON.stringify([["primary:1", stale]]),
+		);
+
+		render(
+			<Harness
+				items={[makeItem({ thread_id: "1", subject_title: "Stale" })]}
+				config={{ enabled: true, max_per_cycle: 5, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(NotificationMock.instances).toHaveLength(1);
+		});
+		expect(NotificationMock.instances[0]?.title).toBe("Stale");
+	});
+
+	it("does not re-notify unread items whose seen entry is still fresh", async () => {
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+		localStorage.setItem(
+			"corvix.notifications.browser.seen",
+			JSON.stringify([["primary:1", Date.now()]]),
+		);
+
+		render(
+			<Harness
+				items={[makeItem({ thread_id: "1", subject_title: "Fresh" })]}
+				config={{ enabled: true, max_per_cycle: 5, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(NotificationMock.instances).toHaveLength(0);
+	});
+
+	it("bounds the seen set to prevent unbounded growth", async () => {
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+		const now = Date.now();
+		// Seed exactly the maximum number of (fresh) entries.
+		const seeded = Array.from(
+			{ length: 500 },
+			(_, i) => [`old:${i}`, now - 1_000 - i] as [string, number],
+		);
+		localStorage.setItem(
+			"corvix.notifications.browser.seen",
+			JSON.stringify(seeded),
+		);
+
+		render(
+			<Harness
+				items={[makeItem({ thread_id: "new", subject_title: "New" })]}
+				config={{ enabled: true, max_per_cycle: 5, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(NotificationMock.instances).toHaveLength(1);
+		});
+
+		const raw = localStorage.getItem("corvix.notifications.browser.seen");
+		const saved = JSON.parse(raw ?? "[]") as [string, number][];
+		// Adding the new id pushed the set to 501; it is pruned back to the bound.
+		expect(saved).toHaveLength(500);
+		const ids = new Set(saved.map((entry) => entry[0]));
+		// The freshly-seen id is retained; the least-recently-seen one is evicted.
+		expect(ids.has("primary:new")).toBe(true);
+		expect(ids.has("old:499")).toBe(false);
+	});
+
+	it("syncs deduplication across tabs via BroadcastChannel", async () => {
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+		const config: BrowserTabNotificationsConfig = {
+			enabled: true,
+			max_per_cycle: 5,
+			cooldown_seconds: 2,
+		};
+		const item = makeItem({ thread_id: "shared", subject_title: "Shared" });
+
+		// "Tab B" mounts first with no items, so it is subscribed to the channel
+		// before "Tab A" broadcasts.
+		const tabB = render(<Harness items={[]} config={config} />);
+
+		// "Tab A" mounts, notifies the shared item, and broadcasts the seen id.
+		render(<Harness items={[item]} config={config} />);
+		await waitFor(() => {
+			expect(NotificationMock.instances).toHaveLength(1);
+		});
+
+		// Allow the broadcast to propagate to tab B.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		// Tab B now sees the same unread item; it must not fire a duplicate.
+		tabB.rerender(<Harness items={[item]} config={config} />);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(NotificationMock.instances).toHaveLength(1);
+	});
+
 	it("suppresses new bursts until cooldown expires", async () => {
 		vi.useFakeTimers();
 		NotificationMock.setPermission("granted");
