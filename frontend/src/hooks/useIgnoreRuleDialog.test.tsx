@@ -19,7 +19,7 @@ const SNIPPETS: RuleSnippetsPayload = {
 	has_context: false,
 };
 
-function Harness({ dashboard }: { dashboard: string | null }) {
+function Harness({ dashboard }: { readonly dashboard: string | null }) {
 	const {
 		menu,
 		dialogItem,
@@ -63,7 +63,7 @@ function renderHarness(dashboard: string | null = "overview") {
 }
 
 function mockSnippetFetch(response: Partial<Response>) {
-	return vi.spyOn(globalThis, "fetch").mockResolvedValue(response as Response);
+	return vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
 }
 
 // Opens the context menu, then dismisses it via the given window event and

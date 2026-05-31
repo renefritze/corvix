@@ -33,7 +33,7 @@ function dashboardPath(name: string | undefined): string {
  */
 export function useDashboardState() {
 	const [dashboard, setDashboardState] = useState<string | undefined>(() => {
-		if (typeof globalThis.window === "undefined") {
+		if (globalThis.window === undefined) {
 			return undefined;
 		}
 		return parseDashboardFromPath(globalThis.window.location.pathname);
@@ -57,7 +57,7 @@ export function useDashboardState() {
 	}, []);
 
 	useEffect(() => {
-		if (typeof globalThis.window === "undefined") {
+		if (globalThis.window === undefined) {
 			return;
 		}
 		const handlePopState = () => {
@@ -77,7 +77,7 @@ export function useDashboardState() {
 	}, []);
 
 	useEffect(() => {
-		if (typeof globalThis.window === "undefined") {
+		if (globalThis.window === undefined) {
 			return;
 		}
 		if (dashboardNames.length === 0) {
@@ -89,7 +89,7 @@ export function useDashboardState() {
 	}, [dashboard, dashboardNames]);
 
 	useEffect(() => {
-		if (typeof globalThis.window === "undefined") {
+		if (globalThis.window === undefined) {
 			return;
 		}
 		const targetPath = dashboardPath(currentDashboard ?? undefined);

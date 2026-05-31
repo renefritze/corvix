@@ -4,7 +4,7 @@ import { makeSnapshot } from "../test/fixtures";
 import type { SnapshotPayload } from "../types";
 import { useFilterSort } from "./useFilterSort";
 
-function Harness({ snapshot }: { snapshot: SnapshotPayload | null }) {
+function Harness({ snapshot }: { readonly snapshot: SnapshotPayload | null }) {
 	const {
 		filters,
 		setFilter,

@@ -8,8 +8,8 @@ function Harness({
 	onRefresh,
 	onError,
 }: {
-	onRefresh: () => Promise<void>;
-	onError: (msg: string) => void;
+	readonly onRefresh: () => Promise<void>;
+	readonly onError: (msg: string) => void;
 }) {
 	const { markingGroupNames, openTarget, markGroupRead } = useMarkRead(
 		onRefresh,
@@ -50,7 +50,7 @@ const MARK_READ_INIT = { method: "POST", keepalive: true };
 describe("useMarkRead", () => {
 	it("marks a single thread read and refreshes", async () => {
 		const { user, onRefresh, onError, fetchMock } = renderHarness();
-		fetchMock.mockResolvedValue({ ok: true } as Response);
+		fetchMock.mockResolvedValue({ ok: true });
 
 		await user.click(screen.getByRole("button", { name: "open" }));
 
@@ -64,7 +64,7 @@ describe("useMarkRead", () => {
 
 	it("reports an error when a single mark-read fails", async () => {
 		const { user, onRefresh, onError, fetchMock } = renderHarness();
-		fetchMock.mockResolvedValue({ ok: false, status: 500 } as Response);
+		fetchMock.mockResolvedValue({ ok: false, status: 500 });
 
 		await user.click(screen.getByRole("button", { name: "open" }));
 
@@ -115,7 +115,7 @@ describe("useMarkRead", () => {
 
 	it("reports the failure count when group items fail to mark read", async () => {
 		const { user, onError, fetchMock } = renderHarness();
-		fetchMock.mockResolvedValue({ ok: false, status: 500 } as Response);
+		fetchMock.mockResolvedValue({ ok: false, status: 500 });
 
 		await user.click(screen.getByRole("button", { name: "mark-group" }));
 
