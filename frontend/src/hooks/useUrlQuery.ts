@@ -47,7 +47,8 @@ export function updateQuery(updates: Record<string, string | null>): void {
 		}
 	}
 	const search = params.toString();
-	const nextUrl = `${currentPathname()}${search ? `?${search}` : ""}`;
+	const query = search ? `?${search}` : "";
+	const nextUrl = `${currentPathname()}${query}`;
 	// Skip the navigation when nothing changed so we don't trigger a redundant
 	// router re-render for a no-op update.
 	if (nextUrl !== currentRelativeUrl()) {

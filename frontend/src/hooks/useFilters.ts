@@ -4,11 +4,11 @@ import { currentQuery, updateQuery } from "./useUrlQuery";
 
 const DEFAULT: FilterState = { unread: "all", reason: [], repository: "" };
 
-const UNREAD_VALUES: readonly FilterState["unread"][] = [
+const UNREAD_VALUES: ReadonlySet<FilterState["unread"]> = new Set([
 	"all",
 	"unread",
 	"read",
-];
+]);
 
 /** Reads the initial filter state from the URL query, falling back to defaults. */
 function readFiltersFromUrl(): FilterState {
@@ -20,7 +20,7 @@ function readFiltersFromUrl(): FilterState {
 	const reason = params.get("reason");
 	const repository = params.get("repository");
 	return {
-		unread: UNREAD_VALUES.includes(unread as FilterState["unread"])
+		unread: UNREAD_VALUES.has(unread as FilterState["unread"])
 			? (unread as FilterState["unread"])
 			: DEFAULT.unread,
 		reason: reason ? reason.split(",").filter(Boolean) : DEFAULT.reason,

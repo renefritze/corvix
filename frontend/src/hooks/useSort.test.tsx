@@ -6,13 +6,12 @@ import { setPath } from "../test/http";
 import type { SortColumn, SortDirection } from "../types";
 import { useSort } from "./useSort";
 
-function Sort({
-	col = "score",
-	dir = "desc",
-}: {
-	col?: SortColumn;
-	dir?: SortDirection;
-}) {
+interface SortProps {
+	readonly col?: SortColumn;
+	readonly dir?: SortDirection;
+}
+
+function Sort({ col = "score", dir = "desc" }: SortProps) {
 	const { sortColumn, sortDirection, handleSort } = useSort(col, dir);
 	return (
 		<div>
@@ -29,7 +28,7 @@ function Sort({
 
 // A mounted Router is required for preact-router's route() to update history,
 // which is now the single source of truth for sort state.
-function Harness(props: { col?: SortColumn; dir?: SortDirection }) {
+function Harness(props: SortProps) {
 	return (
 		<Router>
 			<Sort default {...props} />

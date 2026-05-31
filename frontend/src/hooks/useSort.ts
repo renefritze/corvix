@@ -2,14 +2,14 @@ import { useCallback } from "preact/hooks";
 import type { SortColumn, SortDirection } from "../types";
 import { currentQuery, updateQuery } from "./useUrlQuery";
 
-const SORT_COLUMNS: readonly SortColumn[] = [
+const SORT_COLUMNS: ReadonlySet<SortColumn> = new Set([
 	"subject_title",
 	"repository",
 	"subject_type",
 	"reason",
 	"updated_at",
 	"score",
-];
+]);
 
 /** Reads a SortColumn from the URL query, or undefined when absent/invalid. */
 function readColumnFromUrl(): SortColumn | undefined {
@@ -17,7 +17,7 @@ function readColumnFromUrl(): SortColumn | undefined {
 		return undefined;
 	}
 	const sort = currentQuery().get("sort");
-	return SORT_COLUMNS.includes(sort as SortColumn)
+	return SORT_COLUMNS.has(sort as SortColumn)
 		? (sort as SortColumn)
 		: undefined;
 }
@@ -48,12 +48,8 @@ export function useSort(
 
 	const handleSort = useCallback(
 		(col: SortColumn) => {
-			const nextDir =
-				col === sortColumn
-					? sortDirection === "asc"
-						? "desc"
-						: "asc"
-					: "desc";
+			const toggled = sortDirection === "asc" ? "desc" : "asc";
+			const nextDir = col === sortColumn ? toggled : "desc";
 			updateQuery({ sort: col, dir: nextDir });
 		},
 		[sortColumn, sortDirection],
