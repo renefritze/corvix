@@ -26,7 +26,7 @@ _OUTPUT_PATH = _REPO_ROOT / "frontend" / "openapi.json"
 
 
 def _mark_all_properties_required(schema: dict[str, object]) -> None:
-    """Force every object component schema to require all of its properties.
+    """Force every ``*Response`` component schema to require all its properties.
 
     The Corvix response dataclasses (``corvix.web.schemas``) define no field
     defaults, so the API always emits every key — nullable fields are present
@@ -35,6 +35,9 @@ def _mark_all_properties_required(schema: dict[str, object]) -> None:
     would make the code-generated TypeScript properties optional and diverge
     from the actual wire contract. Re-adding them keeps the generated types
     faithful: every field present, nullable ones typed ``T | null``.
+
+    Scoped to schemas whose name ends with ``Response`` so that any future
+    request-body schema (where optional fields are legitimate) is left untouched.
     """
     components = schema.get("components")
     if not isinstance(components, dict):
@@ -42,7 +45,9 @@ def _mark_all_properties_required(schema: dict[str, object]) -> None:
     schemas = components.get("schemas")
     if not isinstance(schemas, dict):
         return
-    for component in schemas.values():
+    for name, component in schemas.items():
+        if not name.endswith("Response"):
+            continue
         if not isinstance(component, dict) or component.get("type") != "object":
             continue
         properties = component.get("properties")
