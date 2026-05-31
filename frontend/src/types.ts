@@ -86,6 +86,14 @@ export interface FilterState {
 	repository: string;
 }
 
+/**
+ * Session state as understood by the frontend. Defaults to `authenticated`
+ * until the API reports otherwise (today there is no backend auth, so this is
+ * effectively always authenticated; see issue B6). The scaffold exists so that
+ * adding real authentication does not require rewiring the component tree.
+ */
+export type AuthStatus = "authenticated" | "unauthenticated";
+
 export function notificationKey(
 	item: Pick<DashboardItem, "account_id" | "thread_id">,
 ): string {

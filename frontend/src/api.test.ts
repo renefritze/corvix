@@ -1,8 +1,10 @@
 import {
+	UnauthorizedError,
 	dismissNotification,
 	fetchRuleSnippets,
 	fetchSnapshot,
 	markNotificationRead,
+	setUnauthorizedHandler,
 } from "./api";
 import { makeSnapshot } from "./test/fixtures";
 
@@ -117,5 +119,84 @@ describe("api", () => {
 		await expect(fetchRuleSnippets("primary", "thread-5")).rejects.toThrow(
 			"Rule snippets fetch failed (503)",
 		);
+	});
+
+	describe("auth handling", () => {
+		afterEach(() => {
+			setUnauthorizedHandler(null);
+		});
+
+		it("throws UnauthorizedError on a 401 snapshot fetch", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValue({
+				ok: false,
+				status: 401,
+				json: async () => ({ detail: "token expired" }),
+			} as Response);
+
+			await expect(fetchSnapshot()).rejects.toBeInstanceOf(UnauthorizedError);
+		});
+
+		it("carries status and detail message on the UnauthorizedError", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValue({
+				ok: false,
+				status: 403,
+				json: async () => ({ detail: "forbidden" }),
+			} as Response);
+
+			const error = await dismissNotification("primary", "thread-1").then(
+				() => null,
+				(err: unknown) => err,
+			);
+			expect(error).toBeInstanceOf(UnauthorizedError);
+			expect((error as UnauthorizedError).status).toBe(403);
+			expect((error as UnauthorizedError).message).toBe("forbidden");
+		});
+
+		it("uses a default message when the 401 body has no detail", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValue({
+				ok: false,
+				status: 401,
+				json: async () => {
+					throw new Error("bad json");
+				},
+			} as Response);
+
+			await expect(markNotificationRead("primary", "thread-1")).rejects.toThrow(
+				"Your session has expired or you are not signed in.",
+			);
+		});
+
+		it("notifies the registered handler on a 401 and supports unsubscribe", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValue({
+				ok: false,
+				status: 401,
+				json: async () => ({ detail: "nope" }),
+			} as Response);
+
+			const handler = vi.fn();
+			const unsubscribe = setUnauthorizedHandler(handler);
+
+			await expect(fetchSnapshot()).rejects.toBeInstanceOf(UnauthorizedError);
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(handler.mock.calls[0][0]).toBeInstanceOf(UnauthorizedError);
+
+			unsubscribe();
+			await expect(fetchSnapshot()).rejects.toBeInstanceOf(UnauthorizedError);
+			expect(handler).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not treat non-auth errors as UnauthorizedError", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValue({
+				ok: false,
+				status: 500,
+			} as Response);
+
+			const handler = vi.fn();
+			setUnauthorizedHandler(handler);
+
+			await expect(fetchSnapshot()).rejects.toThrow("Snapshot fetch failed: 500");
+			await expect(fetchSnapshot()).rejects.not.toBeInstanceOf(UnauthorizedError);
+			expect(handler).not.toHaveBeenCalled();
+		});
 	});
 });
