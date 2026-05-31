@@ -1,23 +1,35 @@
-import { getCurrentUrl, route } from "preact-router";
+import { route } from "preact-router";
 
 /**
  * Helpers for reading and writing filter/sort state in the URL query string so
- * a filtered/sorted view is shareable. Built on preact-router's
- * {@link getCurrentUrl} (current location) and {@link route} (navigation).
+ * a filtered/sorted view is shareable. Reads come straight from
+ * `window.location` (the actual source of truth, kept current by the browser on
+ * Back/Forward) and writes go through preact-router's {@link route}, which keeps
+ * the mounted `<Router>` in sync and re-renders the route.
  */
 
 /** Parses the query string of the current URL into URLSearchParams. */
 export function currentQuery(): URLSearchParams {
-	const url = getCurrentUrl();
-	const index = url.indexOf("?");
-	return new URLSearchParams(index === -1 ? "" : url.slice(index + 1));
+	if (globalThis.window === undefined) {
+		return new URLSearchParams("");
+	}
+	return new URLSearchParams(globalThis.window.location.search);
 }
 
-/** Returns the current pathname (without query) from the router URL. */
+/** Returns the current pathname (without query). */
 function currentPathname(): string {
-	const url = getCurrentUrl();
-	const index = url.indexOf("?");
-	return index === -1 ? url : url.slice(0, index);
+	if (globalThis.window === undefined) {
+		return "/";
+	}
+	return globalThis.window.location.pathname;
+}
+
+/** Returns the current `pathname + search`, the full relative URL. */
+function currentRelativeUrl(): string {
+	if (globalThis.window === undefined) {
+		return "/";
+	}
+	return `${globalThis.window.location.pathname}${globalThis.window.location.search}`;
 }
 
 /**
@@ -35,5 +47,10 @@ export function updateQuery(updates: Record<string, string | null>): void {
 		}
 	}
 	const search = params.toString();
-	route(`${currentPathname()}${search ? `?${search}` : ""}`, true);
+	const nextUrl = `${currentPathname()}${search ? `?${search}` : ""}`;
+	// Skip the navigation when nothing changed so we don't trigger a redundant
+	// router re-render for a no-op update.
+	if (nextUrl !== currentRelativeUrl()) {
+		route(nextUrl, true);
+	}
 }

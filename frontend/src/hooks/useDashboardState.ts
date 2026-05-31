@@ -49,10 +49,13 @@ export function useDashboardState(routeName?: string) {
 	const dashboardNames = snapshotState.snapshot?.dashboard_names ?? [];
 	// Only the default-dashboard snapshot (fetchKey undefined) tells us the
 	// authoritative first name; a non-default fetch returns the same name list
-	// but we must not overwrite the default with the active dashboard.
-	if (fetchKey === undefined && dashboardNames.length > 0) {
-		defaultNameRef.current = dashboardNames[0];
-	}
+	// but we must not overwrite the default with the active dashboard. Recorded
+	// in an effect rather than during render to keep rendering side-effect free.
+	useEffect(() => {
+		if (fetchKey === undefined && dashboardNames.length > 0) {
+			defaultNameRef.current = dashboardNames[0];
+		}
+	}, [fetchKey, dashboardNames]);
 
 	// An unknown name (stale link) resolves to the default dashboard.
 	const knownDashboard =

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useCallback } from "preact/hooks";
 import type { SortColumn, SortDirection } from "../types";
 import { currentQuery, updateQuery } from "./useUrlQuery";
 
@@ -32,48 +32,32 @@ function readDirectionFromUrl(): SortDirection | undefined {
 }
 
 /**
- * Owns sort state, seeding it from the dashboard's configured order while
- * letting an explicit `sort`/`dir` URL query override that default. Changes are
- * mirrored back into the query string so a sorted view can be shared.
+ * Exposes sort state with the URL query string as the single source of truth.
+ * An explicit `sort`/`dir` query overrides the dashboard's configured order
+ * (which seeds the default when the query is absent), and because preact-router
+ * re-renders the hosting route on navigation, reading the query each render
+ * keeps the UI in sync — including browser Back/Forward. Changes are written
+ * straight back to the query so a sorted view can be shared.
  */
 export function useSort(
 	initialColumn: SortColumn = "score",
 	initialDir: SortDirection = "desc",
 ) {
-	const urlColumn = readColumnFromUrl();
-	const urlDir = readDirectionFromUrl();
-	const [sortColumn, setSortColumn] = useState<SortColumn>(
-		urlColumn ?? initialColumn,
-	);
-	const [sortDirection, setSortDirection] = useState<SortDirection>(
-		urlDir ?? initialDir,
-	);
-	// True when an explicit sort/dir query param seeded the initial state, in
-	// which case the dashboard's configured order must not override the shared
-	// URL. User sorts (handleSort) leave this alone, preserving the existing
-	// re-seed-on-dashboard-change behaviour.
-	const urlControlled = useRef(urlColumn !== undefined || urlDir !== undefined);
-	// Latest values for the stable handleSort callback to read without
-	// re-subscribing.
-	const stateRef = useRef({ column: sortColumn, direction: sortDirection });
-	stateRef.current = { column: sortColumn, direction: sortDirection };
+	const sortColumn = readColumnFromUrl() ?? initialColumn;
+	const sortDirection = readDirectionFromUrl() ?? initialDir;
 
-	useEffect(() => {
-		if (urlControlled.current) {
-			return;
-		}
-		setSortColumn(initialColumn);
-		setSortDirection(initialDir);
-	}, [initialColumn, initialDir]);
-
-	const handleSort = useCallback((col: SortColumn) => {
-		const { column, direction } = stateRef.current;
-		const nextDir =
-			col === column ? (direction === "asc" ? "desc" : "asc") : "desc";
-		setSortColumn(col);
-		setSortDirection(nextDir);
-		updateQuery({ sort: col, dir: nextDir });
-	}, []);
+	const handleSort = useCallback(
+		(col: SortColumn) => {
+			const nextDir =
+				col === sortColumn
+					? sortDirection === "asc"
+						? "desc"
+						: "asc"
+					: "desc";
+			updateQuery({ sort: col, dir: nextDir });
+		},
+		[sortColumn, sortDirection],
+	);
 
 	return { sortColumn, sortDirection, handleSort };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "preact/hooks";
+import { useCallback } from "preact/hooks";
 import type { FilterState } from "../types";
 import { currentQuery, updateQuery } from "./useUrlQuery";
 
@@ -38,25 +38,23 @@ function filtersToQuery(filters: FilterState): Record<string, string | null> {
 }
 
 /**
- * Owns the filter state and mirrors it into the URL query string so a filtered
- * view can be shared by URL. Initial state is read from the query on mount.
+ * Exposes the filter state with the URL query string as the single source of
+ * truth so a filtered view can be shared by URL and browser Back/Forward
+ * navigation stays in sync. The filters are read from the query on every render
+ * (preact-router re-renders the hosting route on any navigation), and changes
+ * are written straight back to the query.
  */
 export function useFilters() {
-	const [filters, setFilters] = useState<FilterState>(readFiltersFromUrl);
+	const filters = readFiltersFromUrl();
 
 	const setFilter = useCallback(
 		<K extends keyof FilterState>(key: K, value: FilterState[K]) => {
-			setFilters((prev) => {
-				const next = { ...prev, [key]: value };
-				updateQuery(filtersToQuery(next));
-				return next;
-			});
+			updateQuery(filtersToQuery({ ...filters, [key]: value }));
 		},
-		[],
+		[filters],
 	);
 
 	const clearFilters = useCallback(() => {
-		setFilters(DEFAULT);
 		updateQuery(filtersToQuery(DEFAULT));
 	}, []);
 
