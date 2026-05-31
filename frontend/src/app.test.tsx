@@ -8,22 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { App } from "./app";
 import { makeItem, makeSnapshot } from "./test/fixtures";
-
-type FetchInput = string | URL | Request;
-
-function setPath(path: string): void {
-	globalThis.history.pushState({}, "", path);
-}
-
-function requestUrl(input: FetchInput): string {
-	if (typeof input === "string") {
-		return input;
-	}
-	if (input instanceof URL) {
-		return input.toString();
-	}
-	return input.url;
-}
+import { type FetchInput, requestUrl, setPath } from "./test/http";
 
 describe("App", () => {
 	it("loads snapshot, filters items, and switches dashboards", async () => {
