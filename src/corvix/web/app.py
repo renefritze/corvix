@@ -431,6 +431,11 @@ def snapshot(dashboard: str | None = None) -> dict[str, object]:
 # periodic comparison (plus an occasional keep-alive) rather than a full
 # response on every tick.  Browsers reconnect automatically via EventSource, and
 # the frontend falls back to interval polling when SSE is unavailable.
+#
+# A short-lived, process-wide cache of the serialized body (keyed by dashboard)
+# collapses the storage reads of concurrent connections watching the same
+# dashboard into roughly one read per poll interval, instead of one read per
+# connection per tick.
 
 _SSE_DEFAULT_POLL_INTERVAL_SECONDS = 3.0
 _SSE_KEEPALIVE_SECONDS = 20.0
@@ -456,6 +461,33 @@ def _snapshot_event_body(dashboard: str | None) -> str:
     """Build the snapshot payload and serialize it to a compact JSON string."""
     payload = _snapshot_impl(dashboard=dashboard)
     return json.dumps(payload, separators=(",", ":"), default=str)
+
+
+# Process-wide cache of the most recently built SSE body per dashboard, used to
+# deduplicate the storage reads of concurrent connections. Guarded by a lock so
+# only one worker thread rebuilds at a time; the set of dashboards is bounded by
+# config, so the dict does not grow without bound.
+_snapshot_body_cache: dict[str | None, tuple[float, str]] = {}
+_snapshot_body_cache_lock = threading.Lock()
+
+
+def _cached_snapshot_event_body(dashboard: str | None, ttl: float) -> str:
+    """Return the snapshot body for *dashboard*, reusing a build newer than *ttl*.
+
+    Within a ``ttl``-second window (one poll interval) concurrent SSE
+    connections watching the same dashboard share a single storage read and
+    serialization. A strict ``age < ttl`` comparison means a lone connection,
+    whose ticks are spaced one interval apart, still rebuilds every tick — so
+    the cache adds no latency in the common single-client case.
+    """
+    now = monotonic()
+    with _snapshot_body_cache_lock:
+        cached = _snapshot_body_cache.get(dashboard)
+        if cached is not None and now - cached[0] < ttl:
+            return cached[1]
+        body = _snapshot_event_body(dashboard)
+        _snapshot_body_cache[dashboard] = (monotonic(), body)
+        return body
 
 
 def _snapshot_error_payload(error: Exception) -> str:
@@ -492,7 +524,7 @@ async def _snapshot_event_generator(dashboard: str | None) -> AsyncIterator[Serv
     last_emit = monotonic()
     while True:
         try:
-            body = await asyncio.to_thread(_snapshot_event_body, dashboard)
+            body = await asyncio.to_thread(_cached_snapshot_event_body, dashboard, interval)
         except Exception as error:
             if not isinstance(error, HTTPException):
                 logger.exception("Unexpected error building SSE snapshot")

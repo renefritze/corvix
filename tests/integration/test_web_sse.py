@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Generator
 
 import pytest
 from litestar.exceptions import HTTPException
@@ -38,6 +38,14 @@ def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(web_app.asyncio, "sleep", _immediate)
 
 
+@pytest.fixture(autouse=True)
+def _clear_snapshot_cache() -> Generator[None]:
+    """Isolate the process-wide SSE body cache between tests."""
+    web_app._snapshot_body_cache.clear()
+    yield
+    web_app._snapshot_body_cache.clear()
+
+
 # --- _sse_poll_interval ---
 
 
@@ -62,7 +70,9 @@ def test_sse_poll_interval_falls_back(raw: str, monkeypatch: pytest.MonkeyPatch)
 
 def test_generator_pushes_only_on_change(monkeypatch: pytest.MonkeyPatch) -> None:
     bodies = iter(['{"name":"a"}', '{"name":"a"}', '{"name":"b"}'])
-    monkeypatch.setattr(web_app, "_snapshot_event_body", lambda _dashboard: next(bodies))
+    # Patch the cached wrapper so each tick gets a fresh body (the real cache
+    # would otherwise reuse the first build since no wall-clock time elapses).
+    monkeypatch.setattr(web_app, "_cached_snapshot_event_body", lambda _dashboard, _ttl: next(bodies))
     # Force the keep-alive branch on the unchanged (second) tick.
     monkeypatch.setattr(web_app, "_SSE_KEEPALIVE_SECONDS", -1.0)
 
@@ -84,7 +94,7 @@ def test_generator_skips_keepalive_when_idle_window_not_elapsed(
     # neither push a snapshot nor emit a keep-alive, so the third (changed) tick
     # is the next message we receive.
     bodies = iter(['{"name":"a"}', '{"name":"a"}', '{"name":"b"}'])
-    monkeypatch.setattr(web_app, "_snapshot_event_body", lambda _dashboard: next(bodies))
+    monkeypatch.setattr(web_app, "_cached_snapshot_event_body", lambda _dashboard, _ttl: next(bodies))
     monkeypatch.setattr(web_app, "_SSE_KEEPALIVE_SECONDS", 3600.0)
 
     messages = asyncio.run(_drain(_snapshot_event_generator(None), 2))
@@ -121,6 +131,61 @@ def test_generator_reports_unexpected_error_without_leaking_detail(
     payload = json.loads(messages[0].data)
     # The raw exception text must not be leaked to the client.
     assert payload == {"detail": "Internal server error.", "status_code": 500}
+
+
+# --- _cached_snapshot_event_body ---
+
+
+def test_cached_body_is_reused_within_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+
+    def _build(_dashboard: str | None) -> str:
+        calls["n"] += 1
+        return f'{{"build":{calls["n"]}}}'
+
+    monkeypatch.setattr(web_app, "_snapshot_event_body", _build)
+
+    first = web_app._cached_snapshot_event_body("overview", ttl=100.0)
+    second = web_app._cached_snapshot_event_body("overview", ttl=100.0)
+
+    # A single storage read is shared by both callers within the TTL window.
+    assert first == second == '{"build":1}'
+    assert calls["n"] == 1
+
+
+def test_cached_body_rebuilds_when_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+
+    def _build(_dashboard: str | None) -> str:
+        calls["n"] += 1
+        return f'{{"build":{calls["n"]}}}'
+
+    monkeypatch.setattr(web_app, "_snapshot_event_body", _build)
+
+    # ttl=0 means no cached entry is ever fresh (strict age < ttl), so every
+    # call rebuilds -- this is the lone-client case that must not be slowed.
+    web_app._cached_snapshot_event_body("overview", ttl=0.0)
+    web_app._cached_snapshot_event_body("overview", ttl=0.0)
+
+    assert calls["n"] == 2
+
+
+def test_cached_body_is_keyed_by_dashboard(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+
+    def _build(dashboard: str | None) -> str:
+        calls["n"] += 1
+        return json.dumps({"dashboard": dashboard})
+
+    monkeypatch.setattr(web_app, "_snapshot_event_body", _build)
+
+    overview = web_app._cached_snapshot_event_body("overview", ttl=100.0)
+    triage = web_app._cached_snapshot_event_body("triage", ttl=100.0)
+
+    # Distinct dashboards do not share a cache entry.
+    assert json.loads(overview) == {"dashboard": "overview"}
+    assert json.loads(triage) == {"dashboard": "triage"}
+    assert calls["n"] == 2
 
 
 def test_generator_recovers_after_error(monkeypatch: pytest.MonkeyPatch) -> None:
