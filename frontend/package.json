@@ -4,7 +4,7 @@
     "version": "0.1.0",
     "scripts": {
         "dev": "vite",
-        "build": "tsc --noEmit && vite build",
+        "build": "npm run gen:types && tsc --noEmit && vite build",
         "preview": "vite preview",
         "test": "vitest",
         "test:watch": "vitest watch",

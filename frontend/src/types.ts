@@ -7,8 +7,10 @@ import type { components } from "./api-types.gen";
  * `scripts/export_openapi.py` from the Litestar route handlers). Treat the
  * Python response dataclasses in `corvix.web.schemas` as the single source of
  * truth: run `make gen-types` after changing them, never edit the API shapes
- * here by hand. A CI drift check fails the build if the committed generated
- * types fall out of sync with the backend schema.
+ * here by hand. `api-types.gen.ts` is regenerated from the committed
+ * `openapi.json` during `npm run build` (so it is gitignored, not committed); a
+ * CI drift check fails the build if `openapi.json` falls out of sync with the
+ * backend schema.
  */
 type Schemas = components["schemas"];
 
