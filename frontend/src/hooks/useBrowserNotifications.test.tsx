@@ -273,6 +273,44 @@ describe("useBrowserNotifications", () => {
 		expect(NotificationMock.instances).toHaveLength(0);
 	});
 
+	it("refreshes only sufficiently-aged seen timestamps to limit writes", async () => {
+		NotificationMock.setPermission("granted");
+		localStorage.setItem("corvix.notifications.browser.enabled", "true");
+		const now = Date.now();
+		const fresh = now - 60 * 1000; // 1 minute ago: below the touch interval
+		const aged = now - 2 * 24 * 60 * 60 * 1000; // 2 days ago: above the interval
+		localStorage.setItem(
+			"corvix.notifications.browser.seen",
+			JSON.stringify([
+				["primary:fresh", fresh],
+				["primary:aged", aged],
+			]),
+		);
+
+		render(
+			<Harness
+				items={[
+					makeItem({ thread_id: "fresh", subject_title: "Fresh" }),
+					makeItem({ thread_id: "aged", subject_title: "Aged" }),
+				]}
+				config={{ enabled: true, max_per_cycle: 5, cooldown_seconds: 2 }}
+			/>,
+		);
+
+		// Both items are already seen, so nothing is notified.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(NotificationMock.instances).toHaveLength(0);
+
+		const saved = new Map<string, number>(
+			JSON.parse(
+				localStorage.getItem("corvix.notifications.browser.seen") ?? "[]",
+			) as [string, number][],
+		);
+		// The aged entry was refreshed; the fresh one was left untouched.
+		expect(saved.get("primary:aged")).toBeGreaterThan(aged);
+		expect(saved.get("primary:fresh")).toBe(fresh);
+	});
+
 	it("bounds the seen set to prevent unbounded growth", async () => {
 		NotificationMock.setPermission("granted");
 		localStorage.setItem("corvix.notifications.browser.enabled", "true");

@@ -23,6 +23,12 @@ const SYNC_CHANNEL = "corvix.notifications.browser.sync";
 const SEEN_MAX_ENTRIES = 500;
 /** Seen IDs untouched for longer than this are evicted (7 days, in ms). */
 const SEEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Minimum age before a still-present item's seen timestamp is refreshed (1 day).
+ * Avoids rewriting localStorage on every poll cycle while keeping live items
+ * comfortably ahead of the TTL.
+ */
+const SEEN_TOUCH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export type NotifPermission = "default" | "granted" | "denied" | "unsupported";
 
@@ -220,9 +226,13 @@ export function useBrowserNotifications({
 
 		// Refresh the TTL of items still present so long-lived unread threads are
 		// not re-notified once their original entry would have expired (LRU touch).
+		// Only refresh entries that have aged noticeably; rewriting the timestamp
+		// (and thus localStorage) on every poll cycle would be needless churn, and
+		// the 1-day threshold keeps live items well clear of the 7-day TTL.
 		for (const item of items) {
 			const key = notificationKey(item);
-			if (seen.has(key)) {
+			const prevTs = seen.get(key);
+			if (prevTs !== undefined && now - prevTs > SEEN_TOUCH_INTERVAL_MS) {
 				seen.set(key, now);
 				changed = true;
 			}
