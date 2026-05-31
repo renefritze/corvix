@@ -205,6 +205,10 @@ def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str
         route.continue_()
 
     page.route("**/api/v1/snapshot", delayed_snapshot)
+    # Block the SSE stream so the delayed initial fetch is the only data source;
+    # otherwise a live snapshot push would replace the skeleton before it can be
+    # observed.
+    page.route("**/api/v1/events*", lambda route: route.abort())
     page.goto(corvix_server)
     expect(page.locator("table.notification-table[aria-label='Loading notifications']")).to_be_visible()
     expect(page.locator("tr.skeleton-row")).to_have_count(9)
@@ -223,6 +227,9 @@ def test_server_error_shows_error_state(page: PageLike, corvix_server: str) -> N
             body='{"detail":"forced test failure"}',
         ),
     )
+    # Block the SSE stream too; otherwise live data from /api/v1/events would
+    # clear the error that the forced 500 fetch is meant to surface.
+    page.route("**/api/v1/events*", lambda route: route.abort())
     page.goto(corvix_server)
     expect(page.locator(".empty-state.error-state .empty-title")).to_have_text("Failed to load")
     expect(page.locator(".empty-state.error-state .empty-body")).to_contain_text("Snapshot fetch failed: 500")

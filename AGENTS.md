@@ -78,7 +78,7 @@ Corvix fetches GitHub notifications, scores and filters them via configurable ru
 - **`enrichment/`** — Enrichment engine and providers (`github_latest_comment`, `github_pr_state`) for context-aware rule matching.
 - **`dashboarding.py`** — `build_dashboard_data()` filters, sorts, groups, and limits records per `DashboardSpec`. Used by both CLI and web.
 - **`presentation.py`** — Rich-based terminal rendering of dashboard groups.
-- **`web/app.py`** — Litestar app. Routes include `GET /`, `GET /dashboards/{dashboard_name}`, `GET /api/health`, `GET /api/themes`, `GET /api/dashboards`, `GET /api/snapshot`, and dismiss/mark-read POST endpoints. UI auto-refreshes every 15s.
+- **`web/app.py`** — Litestar app. Routes include `GET /`, `GET /dashboards/{dashboard_name}`, `GET /api/health`, `GET /api/themes`, `GET /api/dashboards`, `GET /api/snapshot`, `GET /api/events` (Server-Sent Events), and dismiss/mark-read POST endpoints. The UI subscribes to `/api/v1/events` and receives a pushed `snapshot` event only when the data changes; it falls back to 15s interval polling when SSE is unavailable. The server-side poll interval is configurable via `CORVIX_SSE_POLL_INTERVAL_SECONDS` (default 3s).
 - **`cli.py`** — Click CLI: `init-config`, `poll`, `watch`, `dashboard`, `serve`, `migrate-cache`.
 
 ### Docker Compose

@@ -248,8 +248,14 @@ dashboards:
             _wait_for_health(base_url)
             yield base_url
         finally:
+            # A still-open Server-Sent Events connection can stall uvicorn's
+            # graceful shutdown, so force-kill if it does not exit promptly.
             process.terminate()
-            process.wait(timeout=5)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
     finally:
         container.stop()
 

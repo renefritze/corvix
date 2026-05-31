@@ -101,6 +101,17 @@ export async function fetchSnapshot(
 	return res.json() as Promise<SnapshotPayload>;
 }
 
+/**
+ * URL of the Server-Sent Events stream that pushes snapshot updates. The
+ * frontend opens an {@link EventSource} against this endpoint and only falls
+ * back to {@link fetchSnapshot} polling when SSE is unavailable.
+ */
+export function snapshotEventsUrl(dashboard?: string): string {
+	return dashboard
+		? `/api/v1/events?dashboard=${encodeURIComponent(dashboard)}`
+		: "/api/v1/events";
+}
+
 export async function dismissNotification(
 	accountId: string,
 	threadId: string,

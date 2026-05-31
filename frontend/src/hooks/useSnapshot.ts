@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { fetchSnapshot } from "../api";
+import { fetchSnapshot, snapshotEventsUrl } from "../api";
 import type { SnapshotPayload } from "../types";
 
 const REFRESH_INTERVAL_MS = 15_000;
@@ -9,6 +9,20 @@ function modeRank(mode: LoadMode): number {
 	if (mode === "initial") return 3;
 	if (mode === "manual") return 2;
 	return 1;
+}
+
+/** Extract a human-readable message from a server-sent `snapshot-error` frame. */
+function parseErrorDetail(raw: unknown): string {
+	if (typeof raw !== "string") return "Snapshot stream error";
+	try {
+		const payload = JSON.parse(raw) as { detail?: unknown };
+		if (typeof payload.detail === "string" && payload.detail) {
+			return payload.detail;
+		}
+	} catch {
+		// Non-JSON payload; fall through to the generic message.
+	}
+	return "Snapshot stream error";
 }
 
 export function useSnapshot(dashboard: string | undefined) {
@@ -61,9 +75,63 @@ export function useSnapshot(dashboard: string | undefined) {
 	useEffect(() => {
 		setLoading(true);
 		load("initial");
-		const id = setInterval(() => load("auto"), REFRESH_INTERVAL_MS);
-		return () => clearInterval(id);
-	}, [load]);
+
+		// Without EventSource (e.g. older browsers, jsdom) keep the legacy
+		// fixed-interval polling behavior.
+		if (typeof EventSource === "undefined") {
+			const id = setInterval(() => load("auto"), REFRESH_INTERVAL_MS);
+			return () => clearInterval(id);
+		}
+
+		// SSE path: the server pushes a snapshot only when the data changes, so
+		// no interval is needed. We poll only as a fallback once the connection
+		// is permanently closed (e.g. the endpoint is unavailable).
+		//
+		// `active` guards against late events firing after the effect is torn
+		// down (e.g. an `onerror` dispatched during/after `source.close()`),
+		// which would otherwise start an orphaned interval or update unmounted
+		// state.
+		let active = true;
+		let pollId: ReturnType<typeof setInterval> | null = null;
+		const startPollingFallback = () => {
+			if (active && pollId === null) {
+				pollId = setInterval(() => {
+					if (active) load("auto");
+				}, REFRESH_INTERVAL_MS);
+			}
+		};
+
+		const source = new EventSource(snapshotEventsUrl(dashboard));
+		source.addEventListener("snapshot", (event) => {
+			if (!active) return;
+			try {
+				const data = JSON.parse(event.data) as SnapshotPayload;
+				setSnapshot(data);
+				setError(null);
+				setLoading(false);
+			} catch {
+				// Ignore malformed frames; the next valid push will recover.
+			}
+		});
+		source.addEventListener("snapshot-error", (event) => {
+			if (!active) return;
+			const detail = parseErrorDetail(event.data);
+			setError(detail);
+		});
+		source.onerror = () => {
+			// EventSource auto-reconnects on transient errors; only fall back to
+			// polling once the connection is definitively closed.
+			if (active && source.readyState === EventSource.CLOSED) {
+				startPollingFallback();
+			}
+		};
+
+		return () => {
+			active = false;
+			source.close();
+			if (pollId !== null) clearInterval(pollId);
+		};
+	}, [load, dashboard]);
 
 	const refresh = useCallback(() => load("manual"), [load]);
 	const refreshing = manualRefreshing || autoRefreshing;

@@ -45,7 +45,10 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
 
     page.set_viewport_size({"width": 1720, "height": 1080})
     base_url = (os.getenv("CORVIX_UI_SCREENSHOT_BASE_URL") or corvix_server).rstrip("/")
-    page.goto(f"{base_url}{DEFAULT_DASHBOARD_PATH}", wait_until="networkidle")
+    # Do not wait for "networkidle": the dashboard keeps a Server-Sent Events
+    # connection (/api/v1/events) open for live updates, so the network never
+    # goes idle. Wait for the concrete elements that must be present instead.
+    page.goto(f"{base_url}{DEFAULT_DASHBOARD_PATH}", wait_until="load")
     page.wait_for_selector("table.notification-table")
     page.wait_for_selector("text=Corvix")
     page.wait_for_function("() => document.fonts.status === 'loaded'")
