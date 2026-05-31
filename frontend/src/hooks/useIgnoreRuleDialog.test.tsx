@@ -34,16 +34,15 @@ function Harness({ dashboard }: { readonly dashboard: string | null }) {
 	return (
 		<div>
 			<div data-testid="menu">{menu ? `${menu.x},${menu.y}` : "none"}</div>
-			<div data-testid="dialog">{dialogItem ? dialogItem.thread_id : "none"}</div>
+			<div data-testid="dialog">
+				{dialogItem ? dialogItem.thread_id : "none"}
+			</div>
 			<div data-testid="loading">{String(loading)}</div>
 			<div data-testid="error">{error ?? "none"}</div>
 			<div data-testid="snippets">
 				{snippets ? snippets.dashboard_ignore_rule_snippet : "none"}
 			</div>
-			<button
-				type="button"
-				onClick={() => requestRule(item, { x: 10, y: 20 })}
-			>
+			<button type="button" onClick={() => requestRule(item, { x: 10, y: 20 })}>
 				request
 			</button>
 			<button type="button" onClick={() => openDialog(item)}>
@@ -109,9 +108,7 @@ describe("useIgnoreRuleDialog", () => {
 		expect(screen.getByTestId("menu")).toHaveTextContent("none");
 		expect(screen.getByTestId("dialog")).toHaveTextContent("item-42");
 		await waitFor(() =>
-			expect(screen.getByTestId("snippets")).toHaveTextContent(
-				"repository_in",
-			),
+			expect(screen.getByTestId("snippets")).toHaveTextContent("repository_in"),
 		);
 		expect(screen.getByTestId("loading")).toHaveTextContent("false");
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -136,9 +133,7 @@ describe("useIgnoreRuleDialog", () => {
 		const user = renderHarness();
 		await user.click(screen.getByRole("button", { name: "open" }));
 		await waitFor(() =>
-			expect(screen.getByTestId("snippets")).toHaveTextContent(
-				"repository_in",
-			),
+			expect(screen.getByTestId("snippets")).toHaveTextContent("repository_in"),
 		);
 
 		await user.click(screen.getByRole("button", { name: "close" }));

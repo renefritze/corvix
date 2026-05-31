@@ -797,7 +797,7 @@ describe("App", () => {
 
 	it("keeps encoded dashboard paths stable when the current path already matches", async () => {
 		setPath("/dashboards/Triage%20Board");
-		const pushState = vi.spyOn(globalThis.history, "pushState");
+		const lengthBefore = globalThis.history.length;
 		vi.spyOn(globalThis, "fetch").mockResolvedValue({
 			ok: true,
 			json: async () =>
@@ -816,7 +816,8 @@ describe("App", () => {
 			expect(screen.getByRole("link", { name: "Encoded" })).toBeInTheDocument();
 		});
 		expect(globalThis.location.pathname).toBe("/dashboards/Triage%20Board");
-		expect(pushState).not.toHaveBeenCalled();
+		// The path already matches, so no navigation (and no new history entry).
+		expect(globalThis.history.length).toBe(lengthBefore);
 	});
 
 	it("closes the row context menu on escape and outside click", async () => {
@@ -855,6 +856,111 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 		});
+	});
+
+	it("renders the in-SPA 404 view for an unknown route", async () => {
+		setPath("/this/does/not/exist");
+		const user = userEvent.setup();
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () => makeSnapshot({ dashboard_names: ["overview"] }),
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByText("Page not found")).toBeInTheDocument();
+		});
+		expect(screen.queryByLabelText("Select dashboard")).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Back to dashboard" }));
+		await waitFor(() => {
+			expect(globalThis.location.pathname).toBe("/dashboards/overview");
+		});
+	});
+
+	it("round-trips filter and sort state through the URL query string", async () => {
+		setPath("/");
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (_input: FetchInput, init?: RequestInit) => {
+				if (init?.method === "POST") {
+					return { ok: true } as Response;
+				}
+				return {
+					ok: true,
+					json: async () =>
+						makeSnapshot({
+							dashboard_names: ["overview"],
+							groups: [
+								{
+									name: "group-a",
+									items: [
+										makeItem({
+											thread_id: "1",
+											reason: "mention",
+											subject_title: "One",
+										}),
+										makeItem({
+											thread_id: "2",
+											reason: "subscribed",
+											subject_title: "Two",
+										}),
+									],
+								},
+							],
+						}),
+				} as Response;
+			},
+		);
+
+		const user = userEvent.setup();
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "One" })).toBeInTheDocument();
+		});
+
+		await user.click(screen.getByLabelText("Reason filter"));
+		await user.click(screen.getByRole("button", { name: "subscribed" }));
+
+		await waitFor(() => {
+			expect(globalThis.location.search).toContain("reason=subscribed");
+		});
+	});
+
+	it("initializes filters from the URL query on load", async () => {
+		setPath("/dashboards/overview?reason=subscribed");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSnapshot({
+					dashboard_names: ["overview"],
+					groups: [
+						{
+							name: "group-a",
+							items: [
+								makeItem({
+									thread_id: "1",
+									reason: "mention",
+									subject_title: "One",
+								}),
+								makeItem({
+									thread_id: "2",
+									reason: "subscribed",
+									subject_title: "Two",
+								}),
+							],
+						},
+					],
+				}),
+		});
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "Two" })).toBeInTheDocument();
+		});
+		expect(screen.queryByRole("link", { name: "One" })).not.toBeInTheDocument();
 	});
 
 	it("shows ignore-rule loading and error states when snippet fetch fails", async () => {

@@ -1,14 +1,18 @@
+import { Router, getCurrentUrl } from "preact-router";
+import type { RoutableProps } from "preact-router";
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FilterBar } from "./components/FilterBar";
 import { IgnoreRuleDialog } from "./components/IgnoreRuleDialog";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
+import { NotFound } from "./components/NotFound";
 import { NotificationTable } from "./components/NotificationTable";
 import { PollerWarning } from "./components/PollerWarning";
 import { Toolbar } from "./components/Toolbar";
 import { UndoToast } from "./components/UndoToast";
 import { useBrowserNotifications } from "./hooks/useBrowserNotifications";
+import { useCurrentRoute } from "./hooks/useCurrentRoute";
 import { useDashboardState } from "./hooks/useDashboardState";
 import { useDismiss } from "./hooks/useDismiss";
 import { useFilterSort } from "./hooks/useFilterSort";
@@ -18,7 +22,12 @@ import { useMarkRead } from "./hooks/useMarkRead";
 import { notificationKey } from "./types";
 import type { DashboardItem } from "./types";
 
-export function App() {
+interface DashboardProps {
+	// The active dashboard name from the /dashboards/:name route (already decoded).
+	readonly name?: string;
+}
+
+function Dashboard({ name }: DashboardProps) {
 	const [toastError, setToastError] = useState<string | null>(null);
 	const [showShortcuts, setShowShortcuts] = useState(false);
 	const filterBarRef = useRef<HTMLSelectElement | null>(null);
@@ -33,7 +42,7 @@ export function App() {
 		dashboardNames,
 		currentDashboard,
 		setDashboard,
-	} = useDashboardState();
+	} = useDashboardState(name);
 
 	const {
 		filters,
@@ -103,7 +112,10 @@ export function App() {
 							return false;
 						if (effectiveUnreadFilter === "read" && item.unread) return false;
 					}
-					if (filters.reason.length > 0 && !filters.reason.includes(item.reason))
+					if (
+						filters.reason.length > 0 &&
+						!filters.reason.includes(item.reason)
+					)
 						return false;
 					if (filters.repository && item.repository !== filters.repository)
 						return false;
@@ -273,5 +285,34 @@ export function App() {
 			)}
 			<UndoToast count={pending.size} onUndoAll={undoAll} />
 		</div>
+	);
+}
+
+/**
+ * Renders the matched route. The root and `/dashboards/:name` paths render the
+ * dashboard (normalization to the default dashboard happens in
+ * {@link useDashboardState}); anything else renders the in-SPA 404 view. The
+ * dashboard stays mounted across `/` -> `/dashboards/:name` normalization so the
+ * snapshot is not refetched on a route swap.
+ */
+function Shell(_props: RoutableProps) {
+	const { name, matched } = useCurrentRoute();
+	if (!matched) {
+		return <NotFound url={getCurrentUrl()} />;
+	}
+	return <Dashboard name={name} />;
+}
+
+/**
+ * The single `<Router>` keeps preact-router's navigation primitives ({@link
+ * route}, history sync) active while delegating route matching to {@link Shell},
+ * so the always-mounted shell can switch between the dashboard and the 404 view
+ * without remounting the dashboard on URL normalization.
+ */
+export function App() {
+	return (
+		<Router>
+			<Shell default />
+		</Router>
 	);
 }

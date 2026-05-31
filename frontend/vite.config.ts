@@ -39,6 +39,14 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Inline preact-router so it is transformed by Vite and shares the same
+    // (ESM) preact instance as the components under test; otherwise its CJS
+    // build pulls a separate preact copy and <Router> renders nothing.
+    server: {
+      deps: {
+        inline: ["preact-router"],
+      },
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
