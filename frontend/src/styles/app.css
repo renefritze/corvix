@@ -717,6 +717,7 @@ body.col-resizing * {
 .empty-title { font-size: 1.1rem; font-weight: 600; color: var(--ink); }
 .empty-body { color: var(--muted); font-size: 0.875rem; }
 .error-state .empty-title { color: var(--danger); }
+.auth-gate { max-width: 420px; margin: 0 auto; }
 
 /* ============================================================
    LOADING SKELETON

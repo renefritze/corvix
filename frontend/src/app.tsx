@@ -1,6 +1,8 @@
 import { Router, getCurrentUrl } from "preact-router";
 import type { RoutableProps } from "preact-router";
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
+import { AuthProvider } from "./auth/AuthContext";
+import { AuthGate } from "./auth/AuthGate";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FilterBar } from "./components/FilterBar";
@@ -311,8 +313,12 @@ function Shell(_props: RoutableProps) {
  */
 export function App() {
 	return (
-		<Router>
-			<Shell default />
-		</Router>
+		<AuthProvider>
+			<AuthGate>
+				<Router>
+					<Shell default />
+				</Router>
+			</AuthGate>
+		</AuthProvider>
 	);
 }
