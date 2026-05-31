@@ -64,6 +64,12 @@ jobs:
       run: |
         make frontend-build
 
+    - name: Verify generated API types match the backend schema
+      run: |
+        make gen-types
+        git diff --exit-code frontend/openapi.json frontend/src/api-types.gen.ts \
+          || { echo "Generated API types are stale. Run 'make gen-types' and commit the result."; exit 1; }
+
     - name: Ensure generated bundles are untracked
       run: |
         if git ls-files --error-unmatch src/corvix/web/static/assets/app.js; then

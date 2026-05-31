@@ -1,0 +1,1507 @@
+{
+  "components": {
+    "schemas": {
+      "BrowserTabNotificationsConfigResponse": {
+        "properties": {
+          "cooldown_seconds": {
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "max_per_cycle": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cooldown_seconds",
+          "enabled",
+          "max_per_cycle"
+        ],
+        "title": "BrowserTabNotificationsConfigResponse",
+        "type": "object"
+      },
+      "DashboardGroupResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardItemResponse"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "name"
+        ],
+        "title": "DashboardGroupResponse",
+        "type": "object"
+      },
+      "DashboardItemResponse": {
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "account_label": {
+            "type": "string"
+          },
+          "actions_taken": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "matched_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "subject_title": {
+            "type": "string"
+          },
+          "subject_type": {
+            "type": "string"
+          },
+          "thread_id": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "web_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account_id",
+          "account_label",
+          "actions_taken",
+          "matched_rules",
+          "reason",
+          "repository",
+          "score",
+          "subject_title",
+          "subject_type",
+          "thread_id",
+          "unread",
+          "updated_at",
+          "web_url"
+        ],
+        "title": "DashboardItemResponse",
+        "type": "object"
+      },
+      "DashboardSummaryResponse": {
+        "properties": {
+          "group_count": {
+            "type": "integer"
+          },
+          "read_items": {
+            "type": "integer"
+          },
+          "reason_count": {
+            "type": "integer"
+          },
+          "repository_count": {
+            "type": "integer"
+          },
+          "unread_items": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group_count",
+          "read_items",
+          "reason_count",
+          "repository_count",
+          "unread_items"
+        ],
+        "title": "DashboardSummaryResponse",
+        "type": "object"
+      },
+      "NotificationsConfigResponse": {
+        "properties": {
+          "browser_tab": {
+            "$ref": "#/components/schemas/BrowserTabNotificationsConfigResponse"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "browser_tab",
+          "enabled"
+        ],
+        "title": "NotificationsConfigResponse",
+        "type": "object"
+      },
+      "PollerStatusResponse": {
+        "properties": {
+          "last_error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_error_time": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_poll_time": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "last_error",
+          "last_error_time",
+          "last_poll_time",
+          "stale",
+          "status"
+        ],
+        "title": "PollerStatusResponse",
+        "type": "object"
+      },
+      "RuleSnippetsResponse": {
+        "properties": {
+          "dashboard_ignore_rule_snippet": {
+            "type": "string"
+          },
+          "dashboard_ignore_rule_with_context_snippet": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dashboard_name": {
+            "type": "string"
+          },
+          "global_exclude_rule_snippet": {
+            "type": "string"
+          },
+          "global_exclude_rule_with_context_snippet": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_context": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dashboard_ignore_rule_snippet",
+          "dashboard_ignore_rule_with_context_snippet",
+          "dashboard_name",
+          "global_exclude_rule_snippet",
+          "global_exclude_rule_with_context_snippet",
+          "has_context"
+        ],
+        "title": "RuleSnippetsResponse",
+        "type": "object"
+      },
+      "SnapshotResponse": {
+        "properties": {
+          "dashboard_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "descending": {
+            "type": "boolean"
+          },
+          "generated_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardGroupResponse"
+            },
+            "type": "array"
+          },
+          "include_read": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notifications_config": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NotificationsConfigResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "poller": {
+            "$ref": "#/components/schemas/PollerStatusResponse"
+          },
+          "sort_by": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DashboardSummaryResponse"
+          },
+          "total_items": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dashboard_names",
+          "descending",
+          "generated_at",
+          "groups",
+          "include_read",
+          "name",
+          "notifications_config",
+          "poller",
+          "sort_by",
+          "summary",
+          "total_items"
+        ],
+        "title": "SnapshotResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "JSON API backing the Corvix dashboard single-page app.",
+    "title": "Corvix API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "deprecated": false,
+        "operationId": "Index",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Index"
+      }
+    },
+    "/api/dashboards": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiDashboardsDashboardsDeprecated",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "DashboardsDeprecated"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiHealthHealthDeprecated",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "HealthDeprecated"
+      }
+    },
+    "/api/notifications/{account_id}/{thread_id}/dismiss": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiNotificationsAccountIdThreadIdDismissDismissNotificationDeprecated",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DismissNotificationDeprecated"
+      }
+    },
+    "/api/notifications/{account_id}/{thread_id}/mark-read": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiNotificationsAccountIdThreadIdMarkReadMarkNotificationReadDeprecated",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "MarkNotificationReadDeprecated"
+      }
+    },
+    "/api/notifications/{account_id}/{thread_id}/rule-snippets": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiNotificationsAccountIdThreadIdRuleSnippetsNotificationRuleSnippetsDeprecated",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "dashboard",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleSnippetsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "NotificationRuleSnippetsDeprecated"
+      }
+    },
+    "/api/notifications/{thread_id}/dismiss": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiNotificationsThreadIdDismissDismissNotificationDefaultAccount",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DismissNotificationDefaultAccount"
+      }
+    },
+    "/api/notifications/{thread_id}/mark-read": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiNotificationsThreadIdMarkReadMarkNotificationReadDefaultAccount",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "MarkNotificationReadDefaultAccount"
+      }
+    },
+    "/api/snapshot": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiSnapshotSnapshotDeprecated",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "dashboard",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "SnapshotDeprecated"
+      }
+    },
+    "/api/themes": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiThemesApiThemesDeprecated",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ApiThemesDeprecated"
+      }
+    },
+    "/api/v1/dashboards": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DashboardsDashboards",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Dashboards"
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1EventsEvents",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "dashboard",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Events"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1HealthHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/v1/notifications/{account_id}/{thread_id}/dismiss": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1NotificationsAccountIdThreadIdDismissDismissNotification",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DismissNotification"
+      }
+    },
+    "/api/v1/notifications/{account_id}/{thread_id}/mark-read": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1NotificationsAccountIdThreadIdMarkReadMarkNotificationRead",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "MarkNotificationRead"
+      }
+    },
+    "/api/v1/notifications/{account_id}/{thread_id}/rule-snippets": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1NotificationsAccountIdThreadIdRuleSnippetsNotificationRuleSnippets",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "dashboard",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleSnippetsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "NotificationRuleSnippets"
+      }
+    },
+    "/api/v1/snapshot": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SnapshotSnapshot",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "dashboard",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Snapshot"
+      }
+    },
+    "/api/v1/themes": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1ThemesApiThemes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ApiThemes"
+      }
+    },
+    "/dashboards/{dashboard_name}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "DashboardsDashboardNameDashboardIndex",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "dashboard_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DashboardIndex"
+      }
+    },
+    "/login": {
+      "get": {
+        "deprecated": false,
+        "operationId": "LoginLoginPage",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "LoginPage"
+      },
+      "post": {
+        "deprecated": false,
+        "operationId": "LoginLogin",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          }
+        },
+        "summary": "Login"
+      }
+    },
+    "/logout": {
+      "get": {
+        "deprecated": false,
+        "operationId": "LogoutLogout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "null"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Logout"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "deprecated": false,
+        "operationId": "MetricsMetricsEndpoint",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "MetricsEndpoint"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ]
+}

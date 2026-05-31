@@ -1,7 +1,11 @@
-.PHONY: frontend-build docs-build build downup rebuild updown lighthouse ui-screenshot reset-state first-run
+.PHONY: frontend-build gen-types docs-build build downup rebuild updown lighthouse ui-screenshot reset-state first-run
 
 frontend-build:
 	./scripts/frontend_build.sh
+
+gen-types:
+	uv run python scripts/export_openapi.py
+	npm --prefix frontend run gen:types
 
 docs-build:
 	$(MAKE) -C docs html

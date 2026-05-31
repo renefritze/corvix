@@ -8,7 +8,8 @@
         "preview": "vite preview",
         "test": "vitest",
         "test:watch": "vitest watch",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "gen:types": "openapi-typescript ./openapi.json --output ./src/api-types.gen.ts"
     },
     "dependencies": {
         "preact": "^10.25.4",
@@ -21,9 +22,15 @@
         "@testing-library/user-event": "^14.6.1",
         "@vitest/coverage-v8": "^4.1.5",
         "jsdom": "^29.1.1",
+        "openapi-typescript": "^7.5.0",
         "terser": "^5.46.2",
         "typescript": "^6.0.3",
         "vite": "^8.0.10",
         "vitest": "^4.1.4"
+    },
+    "overrides": {
+        "openapi-typescript": {
+            "typescript": "$typescript"
+        }
     }
 }

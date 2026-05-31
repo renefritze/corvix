@@ -11,7 +11,6 @@ import re
 import signal
 import threading
 from collections.abc import AsyncIterator, Mapping
-from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from importlib.resources import files
@@ -26,8 +25,10 @@ from litestar.config.compression import CompressionConfig
 from litestar.datastructures.cookie import Cookie
 from litestar.datastructures.headers import CacheControlHeader
 from litestar.exceptions import HTTPException
+from litestar.openapi import OpenAPIConfig
 from litestar.response import ServerSentEvent, ServerSentEventMessage
 from litestar.response.redirect import Redirect
+from litestar.serialization import encode_json
 from litestar.static_files import create_static_files_router
 
 from corvix.config import AppConfig, DashboardSpec, GitHubAccountConfig, available_dashboards, load_config
@@ -40,6 +41,7 @@ from corvix.observability import metrics as _metrics
 from corvix.observability.middleware import ObservabilityMiddleware
 from corvix.storage import SINGLE_USER_ID, StorageBackend, StorageConfigError, create_storage
 from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
+from corvix.web.schemas import PollerStatusResponse, RuleSnippetsResponse, SnapshotResponse, build_snapshot_response
 
 logger = logging.getLogger(__name__)
 
@@ -293,8 +295,8 @@ def _health_impl(extra_headers: dict[str, str] | None = None) -> Response[dict[s
     )
 
 
-def _snapshot_impl(dashboard: str | None = None) -> dict[str, object]:
-    """Compute and return the snapshot payload dict."""
+def _snapshot_impl(dashboard: str | None = None) -> SnapshotResponse:
+    """Compute and return the typed snapshot payload."""
     config = _load_runtime_config()
     storage = _get_storage()
     generated_at, records = storage.load_records(SINGLE_USER_ID)
@@ -318,36 +320,30 @@ def _snapshot_impl(dashboard: str | None = None) -> dict[str, object]:
             stale = True
     else:
         stale = True
-    payload = asdict(data)
-    payload["dashboard_names"] = _dashboard_names(config.dashboards)
     raw_last_error: str | None = poller_status.last_error
     if isinstance(raw_last_error, str):
         raw_last_error = raw_last_error.split("\n")[-1].strip() or raw_last_error
-    payload["poller"] = {
-        "status": poller_status.status,
-        "last_poll_time": last_poll_str,
-        "last_error": raw_last_error,
-        "last_error_time": poller_status.last_error_time,
-        "stale": stale,
-    }
-    notif_cfg = config.notifications
-    payload["notifications_config"] = {
-        "enabled": notif_cfg.enabled,
-        "browser_tab": {
-            "enabled": notif_cfg.browser_tab.enabled,
-            "max_per_cycle": notif_cfg.browser_tab.max_per_cycle,
-            "cooldown_seconds": notif_cfg.browser_tab.cooldown_seconds,
-        },
-    }
-    return payload
+    poller = PollerStatusResponse(
+        status=poller_status.status,
+        last_poll_time=last_poll_str,
+        last_error=raw_last_error,
+        last_error_time=poller_status.last_error_time,
+        stale=stale,
+    )
+    return build_snapshot_response(
+        data=data,
+        dashboard_names=_dashboard_names(config.dashboards),
+        poller=poller,
+        notifications_config=config.notifications,
+    )
 
 
 def _notification_rule_snippets_impl(
     account_id: str,
     thread_id: str,
     dashboard: str | None = None,
-) -> dict[str, object]:
-    """Compute and return the rule-snippets payload dict."""
+) -> RuleSnippetsResponse:
+    """Compute and return the typed rule-snippets payload."""
     config = _load_runtime_config()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     _require_account(config=config, account_id=account_id)
@@ -358,20 +354,20 @@ def _notification_rule_snippets_impl(
         raise HTTPException(status_code=404, detail=msg)
     base_match = _rule_match_lines(record=record, include_context=False)
     context_match = _rule_match_lines(record=record, include_context=True)
-    return {
-        "dashboard_name": selected_dashboard.name,
-        "dashboard_ignore_rule_snippet": _dashboard_ignore_rule_snippet(base_match),
-        "global_exclude_rule_snippet": _global_exclude_rule_snippet(record=record, match_lines=base_match),
-        "dashboard_ignore_rule_with_context_snippet": (
+    return RuleSnippetsResponse(
+        dashboard_name=selected_dashboard.name,
+        dashboard_ignore_rule_snippet=_dashboard_ignore_rule_snippet(base_match),
+        global_exclude_rule_snippet=_global_exclude_rule_snippet(record=record, match_lines=base_match),
+        dashboard_ignore_rule_with_context_snippet=(
             _dashboard_ignore_rule_snippet(context_match) if context_match is not None else None
         ),
-        "global_exclude_rule_with_context_snippet": (
+        global_exclude_rule_with_context_snippet=(
             _global_exclude_rule_snippet(record=record, match_lines=context_match)
             if context_match is not None
             else None
         ),
-        "has_context": bool(record.context),
-    }
+        has_context=bool(record.context),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +414,7 @@ def dashboards() -> dict[str, object]:
 
 
 @get("/api/v1/snapshot")
-def snapshot(dashboard: str | None = None) -> dict[str, object]:
+def snapshot(dashboard: str | None = None) -> SnapshotResponse:
     """Return the selected dashboard data from storage."""
     return _snapshot_impl(dashboard=dashboard)
 
@@ -458,9 +454,14 @@ def _sse_poll_interval() -> float:
 
 
 def _snapshot_event_body(dashboard: str | None) -> str:
-    """Build the snapshot payload and serialize it to a compact JSON string."""
+    """Build the snapshot payload and serialize it to a compact JSON string.
+
+    Uses msgspec (the encoder Litestar uses for the equivalent HTTP route) so the
+    SSE body and the ``GET /api/v1/snapshot`` response share one serialization
+    path and stay byte-for-byte consistent.
+    """
     payload = _snapshot_impl(dashboard=dashboard)
-    return json.dumps(payload, separators=(",", ":"), default=str)
+    return encode_json(payload).decode("utf-8")
 
 
 # Process-wide cache of the most recently built SSE body per dashboard, used to
@@ -563,7 +564,7 @@ def notification_rule_snippets(
     account_id: str,
     thread_id: str,
     dashboard: str | None = None,
-) -> dict[str, object]:
+) -> RuleSnippetsResponse:
     """Return prefilled ignore-rule snippets for a notification."""
     return _notification_rule_snippets_impl(account_id=account_id, thread_id=thread_id, dashboard=dashboard)
 
@@ -615,7 +616,7 @@ def dashboards_deprecated() -> Response[dict[str, object]]:
 
 
 @get("/api/snapshot")
-def snapshot_deprecated(dashboard: str | None = None) -> Response[dict[str, object]]:
+def snapshot_deprecated(dashboard: str | None = None) -> Response[SnapshotResponse]:
     """Deprecated: use /api/v1/snapshot."""
     return Response(content=_snapshot_impl(dashboard=dashboard), headers=_DEPRECATED_HEADERS)
 
@@ -625,7 +626,7 @@ def notification_rule_snippets_deprecated(
     account_id: str,
     thread_id: str,
     dashboard: str | None = None,
-) -> Response[dict[str, object]]:
+) -> Response[RuleSnippetsResponse]:
     """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/rule-snippets."""
     return Response(
         content=_notification_rule_snippets_impl(
@@ -1052,6 +1053,14 @@ app = Litestar(
     middleware=[ObservabilityMiddleware(), TokenAuthMiddleware()],
     on_startup=[_configure_observability],
     compression_config=CompressionConfig(backend="gzip", minimum_size=500),
+    openapi_config=OpenAPIConfig(
+        title="Corvix API",
+        # Schema version of the HTTP contract, not the package version: bumped
+        # deliberately when the API shape changes so the generated OpenAPI
+        # document (and the TypeScript types derived from it) stay stable.
+        version="1.0.0",
+        description="JSON API backing the Corvix dashboard single-page app.",
+    ),
 )
 
 

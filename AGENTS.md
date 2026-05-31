@@ -14,6 +14,7 @@ uv run ruff check .                                  # lint
 uv run ruff format .                                 # format
 uv run ty check src/corvix/                          # type check
 make frontend-build                                  # build frontend assets
+make gen-types                                       # regenerate OpenAPI + TS API types
 npm --prefix frontend run test -- --run              # run native frontend tests
 npm --prefix frontend run test:coverage              # frontend coverage (>=80%)
 
@@ -79,6 +80,7 @@ Corvix fetches GitHub notifications, scores and filters them via configurable ru
 - **`dashboarding.py`** — `build_dashboard_data()` filters, sorts, groups, and limits records per `DashboardSpec`. Used by both CLI and web.
 - **`presentation.py`** — Rich-based terminal rendering of dashboard groups.
 - **`web/app.py`** — Litestar app. Routes include `GET /`, `GET /dashboards/{dashboard_name}`, `GET /api/health`, `GET /api/themes`, `GET /api/dashboards`, `GET /api/snapshot`, `GET /api/events` (Server-Sent Events), and dismiss/mark-read POST endpoints. The UI subscribes to `/api/v1/events` and receives a pushed `snapshot` event only when the data changes; it falls back to 15s interval polling when SSE is unavailable. The server-side poll interval is configurable via `CORVIX_SSE_POLL_INTERVAL_SECONDS` (default 3s).
+- **`web/schemas.py`** — Typed response dataclasses (`SnapshotResponse`, `RuleSnippetsResponse`, …) that are the single source of truth for the JSON API shapes. Route handlers are annotated to return them, so Litestar auto-generates an OpenAPI document. `scripts/export_openapi.py` renders that document to `frontend/openapi.json`, and `openapi-typescript` generates `frontend/src/api-types.gen.ts` from it (`frontend/src/types.ts` re-exports those types). Run `make gen-types` after changing the schemas and commit the result; CI fails on drift. `tests/unit/test_api_contract.py` verifies both the OpenAPI sync and that live responses conform to the schemas.
 - **`cli.py`** — Click CLI: `init-config`, `poll`, `watch`, `dashboard`, `serve`, `migrate-cache`.
 
 ### Docker Compose
