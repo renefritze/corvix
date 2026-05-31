@@ -204,6 +204,11 @@ src/corvix/web/static/assets/*.css
 src/corvix/web/static/assets/*.js.map
 src/corvix/web/static/assets/*.css.map
 
+# Generated API types: regenerated from the committed frontend/openapi.json by
+# `npm run build` (pure node, no Python needed). Not committed — like the
+# bundles above — so SonarCloud never analyzes the repetitive generated output.
+frontend/src/api-types.gen.ts
+
 
 ## via https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider

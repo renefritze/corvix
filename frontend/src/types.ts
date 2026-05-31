@@ -1,73 +1,28 @@
-export interface DashboardItem {
-	account_id: string;
-	account_label: string;
-	thread_id: string;
-	repository: string;
-	reason: string;
-	subject_type: string;
-	subject_title: string;
-	unread: boolean;
-	updated_at: string;
-	score: number;
-	web_url: string | null;
-	matched_rules: string[];
-	actions_taken: string[];
-}
+import type { components } from "./api-types.gen";
 
-export interface DashboardGroup {
-	name: string;
-	items: DashboardItem[];
-}
+/**
+ * API payload types. These are aliases for the schemas in
+ * {@link ./api-types.gen.ts}, which is code-generated from the backend's
+ * OpenAPI document (`frontend/openapi.json`, produced by
+ * `scripts/export_openapi.py` from the Litestar route handlers). Treat the
+ * Python response dataclasses in `corvix.web.schemas` as the single source of
+ * truth: run `make gen-types` after changing them, never edit the API shapes
+ * here by hand. `api-types.gen.ts` is regenerated from the committed
+ * `openapi.json` during `npm run build` (so it is gitignored, not committed); a
+ * CI drift check fails the build if `openapi.json` falls out of sync with the
+ * backend schema.
+ */
+type Schemas = components["schemas"];
 
-export interface DashboardSummary {
-	unread_items: number;
-	read_items: number;
-	group_count: number;
-	repository_count: number;
-	reason_count: number;
-}
-
-export interface BrowserTabNotificationsConfig {
-	enabled: boolean;
-	max_per_cycle: number;
-	cooldown_seconds: number;
-}
-
-export interface NotificationsConfig {
-	enabled: boolean;
-	browser_tab: BrowserTabNotificationsConfig;
-}
-
-export interface PollerStatus {
-	status: string;
-	last_poll_time: string | null;
-	last_error: string | null;
-	last_error_time: string | null;
-	stale: boolean;
-}
-
-export interface SnapshotPayload {
-	name: string;
-	include_read: boolean;
-	sort_by: string;
-	descending: boolean;
-	generated_at: string | null;
-	groups: DashboardGroup[];
-	total_items: number;
-	summary: DashboardSummary;
-	dashboard_names: string[];
-	poller: PollerStatus;
-	notifications_config: NotificationsConfig | null;
-}
-
-export interface RuleSnippetsPayload {
-	dashboard_name: string;
-	dashboard_ignore_rule_snippet: string;
-	global_exclude_rule_snippet: string;
-	dashboard_ignore_rule_with_context_snippet: string | null;
-	global_exclude_rule_with_context_snippet: string | null;
-	has_context: boolean;
-}
+export type DashboardItem = Schemas["DashboardItemResponse"];
+export type DashboardGroup = Schemas["DashboardGroupResponse"];
+export type DashboardSummary = Schemas["DashboardSummaryResponse"];
+export type BrowserTabNotificationsConfig =
+	Schemas["BrowserTabNotificationsConfigResponse"];
+export type NotificationsConfig = Schemas["NotificationsConfigResponse"];
+export type PollerStatus = Schemas["PollerStatusResponse"];
+export type SnapshotPayload = Schemas["SnapshotResponse"];
+export type RuleSnippetsPayload = Schemas["RuleSnippetsResponse"];
 
 export type SortColumn =
 	| "subject_title"

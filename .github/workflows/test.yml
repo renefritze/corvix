@@ -64,6 +64,12 @@ jobs:
       run: |
         make frontend-build
 
+    - name: Verify committed OpenAPI schema matches the backend
+      run: |
+        uv run --frozen python scripts/export_openapi.py
+        git diff --exit-code frontend/openapi.json \
+          || { echo "frontend/openapi.json is stale. Run 'make gen-types' and commit it."; exit 1; }
+
     - name: Ensure generated bundles are untracked
       run: |
         if git ls-files --error-unmatch src/corvix/web/static/assets/app.js; then
@@ -72,6 +78,10 @@ jobs:
         fi
         if git ls-files --error-unmatch src/corvix/web/static/assets/index.css; then
           echo "src/corvix/web/static/assets/index.css must not be tracked"
+          exit 1
+        fi
+        if git ls-files --error-unmatch frontend/src/api-types.gen.ts; then
+          echo "frontend/src/api-types.gen.ts is generated and must not be tracked"
           exit 1
         fi
         git diff --exit-code
