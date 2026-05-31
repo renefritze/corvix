@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator, Generator
+from pathlib import Path
 
 import pytest
 from litestar.exceptions import HTTPException
 from litestar.response import ServerSentEvent, ServerSentEventMessage
 
 import corvix.web.app as web_app
-from corvix.web.app import _snapshot_event_generator, _sse_poll_interval, app
+from corvix.config import load_config
+from corvix.storage import NotificationCache
+from corvix.web.app import _snapshot_event_generator, _sse_poll_interval, app, set_storage_backend
 
 
 async def _drain(
@@ -30,10 +33,13 @@ async def _drain(
 
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make the SSE loop's inter-tick sleep a no-op so tests run instantly."""
+    """Collapse the SSE loop's inter-tick sleep so tests run instantly."""
+    # Capture the real sleep before patching so the replacement can still yield
+    # to the event loop (just with a zero delay) without recursing into itself.
+    real_sleep = asyncio.sleep
 
     async def _immediate(_seconds: float) -> None:
-        return None
+        await real_sleep(0)
 
     monkeypatch.setattr(web_app.asyncio, "sleep", _immediate)
 
@@ -211,7 +217,52 @@ def test_events_route_is_registered() -> None:
     assert "/api/v1/events" in {route.path for route in app.routes}
 
 
-def test_snapshot_generator_wraps_in_sse_response() -> None:
-    """The snapshot generator can back a Litestar SSE response."""
-    response = ServerSentEvent(_snapshot_event_generator("overview"))
+def test_events_handler_returns_sse_response() -> None:
+    """The route handler wraps the snapshot generator in an SSE response."""
+    response = asyncio.run(web_app.events.fn(dashboard="overview"))
     assert isinstance(response, ServerSentEvent)
+
+
+# --- _snapshot_event_body (real storage path) ---
+
+
+@pytest.fixture()
+def _configured_storage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Point the app at a temp config + empty cache so snapshots can be built."""
+    cache_file = tmp_path / "notifications.json"
+    cache_file.write_text(
+        json.dumps({"generated_at": "2024-01-01T00:00:00Z", "notifications": []}),
+        encoding="utf-8",
+    )
+    config_file = tmp_path / "corvix.yaml"
+    config_file.write_text(
+        f"""
+github:
+  token_env: GITHUB_TOKEN
+state:
+  cache_file: {cache_file}
+dashboards:
+  - name: overview
+    group_by: repository
+    sort_by: score
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
+    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
+    try:
+        yield
+    finally:
+        set_storage_backend(None)
+
+
+@pytest.mark.usefixtures("_configured_storage")
+def test_snapshot_event_body_serializes_real_payload() -> None:
+    """The body builder serializes a real snapshot to compact JSON."""
+    body = web_app._snapshot_event_body("overview")
+    payload = json.loads(body)
+    assert payload["name"] == "overview"
+    assert "groups" in payload
+    # Compact separators: no spaces after ',' or ':'.
+    assert ", " not in body
+    assert ": " not in body

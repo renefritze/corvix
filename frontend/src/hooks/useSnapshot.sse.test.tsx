@@ -16,7 +16,7 @@ class MockEventSource {
 	static readonly CONNECTING = 0;
 	static readonly OPEN = 1;
 	static readonly CLOSED = 2;
-	static instances: MockEventSource[] = [];
+	static readonly instances: MockEventSource[] = [];
 
 	url: string;
 	readyState: number = MockEventSource.CONNECTING;
@@ -64,7 +64,7 @@ function Harness({ dashboard }: Readonly<{ dashboard?: string }>) {
 
 describe("useSnapshot (SSE)", () => {
 	beforeEach(() => {
-		MockEventSource.instances = [];
+		MockEventSource.instances.length = 0;
 		vi.stubGlobal("EventSource", MockEventSource);
 		vi.mocked(fetchSnapshot).mockResolvedValue(makeSnapshot({ name: "initial" }));
 	});
@@ -189,6 +189,24 @@ describe("useSnapshot (SSE)", () => {
 		const source = MockEventSource.instances[0];
 		unmount();
 		expect(source.closed).toBe(true);
+	});
+
+	it("ignores snapshot and error events dispatched after unmount", async () => {
+		const { unmount } = render(<Harness />);
+		await waitFor(() => {
+			expect(MockEventSource.instances).toHaveLength(1);
+		});
+		const source = MockEventSource.instances[0];
+		unmount();
+
+		// Late frames after teardown must be dropped without throwing or
+		// touching unmounted state (the `active` guard short-circuits them).
+		expect(() => {
+			act(() => {
+				source.emit("snapshot", JSON.stringify(makeSnapshot({ name: "late" })));
+				source.emit("snapshot-error", JSON.stringify({ detail: "late" }));
+			});
+		}).not.toThrow();
 	});
 
 	it("does not start polling when an error fires after unmount", async () => {

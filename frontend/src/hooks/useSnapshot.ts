@@ -105,9 +105,7 @@ export function useSnapshot(dashboard: string | undefined) {
 		source.addEventListener("snapshot", (event) => {
 			if (!active) return;
 			try {
-				const data = JSON.parse(
-					(event as MessageEvent).data,
-				) as SnapshotPayload;
+				const data = JSON.parse(event.data) as SnapshotPayload;
 				setSnapshot(data);
 				setError(null);
 				setLoading(false);
@@ -117,7 +115,7 @@ export function useSnapshot(dashboard: string | undefined) {
 		});
 		source.addEventListener("snapshot-error", (event) => {
 			if (!active) return;
-			const detail = parseErrorDetail((event as MessageEvent).data);
+			const detail = parseErrorDetail(event.data);
 			setError(detail);
 		});
 		source.onerror = () => {
