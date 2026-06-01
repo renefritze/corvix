@@ -202,8 +202,8 @@ def _fetch_notifications(
         account_label = getattr(client, "account_label", account_id)
         try:
             fetched = client.fetch_notifications(polling)
-        except Exception:
-            error_msg = traceback.format_exc().splitlines()[-1].strip()
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {e}"
             logger.warning(
                 "Failed to fetch notifications for account; skipping",
                 exc_info=True,
