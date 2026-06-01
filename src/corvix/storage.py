@@ -24,6 +24,7 @@ from psycopg.types.json import Jsonb
 
 from corvix.db import get_database_url
 from corvix.domain import (
+    AccountError,
     Notification,
     NotificationRecord,
     PollerStatus,
@@ -38,7 +39,7 @@ if TYPE_CHECKING:
 
 _NOTIFICATION_RECORD_COLUMNS = 18
 _DISMISSED_ROW_COLUMNS = 2
-_POLLER_STATUS_COLUMNS = 4
+_POLLER_STATUS_COLUMNS = 5
 
 # Fixed identity used for the single-user deployment. Multi-user deployments
 # scope records per real user; single-user mode shares this seeded row (created
@@ -225,6 +226,7 @@ class NotificationCache:
                     last_poll_time=self._opt_str(raw.get("last_poll_time")),
                     last_error=self._opt_str(raw.get("last_error")),
                     last_error_time=self._opt_str(raw.get("last_error_time")),
+                    account_errors=_parse_account_errors(raw.get("account_errors")),
                 )
         return PollerStatus(status="unknown", last_poll_time=None, last_error=None, last_error_time=None)
 
@@ -610,18 +612,29 @@ class PostgresStorage:
 
     def save_status(self, user_id: UserId, status: PollerStatus) -> None:
         """Upsert the poller status row for ``user_id``."""
+        account_errors_json = (
+            Jsonb(
+                [
+                    {"account_id": e.account_id, "account_label": e.account_label, "error": e.error}
+                    for e in status.account_errors
+                ]
+            )
+            if status.account_errors
+            else None
+        )
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO poller_status
-                        (user_id, status, last_poll_time, last_error, last_error_time, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, now())
+                        (user_id, status, last_poll_time, last_error, last_error_time, account_errors, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, now())
                     ON CONFLICT (user_id) DO UPDATE SET
                         status          = EXCLUDED.status,
                         last_poll_time  = EXCLUDED.last_poll_time,
                         last_error      = EXCLUDED.last_error,
                         last_error_time = EXCLUDED.last_error_time,
+                        account_errors  = EXCLUDED.account_errors,
                         updated_at      = now()
                     """,
                     (
@@ -630,6 +643,7 @@ class PostgresStorage:
                         status.last_poll_time,
                         status.last_error,
                         status.last_error_time,
+                        account_errors_json,
                     ),
                 )
             conn.commit()
@@ -639,7 +653,7 @@ class PostgresStorage:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT status, last_poll_time, last_error, last_error_time FROM poller_status WHERE user_id = %s",
+                    "SELECT status, last_poll_time, last_error, last_error_time, account_errors FROM poller_status WHERE user_id = %s",
                     (user_id,),
                 )
                 row = cur.fetchone()
@@ -653,6 +667,7 @@ class PostgresStorage:
             last_poll_time=_optional_str(row[1], "last_poll_time"),
             last_error=_optional_str(row[2], "last_error"),
             last_error_time=_optional_str(row[3], "last_error_time"),
+            account_errors=_parse_account_errors(row[4]),
         )
 
     def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
@@ -780,6 +795,23 @@ def _require_datetime(value: object, field: str) -> datetime:
         return value
     msg = f"Invalid value for '{field}': expected datetime."
     raise ValueError(msg)
+
+
+def _parse_account_errors(value: object) -> tuple[AccountError, ...]:
+    """Parse the account_errors JSONB value into a tuple of AccountError."""
+    if not isinstance(value, list):
+        return ()
+    result: list[AccountError] = []
+    for raw_item in value:
+        if not isinstance(raw_item, dict):
+            continue
+        item: dict[str, object] = {str(k): v for k, v in raw_item.items()}
+        account_id = item.get("account_id")
+        account_label = item.get("account_label")
+        error = item.get("error")
+        if isinstance(account_id, str) and isinstance(account_label, str) and isinstance(error, str):
+            result.append(AccountError(account_id=account_id, account_label=account_label, error=error))
+    return tuple(result)
 
 
 def _coerce_str_list(value: object, field: str) -> list[str]:
