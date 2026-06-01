@@ -14,7 +14,7 @@ from alembic.config import Config
 
 from corvix.config import AppConfig
 from corvix.domain import Notification, NotificationRecord, PollerStatus
-from corvix.storage import SINGLE_USER_ID, PostgresStorage, StorageConfigError, create_storage
+from corvix.storage import PostgresStorage, StorageConfigError, create_storage
 
 SCORE_HIGH = 50.0
 SCORE_LOW = 10.0
