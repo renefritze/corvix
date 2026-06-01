@@ -103,7 +103,13 @@ function readInitialWidths(storage: Storage): ColumnWidths {
 export function useColumnResize() {
 	const [widths, setWidths] = useState<ColumnWidths>(() => {
 		if (typeof globalThis.window === "undefined") return DEFAULT_COLUMN_WIDTHS;
-		return readInitialWidths(globalThis.window.localStorage);
+		try {
+			return readInitialWidths(globalThis.window.localStorage);
+		} catch {
+			// localStorage can throw (e.g. SecurityError when storage is disabled
+			// or blocked); fall back to defaults rather than crashing on startup.
+			return DEFAULT_COLUMN_WIDTHS;
+		}
 	});
 	const dragRef = useRef<DragState | null>(null);
 
