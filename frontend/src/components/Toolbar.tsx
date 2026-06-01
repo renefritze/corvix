@@ -100,7 +100,7 @@ export function Toolbar({
 					alt=""
 					aria-hidden="true"
 				/>
-				<span class={styles.appName}>Corvix</span>
+				<span class={styles.appName} data-testid="app-name">Corvix</span>
 			</span>
 			{summary && (
 				<span class={styles.inlineStats}>

@@ -12,9 +12,9 @@ interface NotFoundProps {
  */
 export function NotFound({ url }: NotFoundProps) {
 	return (
-		<div class={[styles.emptyState, styles.errorState].join(" ")}>
-			<p class={styles.emptyTitle}>Page not found</p>
-			<p class={styles.emptyBody}>
+		<div class={[styles.emptyState, styles.errorState].join(" ")} data-testid="empty-state">
+			<p class={styles.emptyTitle} data-testid="empty-title">Page not found</p>
+			<p class={styles.emptyBody} data-testid="empty-body">
 				{url ? `No page matches ${url}.` : "This page doesn't exist."}
 			</p>
 			<button type="button" onClick={() => route("/", true)}>

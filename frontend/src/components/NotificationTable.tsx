@@ -82,7 +82,7 @@ export function NotificationTable({
 					const unreadCount = group.items.filter((item) => item.unread).length;
 					const isMarkingRead = markingGroupNames.has(group.name);
 					return [
-						<tr key={`group-${group.name}`} class={styles.groupHeaderRow}>
+						<tr key={`group-${group.name}`} class={styles.groupHeaderRow} data-testid="group-header-row">
 							<td colSpan={COLS} class="group-header-cell">
 								<div class={styles.groupHeaderContent}>
 									<div>

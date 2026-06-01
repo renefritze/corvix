@@ -26,9 +26,9 @@ export function EmptyState({
 }: EmptyStateProps) {
 	if (error) {
 		return (
-			<div class={[styles.emptyState, styles.errorState].join(" ")}>
-				<p class={styles.emptyTitle}>Failed to load</p>
-				<p class={styles.emptyBody}>{error}</p>
+			<div class={[styles.emptyState, styles.errorState].join(" ")} data-testid="empty-state">
+				<p class={styles.emptyTitle} data-testid="empty-title">Failed to load</p>
+				<p class={styles.emptyBody} data-testid="empty-body">{error}</p>
 				<button type="button" onClick={onRetry}>
 					Retry
 				</button>
@@ -52,9 +52,9 @@ export function EmptyState({
 		}
 
 		return (
-			<div class={styles.emptyState}>
-				<p class={styles.emptyTitle}>{title}</p>
-				<p class={styles.emptyBody}>{body}</p>
+			<div class={styles.emptyState} data-testid="empty-state">
+				<p class={styles.emptyTitle} data-testid="empty-title">{title}</p>
+				<p class={styles.emptyBody} data-testid="empty-body">{body}</p>
 				<button type="button" onClick={onClearFilters}>
 					Clear filters
 				</button>
@@ -64,16 +64,16 @@ export function EmptyState({
 
 	if (totalItems === 0) {
 		return (
-			<div class={styles.emptyState}>
-				<p class={styles.emptyTitle}>All clear</p>
-				<p class={styles.emptyBody}>No notifications in this dashboard.</p>
+			<div class={styles.emptyState} data-testid="empty-state">
+				<p class={styles.emptyTitle} data-testid="empty-title">All clear</p>
+				<p class={styles.emptyBody} data-testid="empty-body">No notifications in this dashboard.</p>
 			</div>
 		);
 	}
 	return (
-		<div class={styles.emptyState}>
-			<p class={styles.emptyTitle}>No results</p>
-			<p class={styles.emptyBody}>No notifications match the current filters.</p>
+		<div class={styles.emptyState} data-testid="empty-state">
+			<p class={styles.emptyTitle} data-testid="empty-title">No results</p>
+			<p class={styles.emptyBody} data-testid="empty-body">No notifications match the current filters.</p>
 		</div>
 	);
 }

@@ -195,7 +195,7 @@ function Dashboard({ name }: DashboardProps) {
 	}
 
 	return (
-		<div class={styles.shell}>
+		<div class={styles.shell} data-testid="app-shell">
 			{refreshing && <div class={styles.refreshBar} aria-hidden="true" />}
 			<Toolbar
 				dashboardNames={dashboardNames}

@@ -22,14 +22,15 @@ export function AuthGate({ children }: AuthGateProps) {
 	}
 
 	return (
-		<div class={appStyles.shell}>
+		<div class={appStyles.shell} data-testid="app-shell">
 			<main class={appStyles.board}>
 				<div
 					class={[emptyStyles.emptyState, emptyStyles.errorState, emptyStyles.authGate].join(" ")}
+					data-testid="empty-state"
 					role="alert"
 				>
-					<p class={emptyStyles.emptyTitle}>Sign in required</p>
-					<p class={emptyStyles.emptyBody}>{message ?? DEFAULT_UNAUTHORIZED_MESSAGE}</p>
+					<p class={emptyStyles.emptyTitle} data-testid="empty-title">Sign in required</p>
+					<p class={emptyStyles.emptyBody} data-testid="empty-body">{message ?? DEFAULT_UNAUTHORIZED_MESSAGE}</p>
 					<button type="button" onClick={reset}>
 						Try again
 					</button>
