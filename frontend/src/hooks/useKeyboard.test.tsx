@@ -38,16 +38,16 @@ function Harness({
 					</tr>
 				</thead>
 				<tbody>
-					<tr class="notification-row" tabIndex={0} data-testid="row-1">
-						<td>
-							<a href="#row-1" class="title-link">
+					<tr data-thread-id="1" data-account-id="primary" tabIndex={0} data-testid="row-1">
+						<td data-label="Title">
+							<a href="#row-1">
 								Row 1
 							</a>
 						</td>
 					</tr>
-					<tr class="notification-row" tabIndex={0} data-testid="row-2">
-						<td>
-							<a href="#row-2" class="title-link">
+					<tr data-thread-id="2" data-account-id="primary" tabIndex={0} data-testid="row-2">
+						<td data-label="Title">
+							<a href="#row-2">
 								Row 2
 							</a>
 						</td>

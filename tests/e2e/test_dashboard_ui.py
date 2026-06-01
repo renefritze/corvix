@@ -14,16 +14,16 @@ def test_page_loads_and_renders_title(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     expect(app_page).to_have_title("Corvix")
-    expect(app_page.locator(".app-name")).to_have_text("Corvix")
+    expect(app_page.locator("[data-testid='app-name']")).to_have_text("Corvix")
 
 
 @pytest.mark.e2e
 def test_notifications_table_renders(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    table = app_page.locator("table.notification-table")
+    table = app_page.locator("table[aria-label='Notifications']")
     expect(table).to_be_visible()
-    expect(table.locator("tr.notification-row")).to_have_count(3)
+    expect(table.locator("tr[data-thread-id]")).to_have_count(3)
 
 
 @pytest.mark.e2e
@@ -55,8 +55,8 @@ def test_dashboard_selector_lists_and_switches(app_page: PageLike) -> None:
     expect(selector).to_be_visible()
     expect(selector.locator("option")).to_have_count(4)
     selector.select_option("triage")
-    expect(app_page.locator("tr.notification-row")).to_have_count(2)
-    expect(app_page.locator("tr.group-header-row")).to_contain_text(["mention"])
+    expect(app_page.locator("tr[data-thread-id]")).to_have_count(2)
+    expect(app_page.locator("[data-testid='group-header-row']")).to_contain_text(["mention"])
 
 
 @pytest.mark.e2e
@@ -65,7 +65,7 @@ def test_dashboard_suburl_loads_selected_dashboard(page: PageLike, corvix_server
 
     page.goto(f"{corvix_server}/dashboards/triage")
     expect(page.get_by_label("Select dashboard")).to_have_value("triage")
-    expect(page.locator("tr.notification-row")).to_have_count(2)
+    expect(page.locator("tr[data-thread-id]")).to_have_count(2)
 
 
 @pytest.mark.e2e
@@ -75,8 +75,8 @@ def test_empty_dashboard_shows_empty_state(app_page: PageLike) -> None:
     selector = app_page.get_by_label("Select dashboard")
     selector.select_option("empty")
 
-    expect(app_page.locator(".empty-state .empty-title")).to_have_text("All clear")
-    expect(app_page.locator("tr.notification-row")).to_have_count(0)
+    expect(app_page.locator("[data-testid='empty-title']")).to_have_text("All clear")
+    expect(app_page.locator("tr[data-thread-id]")).to_have_count(0)
 
 
 @pytest.mark.e2e
@@ -86,20 +86,20 @@ def test_filter_bar_filters_by_reason(app_page: PageLike) -> None:
     reason_filter = app_page.get_by_label("Reason filter")
     reason_filter.click()
     app_page.get_by_role("button", name="subscribed").click()
-    expect(app_page.locator("tr.notification-row")).to_have_count(1)
-    expect(app_page.locator("tr.notification-row .col-reason")).to_have_text("subscribed")
+    expect(app_page.locator("tr[data-thread-id]")).to_have_count(1)
+    expect(app_page.locator("tr[data-thread-id] td[data-label='Reason']")).to_have_text("subscribed")
 
 
 @pytest.mark.e2e
 def test_notification_row_shows_key_fields(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    row = app_page.locator("tr.notification-row", has_text="Review API changes")
+    row = app_page.locator("tr[data-thread-id]", has_text="Review API changes")
     expect(row).to_have_count(1)
-    expect(row.locator(".col-title .title-link")).to_have_text("Review API changes")
-    expect(row.locator(".col-repository .repo-label")).to_have_text("org/repo-a")
-    expect(row.locator(".col-reason")).to_have_text("mention")
-    expect(row.locator(".col-score .score-value")).to_have_text("90.0")
+    expect(row.locator("td[data-label='Title'] a")).to_have_text("Review API changes")
+    expect(row.locator("td[data-label='Repository'] span")).to_have_text("org/repo-a")
+    expect(row.locator("td[data-label='Reason']")).to_have_text("mention")
+    expect(row.locator("td[data-label='Score'] span")).to_have_text("90.0")
 
 
 @pytest.mark.e2e
@@ -108,7 +108,7 @@ def test_sort_order_matches_config(app_page: PageLike) -> None:
 
     selector = app_page.get_by_label("Select dashboard")
     selector.select_option("triage")
-    rows = app_page.locator("tr.notification-row .col-title .title-link")
+    rows = app_page.locator("tr[data-thread-id] td[data-label='Title'] a")
     expect(rows).to_have_count(2)
     expect(rows.nth(0)).to_have_text("Review API changes")
     expect(rows.nth(1)).to_have_text("Triage flaky integration test")
@@ -118,7 +118,7 @@ def test_sort_order_matches_config(app_page: PageLike) -> None:
 def test_filter_clears_when_selected_reason_chip_is_removed(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    rows = app_page.locator("tr.notification-row")
+    rows = app_page.locator("tr[data-thread-id]")
     expect(rows).to_have_count(3)
     reason_filter = app_page.get_by_label("Reason filter")
     reason_filter.click()
@@ -132,7 +132,7 @@ def test_filter_clears_when_selected_reason_chip_is_removed(app_page: PageLike) 
 def test_filter_clears_when_selected_reason_option_is_toggled_off(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    rows = app_page.locator("tr.notification-row")
+    rows = app_page.locator("tr[data-thread-id]")
     expect(rows).to_have_count(3)
 
     reason_filter = app_page.get_by_label("Reason filter")
@@ -149,7 +149,7 @@ def test_filter_clears_when_selected_reason_option_is_toggled_off(app_page: Page
 def test_dismiss_removes_row(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    rows = app_page.locator("tr.notification-row")
+    rows = app_page.locator("tr[data-thread-id]")
     expect(rows).to_have_count(3)
     app_page.get_by_label("Dismiss Dependency update").click()
     expect(rows).to_have_count(2)
@@ -159,13 +159,13 @@ def test_dismiss_removes_row(app_page: PageLike) -> None:
 def test_dismiss_shows_undo_toast_and_undo_restores_row(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    rows = app_page.locator("tr.notification-row")
+    rows = app_page.locator("tr[data-thread-id]")
     expect(rows).to_have_count(3)
     app_page.get_by_label("Dismiss Dependency update").click()
     expect(rows).to_have_count(2)
-    expect(app_page.locator(".undo-toast")).to_contain_text("1 notification dismissing")
+    expect(app_page.locator("[data-testid='undo-toast']")).to_contain_text("1 notification dismissing")
     app_page.get_by_role("button", name="Undo").click()
-    expect(app_page.locator(".undo-toast")).to_have_count(0)
+    expect(app_page.locator("[data-testid='undo-toast']")).to_have_count(0)
     expect(rows).to_have_count(3)
 
 
@@ -179,7 +179,7 @@ def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(ap
 
     app_page.route("**/api/v1/snapshot*", delayed_snapshot)
 
-    rows = app_page.locator("tr.notification-row")
+    rows = app_page.locator("tr[data-thread-id]")
     expect(rows).to_have_count(3)
 
     app_page.get_by_label("Dismiss Review API changes").click()
@@ -190,7 +190,7 @@ def test_bulk_dismiss_rows_do_not_reappear_while_snapshot_refresh_is_inflight(ap
     app_page.wait_for_timeout(3_400)
     expect(rows).to_have_count(1)
 
-    expect(app_page.locator(".undo-toast")).to_have_count(0, timeout=8_000)
+    expect(app_page.locator("[data-testid='undo-toast']")).to_have_count(0, timeout=8_000)
     expect(rows).to_have_count(1)
 
     app_page.unroute("**/api/v1/snapshot*", delayed_snapshot)
@@ -210,9 +210,9 @@ def test_loading_skeleton_shown_then_replaced(page: PageLike, corvix_server: str
     # observed.
     page.route("**/api/v1/events*", lambda route: route.abort())
     page.goto(corvix_server)
-    expect(page.locator("table.notification-table[aria-label='Loading notifications']")).to_be_visible()
-    expect(page.locator("tr.skeleton-row")).to_have_count(9)
-    expect(page.locator("tr.notification-row")).to_have_count(3)
+    expect(page.locator("table[aria-label='Loading notifications']")).to_be_visible()
+    expect(page.locator("table[aria-label='Loading notifications'] tbody tr")).to_have_count(9)
+    expect(page.locator("tr[data-thread-id]")).to_have_count(3)
 
 
 @pytest.mark.e2e
@@ -231,15 +231,15 @@ def test_server_error_shows_error_state(page: PageLike, corvix_server: str) -> N
     # clear the error that the forced 500 fetch is meant to surface.
     page.route("**/api/v1/events*", lambda route: route.abort())
     page.goto(corvix_server)
-    expect(page.locator(".empty-state.error-state .empty-title")).to_have_text("Failed to load")
-    expect(page.locator(".empty-state.error-state .empty-body")).to_contain_text("Snapshot fetch failed: 500")
+    expect(page.locator("[data-testid='empty-title']")).to_have_text("Failed to load")
+    expect(page.locator("[data-testid='empty-body']")).to_contain_text("Snapshot fetch failed: 500")
 
 
 @pytest.mark.e2e
 def test_groups_displayed_with_headers(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    headers = app_page.locator("tr.group-header-row .group-header-cell")
+    headers = app_page.locator("[data-testid='group-header-row'] td")
     expect(headers).to_have_count(2)
     expect(headers.nth(0)).to_contain_text("org/repo-a")
     expect(headers.nth(0)).to_contain_text("(2)")
@@ -251,7 +251,7 @@ def test_groups_displayed_with_headers(app_page: PageLike) -> None:
 def test_group_header_mark_all_read_applies_to_visible_unread(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    group_headers = app_page.locator("tr.group-header-row")
+    group_headers = app_page.locator("[data-testid='group-header-row']")
     expect(group_headers).to_have_count(2)
 
     repo_a_header = group_headers.filter(has_text="org/repo-a")
@@ -278,7 +278,7 @@ def test_mobile_viewport_renders_without_horizontal_scroll(page: PageLike, corvi
 
     page.set_viewport_size({"width": 375, "height": 667})
     page.goto(corvix_server)
-    expect(page.locator("tr.notification-row")).to_have_count(3)
+    expect(page.locator("tr[data-thread-id]")).to_have_count(3)
     has_horizontal_overflow = page.evaluate(
         "() => document.documentElement.scrollWidth > document.documentElement.clientWidth",
     )
@@ -290,8 +290,8 @@ def test_mobile_viewport_renders_without_horizontal_scroll(page: PageLike, corvi
 def test_keyboard_navigation_with_j_and_k(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    first_row = app_page.locator("tr.notification-row").first
-    second_row = app_page.locator("tr.notification-row").nth(1)
+    first_row = app_page.locator("tr[data-thread-id]").first
+    second_row = app_page.locator("tr[data-thread-id]").nth(1)
     first_row.focus()
     app_page.keyboard.press("j")
     expect(second_row).to_be_focused()
@@ -303,7 +303,7 @@ def test_keyboard_navigation_with_j_and_k(app_page: PageLike) -> None:
 def test_keyboard_dismiss_with_d(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    rows = app_page.locator("tr.notification-row")
+    rows = app_page.locator("tr[data-thread-id]")
     expect(rows).to_have_count(3)
     second_row = rows.nth(1)
     second_row.focus()
@@ -316,26 +316,26 @@ def test_dismiss_persists_on_reload(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
     app_page.get_by_label("Dismiss Dependency update").click()
-    expect(app_page.locator("tr.notification-row")).to_have_count(2)
-    expect(app_page.locator(".undo-toast")).to_have_count(0, timeout=7_000)
+    expect(app_page.locator("tr[data-thread-id]")).to_have_count(2)
+    expect(app_page.locator("[data-testid='undo-toast']")).to_have_count(0, timeout=7_000)
     app_page.reload()
-    expect(app_page.locator("tr.notification-row")).to_have_count(2)
-    expect(app_page.locator("tr.notification-row", has_text="Dependency update")).to_have_count(0)
+    expect(app_page.locator("tr[data-thread-id]")).to_have_count(2)
+    expect(app_page.locator("tr[data-thread-id]", has_text="Dependency update")).to_have_count(0)
 
 
 @pytest.mark.e2e
 def test_right_click_opens_row_menu_and_ignore_dialog(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    row = app_page.locator("tr.notification-row", has_text="Review API changes")
+    row = app_page.locator("tr[data-thread-id]", has_text="Review API changes")
     expect(row).to_have_count(1)
 
     row.click(button="right")
-    menu = app_page.locator(".row-context-menu")
+    menu = app_page.locator("[role='menu']")
     expect(menu).to_be_visible()
     app_page.get_by_role("menuitem", name="Create ignore rule...").click()
 
-    dialog = app_page.locator("dialog.ignore-rule-dialog")
+    dialog = app_page.locator("dialog[aria-label='Ignore rule snippets']")
     expect(dialog).to_be_visible()
     expect(app_page.get_by_role("heading", name="Dashboard ignore rule")).to_be_visible()
     expect(app_page.get_by_role("heading", name="Global exclude rule")).to_be_visible()

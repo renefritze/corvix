@@ -7,6 +7,6 @@ describe("LoadingSkeleton", () => {
 		expect(
 			screen.getByRole("table", { name: "Loading notifications" }),
 		).toBeInTheDocument();
-		expect(document.querySelectorAll("tr.skeleton-row")).toHaveLength(9);
+		expect(document.querySelectorAll("tbody tr")).toHaveLength(9);
 	});
 });

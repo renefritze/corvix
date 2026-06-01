@@ -49,7 +49,7 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     # connection (/api/v1/events) open for live updates, so the network never
     # goes idle. Wait for the concrete elements that must be present instead.
     page.goto(f"{base_url}{DEFAULT_DASHBOARD_PATH}", wait_until="load")
-    page.wait_for_selector("table.notification-table")
+    page.wait_for_selector("table[aria-label='Notifications']")
     page.wait_for_selector("text=Corvix")
     page.wait_for_function("() => document.fonts.status === 'loaded'")
 
@@ -63,4 +63,4 @@ def test_generate_ui_screenshot(page: PageLike, corvix_server: str) -> None:
     )
 
     SCREENSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    page.locator(".shell").screenshot(path=str(SCREENSHOT_PATH), animations="disabled")
+    page.locator("[data-testid='app-shell']").screenshot(path=str(SCREENSHOT_PATH), animations="disabled")

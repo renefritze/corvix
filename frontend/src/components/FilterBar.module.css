@@ -1,0 +1,164 @@
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  min-height: 40px;
+  flex-wrap: wrap;
+}
+
+.snapshotTime {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.reasonPicker {
+  position: relative;
+  min-width: 230px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reasonPickerTrigger {
+  position: relative;
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding-right: 26px;
+}
+
+.reasonPickerTrigger.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+.reasonPickerPlaceholder,
+.reasonPickerSummary {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reasonChipList {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.reasonChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-elevated) 70%, var(--bg));
+  padding: 1px 7px;
+}
+
+.reasonChipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reasonChipRemove {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.reasonChipRemove:hover {
+  color: var(--danger);
+}
+
+.reasonPickerCaret {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+}
+
+.reasonPickerTrigger.open .reasonPickerCaret {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.reasonPickerMenu {
+  list-style: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: 100%;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--surface-elevated);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+}
+
+.reasonPickerMenu li {
+  list-style: none;
+}
+
+.reasonOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  padding: 6px 8px;
+}
+
+.reasonOption:hover,
+.reasonOption:focus-visible {
+  background: var(--row-hover);
+}
+
+.reasonOption.selected {
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.reasonOptionCheck {
+  width: 14px;
+  color: var(--ok);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.reasonOptionLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reasonOption.missing .reasonOptionLabel {
+  color: var(--muted);
+}

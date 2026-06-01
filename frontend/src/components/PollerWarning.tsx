@@ -1,4 +1,5 @@
 import type { AccountError, PollerStatus } from "../types";
+import styles from "./PollerWarning.module.css";
 
 interface PollerWarningProps {
 	readonly poller: PollerStatus;
@@ -17,11 +18,11 @@ function lastPollText(lastPollTime: string | null): string {
 function AccountErrorBanner({ accountError }: { accountError: AccountError }) {
 	const message = accountError.error || "Failed to fetch notifications.";
 	return (
-		<div class="poller-warning poller-warning--error" role="alert">
-			<span class="poller-warning__icon" aria-hidden="true">
+		<div class={[styles.pollerWarning, styles.error].join(" ")} role="alert">
+			<span class={styles.icon} aria-hidden="true">
 				⚠
 			</span>
-			<span class="poller-warning__text">
+			<span class={styles.text}>
 				<strong>{accountError.account_label}</strong>: {message}
 			</span>
 		</div>
@@ -43,11 +44,11 @@ export function PollerWarning({ poller }: PollerWarningProps) {
 	return (
 		<>
 			{status === "error" && (
-				<div class="poller-warning poller-warning--error" role="alert">
-					<span class="poller-warning__icon" aria-hidden="true">
+				<div class={[styles.pollerWarning, styles.error].join(" ")} role="alert">
+					<span class={styles.icon} aria-hidden="true">
 						⚠
 					</span>
-					<span class="poller-warning__text">
+					<span class={styles.text}>
 						{lastError
 							? lastError.split("\n").slice(-2).join(" ").trim()
 							: "Poller encountered an error."}
@@ -58,14 +59,14 @@ export function PollerWarning({ poller }: PollerWarningProps) {
 
 			{(status === "unknown" || status === "starting") && (
 				<div
-					class="poller-warning poller-warning--pending"
+					class={[styles.pollerWarning, styles.pending].join(" ")}
 					role="status"
 					aria-live="polite"
 				>
-					<span class="poller-warning__icon" aria-hidden="true">
+					<span class={styles.icon} aria-hidden="true">
 						⏳
 					</span>
-					<span class="poller-warning__text">
+					<span class={styles.text}>
 						Waiting for poller to start...
 					</span>
 				</div>
@@ -73,14 +74,14 @@ export function PollerWarning({ poller }: PollerWarningProps) {
 
 			{stale && status !== "error" && (
 				<div
-					class="poller-warning poller-warning--stale"
+					class={[styles.pollerWarning, styles.stale].join(" ")}
 					role="status"
 					aria-live="polite"
 				>
-					<span class="poller-warning__icon" aria-hidden="true">
+					<span class={styles.icon} aria-hidden="true">
 						🕐
 					</span>
-					<span class="poller-warning__text">
+					<span class={styles.text}>
 						Data may be stale
 						{lastUpdateText ? ` (last update ${lastUpdateText})` : ""}.
 					</span>

@@ -9,7 +9,7 @@ describe("TableHeader", () => {
 		const onResetColumnWidth = vi.fn();
 		const user = userEvent.setup();
 
-		const { container } = render(
+		render(
 			<table>
 				<TableHeader
 					sortColumn="score"
@@ -36,17 +36,14 @@ describe("TableHeader", () => {
 		await user.click(screen.getByRole("button", { name: /^Repository$/i }));
 		expect(onSort).toHaveBeenCalledWith("repository");
 
-		const handle = container.querySelector(
-			".col-repository .col-resize-handle",
-		);
-		expect(handle).not.toBeNull();
-		expect(
-			screen.getByRole("button", { name: "Resize Repository column" }),
-		).toBeInTheDocument();
-		handle?.dispatchEvent(
+		const handle = screen.getByRole("button", {
+			name: "Resize Repository column",
+		});
+		expect(handle).toBeInTheDocument();
+		handle.dispatchEvent(
 			new MouseEvent("mousedown", { bubbles: true, clientX: 240 }),
 		);
-		handle?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+		handle.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
 
 		expect(onResizeStart).toHaveBeenCalledWith("repository", 240);
 		expect(onResetColumnWidth).toHaveBeenCalledWith("repository");

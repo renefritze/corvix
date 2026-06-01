@@ -4,45 +4,46 @@ import type {
 	SortColumn,
 	SortDirection,
 } from "../types";
+import styles from "./table.module.css";
 
 const COLUMNS: {
 	key: SortColumn;
 	label: string;
-	className?: string;
+	extraClass?: string;
 	colClass: string;
 	resizeKey?: ResizableSortColumn;
 }[] = [
-	{ key: "subject_title", label: "Title", colClass: "col-title" },
+	{ key: "subject_title", label: "Title", colClass: styles.colTitle },
 	{
 		key: "repository",
 		label: "Repository",
-		colClass: "col-repository",
+		colClass: styles.colRepository,
 		resizeKey: "repository",
 	},
 	{
 		key: "subject_type",
 		label: "Type",
-		className: "hide-mobile",
-		colClass: "col-type",
+		extraClass: styles.hideMobile,
+		colClass: styles.colType,
 		resizeKey: "subject_type",
 	},
 	{
 		key: "reason",
 		label: "Reason",
-		className: "hide-mobile",
-		colClass: "col-reason",
+		extraClass: styles.hideMobile,
+		colClass: styles.colReason,
 		resizeKey: "reason",
 	},
 	{
 		key: "score",
 		label: "Score",
-		colClass: "col-score",
+		colClass: styles.colScore,
 		resizeKey: "score",
 	},
 	{
 		key: "updated_at",
 		label: "Updated",
-		colClass: "col-updated",
+		colClass: styles.colUpdated,
 		resizeKey: "updated_at",
 	},
 ];
@@ -67,8 +68,8 @@ export function TableHeader({
 	return (
 		<thead>
 			<tr>
-				<th class="col-status" aria-label="Unread status" />
-				{COLUMNS.map(({ key, label, className, colClass, resizeKey }) => {
+				<th class={styles.colStatus} aria-label="Unread status" />
+				{COLUMNS.map(({ key, label, extraClass, colClass, resizeKey }) => {
 					let ariaSort: "none" | "ascending" | "descending" = "none";
 					if (sortColumn === key) {
 						ariaSort = sortDirection === "asc" ? "ascending" : "descending";
@@ -79,9 +80,9 @@ export function TableHeader({
 							key={key}
 							class={[
 								colClass,
-								className,
-								"sortable",
-								sortColumn === key ? "sort-active" : "",
+								extraClass,
+								styles.sortable,
+								sortColumn === key ? styles.sortActive : "",
 							]
 								.filter(Boolean)
 								.join(" ")}
@@ -95,7 +96,7 @@ export function TableHeader({
 							<button type="button" onClick={() => onSort(key)}>
 								{label}
 								{sortColumn === key && (
-									<span class="sort-arrow" aria-hidden="true">
+									<span class={styles.sortArrow} aria-hidden="true">
 										{sortDirection === "asc" ? " ▲" : " ▼"}
 									</span>
 								)}
@@ -103,7 +104,7 @@ export function TableHeader({
 							{resizeKey && (
 								<button
 									type="button"
-									class="col-resize-handle"
+									class={styles.colResizeHandle}
 									aria-label={`Resize ${label} column`}
 									onMouseDown={(event) => {
 										event.preventDefault();
@@ -120,7 +121,7 @@ export function TableHeader({
 						</th>
 					);
 				})}
-				<th class="col-actions" aria-label="Actions" />
+				<th class={styles.colActions} aria-label="Actions" />
 			</tr>
 		</thead>
 	);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { DashboardItem, FilterState } from "../types";
+import styles from "./FilterBar.module.css";
 
 interface FilterBarProps {
 	readonly filters: FilterState;
@@ -105,7 +106,7 @@ export function FilterBar({
 	}
 
 	return (
-		<div class="filter-row">
+		<div class={styles.filterRow}>
 			<select
 				ref={filterBarRef}
 				value={filters.unread}
@@ -125,40 +126,40 @@ export function FilterBar({
 					{includeRead ? "Read only" : "🔒 Read only (disabled by dashboard)"}
 				</option>
 			</select>
-			<div class="reason-picker" ref={reasonPickerRef}>
+			<div class={styles.reasonPicker} ref={reasonPickerRef}>
 				<button
 					type="button"
-					class={`reason-picker-trigger${reasonMenuOpen ? " open" : ""}`}
+					class={[styles.reasonPickerTrigger, reasonMenuOpen ? styles.open : ""].filter(Boolean).join(" ")}
 					aria-label="Reason filter"
 					aria-expanded={reasonMenuOpen}
 					aria-controls={reasonListId}
 					onClick={() => setReasonMenuOpen((open) => !open)}
 				>
 					{filters.reason.length === 0 && (
-						<span class="reason-picker-placeholder">All reasons</span>
+						<span class={styles.reasonPickerPlaceholder}>All reasons</span>
 					)}
 					{filters.reason.length > 0 && filters.reason.length <= 2 && (
-						<span class="reason-picker-summary">
+						<span class={styles.reasonPickerSummary}>
 							{filters.reason.join(", ")}
 						</span>
 					)}
 					{filters.reason.length > 2 && (
-						<span class="reason-picker-summary">
+						<span class={styles.reasonPickerSummary}>
 							{filters.reason.length} reasons
 						</span>
 					)}
-					<span class="reason-picker-caret" aria-hidden="true">
+					<span class={styles.reasonPickerCaret} aria-hidden="true">
 						▾
 					</span>
 				</button>
 				{filters.reason.length > 0 && (
-					<span class="reason-chip-list" aria-label="Selected reasons">
+					<span class={styles.reasonChipList} aria-label="Selected reasons">
 						{filters.reason.map((reason) => (
-							<span class="reason-chip" key={reason}>
-								<span class="reason-chip-text">{reason}</span>
+							<span class={styles.reasonChip} key={reason}>
+								<span class={styles.reasonChipText}>{reason}</span>
 								<button
 									type="button"
-									class="reason-chip-remove"
+									class={styles.reasonChipRemove}
 									aria-label={`Remove ${reason} reason filter`}
 									onClick={() => removeReason(reason)}
 								>
@@ -171,7 +172,7 @@ export function FilterBar({
 				{reasonMenuOpen && (
 					<ul
 						id={reasonListId}
-						class="reason-picker-menu"
+						class={styles.reasonPickerMenu}
 						aria-label="Reason options"
 					>
 						{reasonOptions.map((option) => (
@@ -179,18 +180,18 @@ export function FilterBar({
 								<button
 									type="button"
 									class={[
-										"reason-option",
-										selectedReasonSet.has(option.reason) ? "selected" : "",
-										option.missing ? "missing" : "",
+										styles.reasonOption,
+										selectedReasonSet.has(option.reason) ? styles.selected : "",
+										option.missing ? styles.missing : "",
 									]
 										.filter(Boolean)
 										.join(" ")}
 									onClick={() => toggleReason(option.reason)}
 								>
-									<span class="reason-option-check" aria-hidden="true">
+									<span class={styles.reasonOptionCheck} aria-hidden="true">
 										{selectedReasonSet.has(option.reason) ? "✓" : ""}
 									</span>
-									<span class="reason-option-label">{option.label}</span>
+									<span class={styles.reasonOptionLabel}>{option.label}</span>
 								</button>
 							</li>
 						))}
@@ -218,7 +219,7 @@ export function FilterBar({
 				Clear
 			</button>
 			{generatedAt && (
-				<span class="snapshot-time">
+				<span class={styles.snapshotTime}>
 					Snapshot: {new Date(generatedAt).toLocaleTimeString()}
 				</span>
 			)}

@@ -8,6 +8,7 @@ import type {
 import { notificationKey } from "../types";
 import { TableHeader } from "./TableHeader";
 import { TableRow } from "./TableRow";
+import styles from "./table.module.css";
 
 function sortItems(
 	items: DashboardItem[],
@@ -63,8 +64,8 @@ export function NotificationTable({
 	const { widths, startResize, resetColumnWidth } = useColumnResize();
 
 	return (
-		<table class="notification-table" aria-label="Notifications">
-			<caption class="table-shortcut-hint">
+		<table class={styles.notificationTable} aria-label="Notifications">
+			<caption class={styles.tableShortcutHint}>
 				Press ? for keyboard shortcuts
 			</caption>
 			<TableHeader
@@ -81,17 +82,17 @@ export function NotificationTable({
 					const unreadCount = group.items.filter((item) => item.unread).length;
 					const isMarkingRead = markingGroupNames.has(group.name);
 					return [
-						<tr key={`group-${group.name}`} class="group-header-row">
+						<tr key={`group-${group.name}`} class={styles.groupHeaderRow} data-testid="group-header-row">
 							<td colSpan={COLS} class="group-header-cell">
-								<div class="group-header-content">
+								<div class={styles.groupHeaderContent}>
 									<div>
 										{group.name}{" "}
-										<span class="group-count">({group.items.length})</span>
+										<span class={styles.groupCount}>({group.items.length})</span>
 									</div>
 									{unreadCount > 0 && (
 										<button
 											type="button"
-											class="group-mark-read-btn"
+											class={styles.groupMarkReadBtn}
 											onClick={() => onMarkGroupRead(group.name, group.items)}
 											disabled={isMarkingRead}
 											aria-label={`Mark all visible unread notifications in ${group.name} as read`}

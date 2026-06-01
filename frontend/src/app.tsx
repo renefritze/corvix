@@ -23,6 +23,7 @@ import { useKeyboard } from "./hooks/useKeyboard";
 import { useMarkRead } from "./hooks/useMarkRead";
 import { notificationKey } from "./types";
 import type { DashboardItem } from "./types";
+import styles from "./app.module.css";
 
 interface DashboardProps {
 	// The active dashboard name from the /dashboards/:name route (already decoded).
@@ -194,8 +195,8 @@ function Dashboard({ name }: DashboardProps) {
 	}
 
 	return (
-		<div class="shell">
-			{refreshing && <div class="refresh-bar" aria-hidden="true" />}
+		<div class={styles.shell} data-testid="app-shell">
+			{refreshing && <div class={styles.refreshBar} aria-hidden="true" />}
 			<Toolbar
 				dashboardNames={dashboardNames}
 				currentDashboard={currentDashboard}
@@ -214,7 +215,7 @@ function Dashboard({ name }: DashboardProps) {
 			{showShortcuts && (
 				<dialog
 					id="shortcuts-panel"
-					class="shortcuts-panel"
+					class={styles.shortcutsPanel}
 					aria-label="Keyboard shortcuts"
 					open
 				>
@@ -248,10 +249,10 @@ function Dashboard({ name }: DashboardProps) {
 				/>
 			)}
 			{snapshot?.poller && <PollerWarning poller={snapshot.poller} />}
-			<main class="board">{boardContent}</main>
+			<main class={styles.board}>{boardContent}</main>
 			{ignoreMenu && (
 				<div
-					class="row-context-menu"
+					class={styles.rowContextMenu}
 					style={{ left: `${ignoreMenu.x}px`, top: `${ignoreMenu.y}px` }}
 					role="menu"
 				>
@@ -278,7 +279,7 @@ function Dashboard({ name }: DashboardProps) {
 				</ErrorBoundary>
 			)}
 			{toastError && (
-				<div class="error-toast" role="alert">
+				<div class={styles.errorToast} role="alert">
 					{toastError}
 					<button type="button" onClick={() => setToastError(null)}>
 						✕
