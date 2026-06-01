@@ -41,7 +41,7 @@ from corvix.observability import metrics as _metrics
 from corvix.observability.middleware import ObservabilityMiddleware
 from corvix.storage import SINGLE_USER_ID, StorageBackend, StorageConfigError, create_storage
 from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
-from corvix.web.schemas import PollerStatusResponse, RuleSnippetsResponse, SnapshotResponse, build_snapshot_response
+from corvix.web.schemas import AccountErrorResponse, PollerStatusResponse, RuleSnippetsResponse, SnapshotResponse, build_snapshot_response
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +329,10 @@ def _snapshot_impl(dashboard: str | None = None) -> SnapshotResponse:
         last_error=raw_last_error,
         last_error_time=poller_status.last_error_time,
         stale=stale,
+        account_errors=[
+            AccountErrorResponse(account_id=e.account_id, account_label=e.account_label, error=e.error)
+            for e in poller_status.account_errors
+        ],
     )
     return build_snapshot_response(
         data=data,

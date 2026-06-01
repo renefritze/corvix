@@ -75,7 +75,13 @@ repos:
     - uvicorn
     - asyncpg>=0.31.0
     - psycopg[binary]>=3.3.3
+    - psycopg-pool>=3.2.0
     - alembic>=1.18.4
+    - cryptography>=44.0.0
+    - prometheus-client>=0.21.0
+    - opentelemetry-api>=1.29.0
+    - opentelemetry-sdk>=1.29.0
+    - opentelemetry-exporter-otlp-proto-http>=1.29.0
 - repo: https://github.com/DavidAnson/markdownlint-cli2
   # Ensure to update the schema version above to match this version here!
   rev: 5387279b3b4c24822c0f86d4df4f28b37e3e8992  # frozen: v0.21.0

@@ -59,6 +59,15 @@ class DashboardSummaryResponse:
 
 
 @dataclass(slots=True)
+class AccountErrorResponse:
+    """A per-account fetch failure recorded during a poll cycle."""
+
+    account_id: str
+    account_label: str
+    error: str
+
+
+@dataclass(slots=True)
 class PollerStatusResponse:
     """Poller health surfaced to the UI for the staleness warning banner."""
 
@@ -67,6 +76,7 @@ class PollerStatusResponse:
     last_error: str | None
     last_error_time: str | None
     stale: bool
+    account_errors: list[AccountErrorResponse]
 
 
 @dataclass(slots=True)

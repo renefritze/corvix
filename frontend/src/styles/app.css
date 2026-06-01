@@ -851,8 +851,10 @@ body.col-resizing * {
   border-bottom: 1px solid var(--line);
 }
 .poller-warning--error {
-  background: var(--surface-elevated);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-elevated));
   color: var(--danger);
+  border-left: 3px solid var(--danger);
+  font-size: 0.85rem;
 }
 .poller-warning--pending {
   background: var(--surface-elevated);
@@ -872,6 +874,11 @@ body.col-resizing * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.poller-warning--error .poller-warning__text {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 /* ============================================================

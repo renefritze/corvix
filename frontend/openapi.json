@@ -1,6 +1,26 @@
 {
   "components": {
     "schemas": {
+      "AccountErrorResponse": {
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "account_label": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "account_label",
+          "error"
+        ],
+        "title": "AccountErrorResponse",
+        "type": "object"
+      },
       "BrowserTabNotificationsConfigResponse": {
         "properties": {
           "cooldown_seconds": {
@@ -159,6 +179,12 @@
       },
       "PollerStatusResponse": {
         "properties": {
+          "account_errors": {
+            "items": {
+              "$ref": "#/components/schemas/AccountErrorResponse"
+            },
+            "type": "array"
+          },
           "last_error": {
             "oneOf": [
               {
@@ -197,6 +223,7 @@
           }
         },
         "required": [
+          "account_errors",
           "last_error",
           "last_error_time",
           "last_poll_time",

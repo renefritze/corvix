@@ -13,7 +13,14 @@ from rich.console import Console
 
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import AppConfig, DashboardSpec, PollingConfig, available_dashboards
-from corvix.domain import Notification, NotificationRecord, PollerStatus, format_timestamp, notification_key
+from corvix.domain import (
+    AccountError,
+    Notification,
+    NotificationRecord,
+    PollerStatus,
+    format_timestamp,
+    notification_key,
+)
 from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
 from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
 from corvix.hydration.providers.github_thread_subject import GitHubThreadSubjectProvider
@@ -37,6 +44,9 @@ logger = logging.getLogger(__name__)
 
 class NotificationsClient(MarkReadGateway, JsonFetchClient, Protocol):
     """Client capabilities required by the poll cycle orchestration."""
+
+    account_id: str
+    account_label: str
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
         """Fetch notifications with configured polling options."""
@@ -118,7 +128,9 @@ def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
     active_clients = _resolve_active_clients(cycle_input)
     previous_records = _load_previous_records(cycle_input)
 
-    notifications, clients_by_account = _fetch_notifications(cycle_input.config.polling, active_clients)
+    notifications, clients_by_account, account_fetch_errors = _fetch_notifications(
+        cycle_input.config.polling, active_clients
+    )
 
     pipeline_providers = _build_pipeline_providers(cycle_input.config)
     pipeline_engine = PipelineEngine(
@@ -148,6 +160,7 @@ def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
             last_poll_time=format_timestamp(current_time),
             last_error=None,
             last_error_time=None,
+            account_errors=tuple(account_fetch_errors),
         ),
     )
 
@@ -180,15 +193,28 @@ def _load_previous_records(cycle_input: PollCycleInput) -> list[NotificationReco
 def _fetch_notifications(
     polling: PollingConfig,
     active_clients: tuple[NotificationsClient, ...],
-) -> tuple[list[Notification], dict[str, NotificationsClient]]:
+) -> tuple[list[Notification], dict[str, NotificationsClient], list[AccountError]]:
     notifications: list[Notification] = []
     clients_by_account: dict[str, NotificationsClient] = {}
+    account_errors: list[AccountError] = []
     for client in active_clients:
-        fetched = client.fetch_notifications(polling)
+        account_id = getattr(client, "account_id", "unknown")
+        account_label = getattr(client, "account_label", account_id)
+        try:
+            fetched = client.fetch_notifications(polling)
+        except Exception:
+            error_msg = traceback.format_exc().splitlines()[-1].strip()
+            logger.warning(
+                "Failed to fetch notifications for account; skipping",
+                exc_info=True,
+                extra={"account_id": account_id, "account_label": account_label},
+            )
+            account_errors.append(AccountError(account_id=account_id, account_label=account_label, error=error_msg))
+            continue
         notifications.extend(fetched)
         if fetched:
             clients_by_account[fetched[0].account_id] = client
-    return notifications, clients_by_account
+    return notifications, clients_by_account, account_errors
 
 
 def _process_notifications(
@@ -234,9 +260,7 @@ def _process_notifications(
             ),
         )
         new_notification = (
-            replace(notification, unread=False)
-            if "mark_read" in action_result.actions_taken
-            else notification
+            replace(notification, unread=False) if "mark_read" in action_result.actions_taken else notification
         )
         record = replace(
             record,
@@ -270,9 +294,7 @@ def _dispatch_notification_events(
     return dispatcher.dispatch(events)
 
 
-def _handle_cycle_error(
-    iteration: int, cache: StorageBackend, user_id: UserId, runs: list[PollingSummary]
-) -> None:
+def _handle_cycle_error(iteration: int, cache: StorageBackend, user_id: UserId, runs: list[PollingSummary]) -> None:
     """Record a poll-cycle failure and persist the error status."""
     error_time = datetime.now(tz=UTC)
     error_trace = traceback.format_exc()

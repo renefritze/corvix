@@ -8,6 +8,15 @@ from datetime import UTC, datetime
 
 
 @dataclass(slots=True, frozen=True)
+class AccountError:
+    """Per-account fetch failure recorded during a poll cycle."""
+
+    account_id: str
+    account_label: str
+    error: str
+
+
+@dataclass(slots=True, frozen=True)
 class PollerStatus:
     """Status written to the cache by the poller/watch loop."""
 
@@ -15,6 +24,7 @@ class PollerStatus:
     last_poll_time: str | None = None
     last_error: str | None = None
     last_error_time: str | None = None
+    account_errors: tuple[AccountError, ...] = ()
 
 
 STORED_RECORD_LABEL = "stored record"

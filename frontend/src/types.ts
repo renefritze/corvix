@@ -21,6 +21,7 @@ export type BrowserTabNotificationsConfig =
 	Schemas["BrowserTabNotificationsConfigResponse"];
 export type NotificationsConfig = Schemas["NotificationsConfigResponse"];
 export type PollerStatus = Schemas["PollerStatusResponse"];
+export type AccountError = Schemas["AccountErrorResponse"];
 export type SnapshotPayload = Schemas["SnapshotResponse"];
 export type RuleSnippetsPayload = Schemas["RuleSnippetsResponse"];
 
