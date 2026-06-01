@@ -54,6 +54,7 @@ class PollerStatusRow(Base):
     last_poll_time: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_error_time: Mapped[str | None] = mapped_column(Text, nullable=True)
+    account_errors: Mapped[list[dict[str, object]] | None] = mapped_column(postgresql.JSONB, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
