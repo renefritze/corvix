@@ -17,13 +17,13 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 function focusRelativeRow(delta: number) {
 	const rows = Array.from(
-		document.querySelectorAll<HTMLTableRowElement>("tr.notification-row"),
+		document.querySelectorAll<HTMLTableRowElement>("tr[data-thread-id]"),
 	);
 	if (rows.length === 0) return;
 
 	const active = document.activeElement;
 	const current = active?.closest(
-		"tr.notification-row",
+		"tr[data-thread-id]",
 	) as HTMLTableRowElement | null;
 	const idx = current ? rows.indexOf(current) : -1;
 
@@ -40,10 +40,10 @@ function focusRelativeRow(delta: number) {
 function openFocusedRow() {
 	const active = document.activeElement;
 	const row = active?.closest(
-		"tr.notification-row",
+		"tr[data-thread-id]",
 	) as HTMLTableRowElement | null;
 	if (!row) return;
-	const link = row.querySelector<HTMLAnchorElement>("a.title-link");
+	const link = row.querySelector<HTMLAnchorElement>("td[data-label='Title'] a");
 	if (link) link.click();
 }
 
