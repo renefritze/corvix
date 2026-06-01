@@ -254,8 +254,6 @@ a.titleLink:focus-visible {
 .skeletonRow td { padding: 10px 12px; }
 
 /* Responsive */
-.hideMobile { display: initial; }
-
 @media (max-width: 768px) {
   .hideMobile,
   .colScore,

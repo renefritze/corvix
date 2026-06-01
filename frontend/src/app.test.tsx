@@ -687,7 +687,6 @@ describe("App", () => {
 				"Something failed",
 			);
 		});
-		expect(screen.getByRole("alert")).toHaveTextContent("Something failed");
 	});
 
 	it("shows poller warning banner when poller is ok but stale", async () => {
@@ -712,7 +711,6 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(screen.getByRole("status")).toHaveTextContent("Data may be stale");
 		});
-		expect(screen.getByRole("status")).toHaveTextContent("Data may be stale");
 	});
 
 	it("opens ignore-rule dialog from row context menu and loads both snippets", async () => {
