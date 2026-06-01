@@ -14,6 +14,7 @@ import { PollerWarning } from "./components/PollerWarning";
 import { Toolbar } from "./components/Toolbar";
 import { UndoToast } from "./components/UndoToast";
 import { useBrowserNotifications } from "./hooks/useBrowserNotifications";
+import { useColumnResize } from "./hooks/useColumnResize";
 import { useCurrentRoute } from "./hooks/useCurrentRoute";
 import { useDashboardState } from "./hooks/useDashboardState";
 import { useDismiss } from "./hooks/useDismiss";
@@ -90,6 +91,9 @@ function Dashboard({ name }: DashboardProps) {
 		openDialog: openIgnoreDialog,
 		closeDialog: closeIgnoreDialog,
 	} = useIgnoreRuleDialog(currentDashboard);
+
+	const { widths, startResize, resetColumnWidth, resetLayout } =
+		useColumnResize();
 
 	const notifConfig = snapshot?.notifications_config?.browser_tab ?? null;
 	const {
@@ -188,6 +192,9 @@ function Dashboard({ name }: DashboardProps) {
 						onOpenTarget={openTarget}
 						onRequestIgnoreRule={requestIgnoreRule}
 						pendingDismissals={new Set(pending.keys())}
+						columnWidths={widths}
+						onResizeStart={startResize}
+						onResetColumnWidth={resetColumnWidth}
 					/>
 				</ErrorBoundary>
 			);
@@ -211,6 +218,7 @@ function Dashboard({ name }: DashboardProps) {
 				notifPermission={notifPermission}
 				onEnableNotifications={() => void enableNotifications()}
 				onDisableNotifications={disableNotifications}
+				onResetLayout={resetLayout}
 			/>
 			{showShortcuts && (
 				<dialog

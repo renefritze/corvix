@@ -48,6 +48,8 @@
   flex-shrink: 0;
 }
 
+.resetLayoutBtn { white-space: nowrap; }
+
 .refreshBtn { min-width: 90px; }
 .refreshBtn.refreshing { color: var(--muted); }
 

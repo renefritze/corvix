@@ -1,7 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ColumnWidths, ResizableSortColumn } from "../types";
 
-const STORAGE_KEY = "corvix.table.columnWidths";
+/**
+ * Bump this whenever the column set or the persisted width schema changes in a
+ * way that makes older stored values invalid (columns renamed, removed, or the
+ * value shape altered). Old keys are purged on startup so a schema change never
+ * resurrects widths for columns that no longer exist.
+ */
+const STORAGE_VERSION = 2;
+const STORAGE_KEY_PREFIX = "corvix.table.columnWidths";
+const STORAGE_KEY = `${STORAGE_KEY_PREFIX}.v${STORAGE_VERSION}`;
+
+/**
+ * Returns true for any persisted key this hook owns: the unversioned legacy key
+ * (equal to the prefix) and every `${prefix}.vN` key. Used to distinguish our
+ * keys from unrelated localStorage entries during cleanup.
+ */
+function isManagedColumnWidthKey(key: string): boolean {
+	return key === STORAGE_KEY_PREFIX || key.startsWith(`${STORAGE_KEY_PREFIX}.v`);
+}
+
+/**
+ * Removes every column-width key except the current version's. This sweeps away
+ * the unversioned legacy key and any superseded `.vN` entries so they cannot be
+ * loaded after a schema bump and cannot accumulate as orphaned storage.
+ */
+function cleanupStaleColumnWidthKeys(storage: Storage): void {
+	const staleKeys: string[] = [];
+	for (let i = 0; i < storage.length; i++) {
+		const key = storage.key(i);
+		if (key && key !== STORAGE_KEY && isManagedColumnWidthKey(key)) {
+			staleKeys.push(key);
+		}
+	}
+	for (const key of staleKeys) {
+		storage.removeItem(key);
+	}
+}
 
 const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
 	repository: 185,
@@ -53,14 +88,41 @@ function parseSavedWidths(raw: string | null): ColumnWidths {
 	}
 }
 
+/**
+ * Reads the persisted widths for the current schema version, falling back to a
+ * one-time migration from the unversioned legacy key so users keep their layout
+ * across this upgrade. `parseSavedWidths` validates and clamps the result, so a
+ * migrated value can only ever contain known, in-range columns.
+ */
+function readInitialWidths(storage: Storage): ColumnWidths {
+	const current = storage.getItem(STORAGE_KEY);
+	if (current !== null) return parseSavedWidths(current);
+	return parseSavedWidths(storage.getItem(STORAGE_KEY_PREFIX));
+}
+
 export function useColumnResize() {
 	const [widths, setWidths] = useState<ColumnWidths>(() => {
 		if (typeof globalThis.window === "undefined") return DEFAULT_COLUMN_WIDTHS;
-		return parseSavedWidths(
-			globalThis.window.localStorage.getItem(STORAGE_KEY),
-		);
+		try {
+			return readInitialWidths(globalThis.window.localStorage);
+		} catch {
+			// localStorage can throw (e.g. SecurityError when storage is disabled
+			// or blocked); fall back to defaults rather than crashing on startup.
+			return DEFAULT_COLUMN_WIDTHS;
+		}
 	});
 	const dragRef = useRef<DragState | null>(null);
+
+	// Purge legacy/older-version keys once on mount. Reading the initial widths
+	// above already migrated any legacy value, so this only deletes orphans.
+	useEffect(() => {
+		if (typeof globalThis.window === "undefined") return;
+		try {
+			cleanupStaleColumnWidthKeys(globalThis.window.localStorage);
+		} catch {
+			/* ignore storage access errors */
+		}
+	}, []);
 
 	const onMouseMove = useCallback((event: MouseEvent) => {
 		const dragState = dragRef.current;
@@ -109,6 +171,10 @@ export function useColumnResize() {
 		}));
 	}, []);
 
+	const resetLayout = useCallback(() => {
+		setWidths(DEFAULT_COLUMN_WIDTHS);
+	}, []);
+
 	useEffect(
 		() => () => {
 			stopResize();
@@ -132,5 +198,6 @@ export function useColumnResize() {
 		widths,
 		startResize,
 		resetColumnWidth,
+		resetLayout,
 	};
 }

@@ -17,6 +17,8 @@ interface ToolbarProps {
 	readonly notifPermission: NotifPermission;
 	readonly onEnableNotifications: () => void;
 	readonly onDisableNotifications: () => void;
+	// Resets all table column widths to their defaults, clearing stored layout.
+	readonly onResetLayout: () => void;
 }
 
 function NotifButton({
@@ -90,6 +92,7 @@ export function Toolbar({
 	notifPermission,
 	onEnableNotifications,
 	onDisableNotifications,
+	onResetLayout,
 }: ToolbarProps) {
 	return (
 		<div class={styles.toolbarRow}>
@@ -116,6 +119,15 @@ export function Toolbar({
 					aria-controls="shortcuts-panel"
 				>
 					? Shortcuts
+				</button>
+				<button
+					type="button"
+					class={styles.resetLayoutBtn}
+					onClick={onResetLayout}
+					title="Reset table column widths to their defaults"
+					aria-label="Reset column layout"
+				>
+					Reset layout
 				</button>
 				<NotifButton
 					supported={notifSupported}
