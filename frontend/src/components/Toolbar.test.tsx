@@ -30,6 +30,7 @@ describe("Toolbar", () => {
 				notifPermission="default"
 				onEnableNotifications={vi.fn()}
 				onDisableNotifications={vi.fn()}
+				onResetLayout={vi.fn()}
 			/>,
 		);
 
@@ -62,6 +63,7 @@ describe("Toolbar", () => {
 				notifPermission="denied"
 				onEnableNotifications={vi.fn()}
 				onDisableNotifications={vi.fn()}
+				onResetLayout={vi.fn()}
 			/>,
 		);
 
@@ -89,6 +91,7 @@ describe("Toolbar", () => {
 				notifPermission="granted"
 				onEnableNotifications={vi.fn()}
 				onDisableNotifications={onDisableNotifications}
+				onResetLayout={vi.fn()}
 			/>,
 		);
 
@@ -96,6 +99,35 @@ describe("Toolbar", () => {
 			screen.getByRole("button", { name: "Disable browser notifications" }),
 		);
 		expect(onDisableNotifications).toHaveBeenCalledTimes(1);
+	});
+
+	it("invokes the reset-layout callback", async () => {
+		const user = userEvent.setup();
+		const onResetLayout = vi.fn();
+
+		render(
+			<Toolbar
+				dashboardNames={["overview"]}
+				currentDashboard="overview"
+				onDashboardChange={vi.fn()}
+				onRefresh={vi.fn()}
+				refreshing={false}
+				summary={null}
+				shortcutsOpen={false}
+				onToggleShortcuts={vi.fn()}
+				notifSupported={false}
+				notifActive={false}
+				notifPermission="default"
+				onEnableNotifications={vi.fn()}
+				onDisableNotifications={vi.fn()}
+				onResetLayout={onResetLayout}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Reset column layout" }),
+		);
+		expect(onResetLayout).toHaveBeenCalledTimes(1);
 	});
 
 	it("handles null current dashboard value", () => {
@@ -114,6 +146,7 @@ describe("Toolbar", () => {
 				notifPermission="default"
 				onEnableNotifications={vi.fn()}
 				onDisableNotifications={vi.fn()}
+				onResetLayout={vi.fn()}
 			/>,
 		);
 

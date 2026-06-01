@@ -1,7 +1,8 @@
-import { useColumnResize } from "../hooks/useColumnResize";
 import type {
+	ColumnWidths,
 	DashboardGroup,
 	DashboardItem,
+	ResizableSortColumn,
 	SortColumn,
 	SortDirection,
 } from "../types";
@@ -46,6 +47,9 @@ interface NotificationTableProps {
 		position: { x: number; y: number },
 	) => void;
 	readonly pendingDismissals: Set<string>;
+	readonly columnWidths: ColumnWidths;
+	readonly onResizeStart: (column: ResizableSortColumn, startX: number) => void;
+	readonly onResetColumnWidth: (column: ResizableSortColumn) => void;
 }
 
 export function NotificationTable({
@@ -59,9 +63,11 @@ export function NotificationTable({
 	onOpenTarget,
 	onRequestIgnoreRule,
 	pendingDismissals,
+	columnWidths,
+	onResizeStart,
+	onResetColumnWidth,
 }: NotificationTableProps) {
 	const COLS = 8;
-	const { widths, startResize, resetColumnWidth } = useColumnResize();
 
 	return (
 		<table class={styles.notificationTable} aria-label="Notifications">
@@ -72,9 +78,9 @@ export function NotificationTable({
 				sortColumn={sortColumn}
 				sortDirection={sortDirection}
 				onSort={onSort}
-				columnWidths={widths}
-				onResizeStart={startResize}
-				onResetColumnWidth={resetColumnWidth}
+				columnWidths={columnWidths}
+				onResizeStart={onResizeStart}
+				onResetColumnWidth={onResetColumnWidth}
 			/>
 			<tbody>
 				{groups.map((group) => {

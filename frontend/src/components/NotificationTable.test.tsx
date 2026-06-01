@@ -1,7 +1,22 @@
 import { render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { makeItem } from "../test/fixtures";
+import type { ColumnWidths } from "../types";
 import { NotificationTable } from "./NotificationTable";
+
+const widths: ColumnWidths = {
+	repository: 185,
+	subject_type: 110,
+	reason: 150,
+	score: 75,
+	updated_at: 110,
+};
+
+const resizeProps = {
+	columnWidths: widths,
+	onResizeStart: vi.fn(),
+	onResetColumnWidth: vi.fn(),
+};
 
 describe("NotificationTable", () => {
 	it("renders groups and sorts rows", () => {
@@ -27,6 +42,7 @@ describe("NotificationTable", () => {
 				onOpenTarget={vi.fn()}
 				onRequestIgnoreRule={vi.fn()}
 				pendingDismissals={new Set(["1"])}
+				{...resizeProps}
 			/>,
 		);
 
@@ -60,6 +76,7 @@ describe("NotificationTable", () => {
 				onOpenTarget={vi.fn()}
 				onRequestIgnoreRule={vi.fn()}
 				pendingDismissals={new Set()}
+				{...resizeProps}
 			/>,
 		);
 
@@ -92,6 +109,7 @@ describe("NotificationTable", () => {
 				onOpenTarget={vi.fn()}
 				onRequestIgnoreRule={vi.fn()}
 				pendingDismissals={new Set()}
+				{...resizeProps}
 			/>,
 		);
 
@@ -126,6 +144,7 @@ describe("NotificationTable", () => {
 				onOpenTarget={vi.fn()}
 				onRequestIgnoreRule={vi.fn()}
 				pendingDismissals={new Set()}
+				{...resizeProps}
 			/>,
 		);
 

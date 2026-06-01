@@ -2,16 +2,24 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { useColumnResize } from "./useColumnResize";
 
+const STORAGE_KEY = "corvix.table.columnWidths.v2";
+const LEGACY_KEY = "corvix.table.columnWidths";
+
 function Harness() {
-	const { widths, startResize, resetColumnWidth } = useColumnResize();
+	const { widths, startResize, resetColumnWidth, resetLayout } =
+		useColumnResize();
 	return (
 		<div>
 			<div data-testid="repo-width">{widths.repository}</div>
+			<div data-testid="score-width">{widths.score}</div>
 			<button type="button" onMouseDown={() => startResize("repository", 100)}>
 				start
 			</button>
 			<button type="button" onClick={() => resetColumnWidth("repository")}>
 				reset
+			</button>
+			<button type="button" onClick={resetLayout}>
+				reset all
 			</button>
 		</div>
 	);
@@ -151,6 +159,93 @@ describe("useColumnResize", () => {
 
 		await waitFor(() => {
 			expect(screen.getByTestId("repo-width")).toHaveTextContent("235");
+		});
+	});
+
+	it("persists widths under the versioned storage key", async () => {
+		const user = userEvent.setup();
+		render(<Harness />);
+
+		await user.pointer([
+			{
+				target: screen.getByRole("button", { name: "start" }),
+				keys: "[MouseLeft>]",
+			},
+		]);
+		globalThis.window.dispatchEvent(
+			new MouseEvent("mousemove", { clientX: 150 }),
+		);
+
+		await waitFor(() => {
+			const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+			expect(stored.repository).toBe(235);
+		});
+	});
+
+	it("migrates widths from the legacy unversioned key and removes it", async () => {
+		localStorage.setItem(LEGACY_KEY, JSON.stringify({ repository: 240 }));
+
+		render(<Harness />);
+
+		expect(screen.getByTestId("repo-width")).toHaveTextContent("240");
+		await waitFor(() => {
+			expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+		});
+		const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+		expect(stored.repository).toBe(240);
+	});
+
+	it("prefers the current versioned key over the legacy key", () => {
+		localStorage.setItem(LEGACY_KEY, JSON.stringify({ repository: 240 }));
+		localStorage.setItem(STORAGE_KEY, JSON.stringify({ repository: 200 }));
+
+		render(<Harness />);
+
+		expect(screen.getByTestId("repo-width")).toHaveTextContent("200");
+	});
+
+	it("removes stale older-version keys on mount", async () => {
+		localStorage.setItem(LEGACY_KEY, JSON.stringify({ repository: 200 }));
+		localStorage.setItem(
+			"corvix.table.columnWidths.v1",
+			JSON.stringify({ repository: 210 }),
+		);
+		localStorage.setItem("corvix.unrelated.key", "keep-me");
+
+		render(<Harness />);
+
+		await waitFor(() => {
+			expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+			expect(localStorage.getItem("corvix.table.columnWidths.v1")).toBeNull();
+		});
+		expect(localStorage.getItem("corvix.unrelated.key")).toBe("keep-me");
+	});
+
+	it("resets every column width to its default", async () => {
+		const user = userEvent.setup();
+		render(<Harness />);
+
+		await user.pointer([
+			{
+				target: screen.getByRole("button", { name: "start" }),
+				keys: "[MouseLeft>]",
+			},
+		]);
+		globalThis.window.dispatchEvent(
+			new MouseEvent("mousemove", { clientX: 150 }),
+		);
+		await waitFor(() => {
+			expect(screen.getByTestId("repo-width")).toHaveTextContent("235");
+		});
+		globalThis.window.dispatchEvent(new MouseEvent("mouseup"));
+
+		await user.click(screen.getByRole("button", { name: "reset all" }));
+
+		expect(screen.getByTestId("repo-width")).toHaveTextContent("185");
+		expect(screen.getByTestId("score-width")).toHaveTextContent("75");
+		await waitFor(() => {
+			const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+			expect(stored.repository).toBe(185);
 		});
 	});
 });
