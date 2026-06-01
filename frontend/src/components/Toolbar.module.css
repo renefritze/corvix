@@ -1,0 +1,63 @@
+.toolbarRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  min-height: 44px;
+  flex-wrap: wrap;
+}
+
+.appBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.appBrandIcon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.appName {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.inlineStats {
+  color: var(--muted);
+  font-size: 0.8rem;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.refreshBtn { min-width: 90px; }
+.refreshBtn.refreshing { color: var(--muted); }
+
+.notifBtn { min-width: 76px; }
+.notifBtn.notifActive { color: var(--ok); border-color: var(--ok); }
+.notifDenied {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: default;
+}

@@ -1,5 +1,6 @@
 import type { JSX } from "preact";
 import type { DashboardItem } from "../types";
+import styles from "./table.module.css";
 
 function relativeTime(iso: string): string {
 	const diff = Date.now() - new Date(iso).getTime();
@@ -66,57 +67,57 @@ export function TableRow({
 			tabIndex={0}
 			onContextMenu={handleContextMenu}
 			class={[
-				"notification-row",
-				item.unread ? "unread" : "read",
-				isPendingDismissal ? "dismissing" : "",
+				styles.notificationRow,
+				item.unread ? styles.unread : styles.read,
+				isPendingDismissal ? styles.dismissing : "",
 			]
 				.filter(Boolean)
 				.join(" ")}
 		>
-			<td class="col-status" aria-label={unreadStatusLabel}>
+			<td class={styles.colStatus} aria-label={unreadStatusLabel}>
 				<span
-					class={`unread-dot ${item.unread ? "dot-unread" : "dot-read"}`}
+					class={[styles.unreadDot, item.unread ? styles.dotUnread : styles.dotRead].join(" ")}
 					aria-hidden="true"
 				/>
 			</td>
-			<td class="col-title" data-label="Title">
+			<td class={styles.colTitle} data-label="Title">
 				{item.web_url ? (
 					<a
 						href={item.web_url}
 						target="_blank"
 						rel="noopener noreferrer"
-						class="title-link"
+						class={styles.titleLink}
 						onClick={handleTitleClick}
 						onAuxClick={handleTitleAuxClick}
 					>
 						{item.subject_title}
 					</a>
 				) : (
-					<span class="title-link">{item.subject_title}</span>
+					<span class={styles.titleLink}>{item.subject_title}</span>
 				)}
-				<div class="title-meta">
+				<div class={styles.titleMeta}>
 					{`${item.account_label} · ${scoreLabel} · ${updatedLabel} · ${item.subject_type} · ${item.reason}`}
 				</div>
 			</td>
-			<td class="col-repository" data-label="Repository">
-				<span class="repo-label">{item.repository}</span>
+			<td class={styles.colRepository} data-label="Repository">
+				<span class={styles.repoLabel}>{item.repository}</span>
 			</td>
-			<td class="col-type hide-mobile" data-label="Type">
+			<td class={[styles.colType, styles.hideMobile].join(" ")} data-label="Type">
 				{item.subject_type}
 			</td>
-			<td class="col-reason hide-mobile" data-label="Reason">
+			<td class={[styles.colReason, styles.hideMobile].join(" ")} data-label="Reason">
 				{item.reason}
 			</td>
-			<td class="col-score" data-label="Score">
-				<span class="score-value">{scoreLabel}</span>
+			<td class={styles.colScore} data-label="Score">
+				<span class={styles.scoreValue}>{scoreLabel}</span>
 			</td>
-			<td class="col-updated" data-label="Updated">
+			<td class={styles.colUpdated} data-label="Updated">
 				<span title={item.updated_at}>{updatedLabel}</span>
 			</td>
-			<td class="col-actions">
+			<td class={styles.colActions}>
 				<button
 					type="button"
-					class="row-menu-btn"
+					class={styles.rowMenuBtn}
 					aria-label={`Notification actions for ${item.subject_title}`}
 					onClick={handleMenuButtonClick}
 				>
@@ -124,7 +125,7 @@ export function TableRow({
 				</button>
 				<button
 					type="button"
-					class="dismiss-btn"
+					class={styles.dismissBtn}
 					aria-label={`Dismiss ${item.subject_title}`}
 					onClick={() => onDismiss(item.account_id, item.thread_id)}
 				>

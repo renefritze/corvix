@@ -1,5 +1,6 @@
 import type { NotifPermission } from "../hooks/useBrowserNotifications";
 import type { DashboardSummary } from "../types";
+import styles from "./Toolbar.module.css";
 
 interface ToolbarProps {
 	readonly dashboardNames: string[];
@@ -36,7 +37,7 @@ function NotifButton({
 	if (permission === "denied") {
 		return (
 			<span
-				class="notif-btn notif-denied"
+				class={styles.notifDenied}
 				title="Notifications blocked by browser"
 			>
 				Notifs blocked
@@ -48,7 +49,7 @@ function NotifButton({
 		return (
 			<button
 				type="button"
-				class="notif-btn notif-active"
+				class={[styles.notifBtn, styles.notifActive].join(" ")}
 				onClick={onDisable}
 				title="Browser notifications enabled — click to disable"
 				aria-label="Disable browser notifications"
@@ -61,7 +62,7 @@ function NotifButton({
 	return (
 		<button
 			type="button"
-			class="notif-btn"
+			class={styles.notifBtn}
 			onClick={onEnable}
 			title={
 				permission === "default"
@@ -91,23 +92,23 @@ export function Toolbar({
 	onDisableNotifications,
 }: ToolbarProps) {
 	return (
-		<div class="toolbar-row">
-			<span class="app-brand">
+		<div class={styles.toolbarRow}>
+			<span class={styles.appBrand}>
 				<img
-					class="app-brand-icon"
+					class={styles.appBrandIcon}
 					src="/assets/favicon.svg"
 					alt=""
 					aria-hidden="true"
 				/>
-				<span class="app-name">Corvix</span>
+				<span class={styles.appName}>Corvix</span>
 			</span>
 			{summary && (
-				<span class="inline-stats">
+				<span class={styles.inlineStats}>
 					{summary.unread_items + summary.read_items} notifications ·{" "}
 					{summary.unread_items} unread · {summary.repository_count} repos
 				</span>
 			)}
-			<div class="toolbar-right">
+			<div class={styles.toolbarRight}>
 				<button
 					type="button"
 					onClick={onToggleShortcuts}
@@ -140,7 +141,7 @@ export function Toolbar({
 				)}
 				<button
 					type="button"
-					class={`refresh-btn${refreshing ? " refreshing" : ""}`}
+					class={[styles.refreshBtn, refreshing ? styles.refreshing : ""].filter(Boolean).join(" ")}
 					onClick={onRefresh}
 					aria-label="Refresh"
 					disabled={refreshing}

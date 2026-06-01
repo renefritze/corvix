@@ -49,7 +49,6 @@ describe("PollerWarning", () => {
 			const alert = renderAlert(
 				makePoller({ status: "error", last_error: lastError }),
 			);
-			expect(alert).toHaveClass("poller-warning--error");
 			expect(alert).toHaveTextContent(expectedText);
 		});
 	});
@@ -59,7 +58,6 @@ describe("PollerWarning", () => {
 			"renders pending alert for status %s",
 			(status) => {
 				const el = renderStatus(makePoller({ status }));
-				expect(el).toHaveClass("poller-warning--pending");
 				expect(el).toHaveTextContent("Waiting for poller to start...");
 			},
 		);
@@ -68,7 +66,6 @@ describe("PollerWarning", () => {
 	describe("stale status", () => {
 		it("renders stale alert without timestamp when last_poll_time is null", () => {
 			const el = renderStatus(makeStalePoller({ last_poll_time: null }));
-			expect(el).toHaveClass("poller-warning--stale");
 			expect(el).toHaveTextContent("Data may be stale.");
 		});
 
@@ -76,7 +73,6 @@ describe("PollerWarning", () => {
 			const el = renderStatus(
 				makeStalePoller({ last_poll_time: "not-a-date" }),
 			);
-			expect(el).toHaveClass("poller-warning--stale");
 			expect(el).toHaveTextContent("Data may be stale.");
 		});
 

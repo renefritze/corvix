@@ -1,4 +1,5 @@
 import { route } from "preact-router";
+import styles from "./EmptyState.module.css";
 
 interface NotFoundProps {
 	readonly url?: string;
@@ -11,9 +12,9 @@ interface NotFoundProps {
  */
 export function NotFound({ url }: NotFoundProps) {
 	return (
-		<div class="empty-state error-state">
-			<p class="empty-title">Page not found</p>
-			<p class="empty-body">
+		<div class={[styles.emptyState, styles.errorState].join(" ")}>
+			<p class={styles.emptyTitle}>Page not found</p>
+			<p class={styles.emptyBody}>
 				{url ? `No page matches ${url}.` : "This page doesn't exist."}
 			</p>
 			<button type="button" onClick={() => route("/", true)}>

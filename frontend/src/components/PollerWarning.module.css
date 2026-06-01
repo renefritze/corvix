@@ -1,0 +1,44 @@
+.pollerWarning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.pollerWarning.error {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-elevated));
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
+  font-size: 0.85rem;
+}
+
+.pollerWarning.error .text {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.pollerWarning.pending {
+  background: var(--surface-elevated);
+  color: var(--accent);
+}
+
+.pollerWarning.stale {
+  background: var(--surface-elevated);
+  color: var(--muted);
+}
+
+.icon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+.text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

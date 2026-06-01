@@ -1,4 +1,5 @@
 import type { FilterState } from "../types";
+import styles from "./EmptyState.module.css";
 
 interface EmptyStateFilterContext {
 	readonly unread: FilterState["unread"];
@@ -25,9 +26,9 @@ export function EmptyState({
 }: EmptyStateProps) {
 	if (error) {
 		return (
-			<div class="empty-state error-state">
-				<p class="empty-title">Failed to load</p>
-				<p class="empty-body">{error}</p>
+			<div class={[styles.emptyState, styles.errorState].join(" ")}>
+				<p class={styles.emptyTitle}>Failed to load</p>
+				<p class={styles.emptyBody}>{error}</p>
 				<button type="button" onClick={onRetry}>
 					Retry
 				</button>
@@ -51,9 +52,9 @@ export function EmptyState({
 		}
 
 		return (
-			<div class="empty-state">
-				<p class="empty-title">{title}</p>
-				<p class="empty-body">{body}</p>
+			<div class={styles.emptyState}>
+				<p class={styles.emptyTitle}>{title}</p>
+				<p class={styles.emptyBody}>{body}</p>
 				<button type="button" onClick={onClearFilters}>
 					Clear filters
 				</button>
@@ -63,16 +64,16 @@ export function EmptyState({
 
 	if (totalItems === 0) {
 		return (
-			<div class="empty-state">
-				<p class="empty-title">All clear</p>
-				<p class="empty-body">No notifications in this dashboard.</p>
+			<div class={styles.emptyState}>
+				<p class={styles.emptyTitle}>All clear</p>
+				<p class={styles.emptyBody}>No notifications in this dashboard.</p>
 			</div>
 		);
 	}
 	return (
-		<div class="empty-state">
-			<p class="empty-title">No results</p>
-			<p class="empty-body">No notifications match the current filters.</p>
+		<div class={styles.emptyState}>
+			<p class={styles.emptyTitle}>No results</p>
+			<p class={styles.emptyBody}>No notifications match the current filters.</p>
 		</div>
 	);
 }

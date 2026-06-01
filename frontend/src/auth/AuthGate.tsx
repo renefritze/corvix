@@ -1,6 +1,8 @@
 import type { ComponentChildren } from "preact";
 import { DEFAULT_UNAUTHORIZED_MESSAGE } from "../api";
 import { useAuth } from "./AuthContext";
+import appStyles from "../app.module.css";
+import emptyStyles from "../components/EmptyState.module.css";
 
 interface AuthGateProps {
 	readonly children: ComponentChildren;
@@ -20,11 +22,14 @@ export function AuthGate({ children }: AuthGateProps) {
 	}
 
 	return (
-		<div class="shell">
-			<main class="board">
-				<div class="empty-state error-state auth-gate" role="alert">
-					<p class="empty-title">Sign in required</p>
-					<p class="empty-body">{message ?? DEFAULT_UNAUTHORIZED_MESSAGE}</p>
+		<div class={appStyles.shell}>
+			<main class={appStyles.board}>
+				<div
+					class={[emptyStyles.emptyState, emptyStyles.errorState, emptyStyles.authGate].join(" ")}
+					role="alert"
+				>
+					<p class={emptyStyles.emptyTitle}>Sign in required</p>
+					<p class={emptyStyles.emptyBody}>{message ?? DEFAULT_UNAUTHORIZED_MESSAGE}</p>
 					<button type="button" onClick={reset}>
 						Try again
 					</button>

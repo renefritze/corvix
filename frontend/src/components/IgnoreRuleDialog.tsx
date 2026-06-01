@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { DashboardItem, RuleSnippetsPayload } from "../types";
+import styles from "./IgnoreRuleDialog.module.css";
 
 interface IgnoreRuleDialogProps {
 	readonly open: boolean;
@@ -49,7 +50,7 @@ export function IgnoreRuleDialog({
 
 	return (
 		<dialog
-			class="ignore-rule-dialog"
+			class={styles.ignoreRuleDialog}
 			aria-label="Ignore rule snippets"
 			open
 			onCancel={(e) => {
@@ -58,7 +59,7 @@ export function IgnoreRuleDialog({
 			}}
 			onClose={onClose}
 		>
-			<div class="ignore-rule-header">
+			<div class={styles.ignoreRuleHeader}>
 				<h2>Create ignore rule</h2>
 				<button
 					type="button"
@@ -68,15 +69,15 @@ export function IgnoreRuleDialog({
 					✕
 				</button>
 			</div>
-			<p class="ignore-rule-subtitle">
+			<p class={styles.ignoreRuleSubtitle}>
 				{`Notification: ${item.subject_title}`}
 			</p>
-			{loading && <p class="ignore-rule-status">Loading snippets...</p>}
-			{error && <p class="ignore-rule-status error">{error}</p>}
-			{copyStatus && !error && <p class="ignore-rule-status">{copyStatus}</p>}
+			{loading && <p class={styles.ignoreRuleStatus}>Loading snippets...</p>}
+			{error && <p class={[styles.ignoreRuleStatus, styles.error].join(" ")}>{error}</p>}
+			{copyStatus && !error && <p class={styles.ignoreRuleStatus}>{copyStatus}</p>}
 			{snippets && !loading && !error && (
-				<div class="ignore-rule-content">
-					<section class="snippet-card">
+				<div class={styles.ignoreRuleContent}>
+					<section class={styles.snippetCard}>
 						<h3>Dashboard ignore rule</h3>
 						<p>
 							Paste under{" "}
@@ -87,7 +88,7 @@ export function IgnoreRuleDialog({
 							value={snippets.dashboard_ignore_rule_snippet}
 							rows={dashboardContextSnippet ? 8 : 6}
 						/>
-						<div class="snippet-actions">
+						<div class={styles.snippetActions}>
 							<button
 								type="button"
 								onClick={() =>
@@ -114,7 +115,7 @@ export function IgnoreRuleDialog({
 							)}
 						</div>
 					</section>
-					<section class="snippet-card">
+					<section class={styles.snippetCard}>
 						<h3>Global exclude rule</h3>
 						<p>
 							Paste under <code>rules.global</code>
@@ -124,7 +125,7 @@ export function IgnoreRuleDialog({
 							value={snippets.global_exclude_rule_snippet}
 							rows={globalContextSnippet ? 9 : 7}
 						/>
-						<div class="snippet-actions">
+						<div class={styles.snippetActions}>
 							<button
 								type="button"
 								onClick={() =>
