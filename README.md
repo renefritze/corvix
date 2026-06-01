@@ -2,7 +2,8 @@
 
 [![image](https://github.com/renefritze/corvix/workflows/pytest/badge.svg)](https://github.com/renefritze/corvix/actions)
 
-GitHub notifications dashboards
+GitHub notifications dashboards — **single-user, self-hosted**.
+Run corvix with your own GitHub token on a private PostgreSQL instance. There is no multi-user mode.
 
 ![Corvix dashboard UI screenshot with fixture data](docs/_static/corvix-ui.png)
 

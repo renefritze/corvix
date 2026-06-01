@@ -32,7 +32,6 @@ from corvix.domain import (
     notification_key,
     parse_timestamp,
 )
-from corvix.types import UserId
 
 if TYPE_CHECKING:
     from corvix.config import AppConfig
@@ -41,9 +40,8 @@ _NOTIFICATION_RECORD_COLUMNS = 18
 _DISMISSED_ROW_COLUMNS = 2
 _POLLER_STATUS_COLUMNS = 5
 
-# Fixed identity used for the single-user deployment. Multi-user deployments
-# scope records per real user; single-user mode shares this seeded row (created
-# by the Alembic migration that introduced the ``poller_status`` table).
+# Fixed UUID for the single-user deployment. All records are scoped to this identity
+# (created by the Alembic migration that introduced the ``poller_status`` table).
 SINGLE_USER_ID: UUID = UUID("00000000-0000-0000-0000-000000000001")
 
 
@@ -56,24 +54,23 @@ class StorageBackend(Protocol):
 
     def save_records(
         self,
-        user_id: UserId,
         records: list[NotificationRecord],
         generated_at: datetime,
     ) -> None: ...
 
-    def load_records(self, user_id: UserId) -> tuple[datetime | None, list[NotificationRecord]]: ...
+    def load_records(self) -> tuple[datetime | None, list[NotificationRecord]]: ...
 
-    def save_status(self, user_id: UserId, status: PollerStatus) -> None: ...
+    def save_status(self, status: PollerStatus) -> None: ...
 
-    def load_status(self, user_id: UserId) -> PollerStatus: ...
+    def load_status(self) -> PollerStatus: ...
 
-    def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None: ...
+    def dismiss_record(self, thread_id: str, account_id: str = "primary") -> None: ...
 
-    def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None: ...
+    def mark_record_read(self, thread_id: str, account_id: str = "primary") -> None: ...
 
-    def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]: ...
+    def get_dismissed_notification_keys(self) -> list[str]: ...
 
-    def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]: ...
+    def get_dismissed_thread_ids(self) -> list[str]: ...
 
     def close(self) -> None: ...
 
@@ -163,12 +160,8 @@ class NotificationCache:
         with self._shared_lock():
             return self._load_unlocked()
 
-    def save_status(self, user_id: UserId, status: PollerStatus) -> None:
-        """Persist only the poller status without touching notifications.
-
-        ``user_id`` is ignored in single-user JSON mode.
-        """
-        _ = user_id
+    def save_status(self, status: PollerStatus) -> None:
+        """Persist only the poller status without touching notifications."""
         with self._exclusive_lock():
             try:
                 _, records = self._load_unlocked()
@@ -186,12 +179,8 @@ class NotificationCache:
                     generated_at = datetime.now(tz=UTC)
             self._save_unlocked(records=records, generated_at=generated_at, poller_status=status)
 
-    def load_status(self, user_id: UserId = "") -> PollerStatus:
-        """Load the poller status from the cache file.
-
-        ``user_id`` is ignored in single-user JSON mode.
-        """
-        _ = user_id
+    def load_status(self) -> PollerStatus:
+        """Load the poller status from the cache file."""
         try:
             path_exists = self.path.exists()
         except OSError:
@@ -330,20 +319,18 @@ class NotificationCache:
 
     def save_records(
         self,
-        user_id: UserId,
         records: list[NotificationRecord],
         generated_at: datetime,
     ) -> None:
-        """Save records; user_id ignored in single-user mode."""
+        """Save records to the JSON cache."""
         self.save(records, generated_at)
 
-    def load_records(self, user_id: UserId) -> tuple[datetime | None, list[NotificationRecord]]:
-        """Load records; user_id ignored in single-user mode."""
+    def load_records(self) -> tuple[datetime | None, list[NotificationRecord]]:
+        """Load records from the JSON cache."""
         return self.load()
 
-    def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+    def dismiss_record(self, thread_id: str, account_id: str = "primary") -> None:
         """Mark a record as dismissed by account/thread id in the JSON file."""
-        _ = user_id
         with self._exclusive_lock():
             generated_at, records = self._load_unlocked()
             updated = False
@@ -363,9 +350,8 @@ class NotificationCache:
                     existing_status = None
                 self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
-    def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+    def mark_record_read(self, thread_id: str, account_id: str = "primary") -> None:
         """Mark a record as read by account/thread id in the JSON file."""
-        _ = user_id
         with self._exclusive_lock():
             generated_at, records = self._load_unlocked()
             updated = False
@@ -390,15 +376,13 @@ class NotificationCache:
                     existing_status = None
                 self._save_unlocked(records=records, generated_at=timestamp, poller_status=existing_status)
 
-    def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
+    def get_dismissed_notification_keys(self) -> list[str]:
         """Return account-scoped keys of dismissed records."""
-        _ = user_id
         _, records = self.load()
         return [notification_key(r.notification) for r in records if r.dismissed]
 
-    def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]:
-        """Backward-compatible API returning only thread IDs."""
-        _ = user_id
+    def get_dismissed_thread_ids(self) -> list[str]:
+        """Return thread IDs of dismissed records."""
         _, records = self.load()
         return [r.notification.thread_id for r in records if r.dismissed]
 
@@ -480,11 +464,10 @@ class PostgresStorage:
 
     def save_records(
         self,
-        user_id: UserId,
         records: list[NotificationRecord],
         generated_at: datetime,
     ) -> None:
-        """Upsert records for user_id. Preserves dismissed flag on conflict."""
+        """Upsert records. Preserves dismissed flag on conflict."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 for record in records:
@@ -514,7 +497,7 @@ class PostgresStorage:
                             snapshot_at   = EXCLUDED.snapshot_at
                         """,
                         (
-                            user_id,
+                            SINGLE_USER_ID,
                             n.account_id,
                             n.account_label,
                             n.thread_id,
@@ -537,8 +520,8 @@ class PostgresStorage:
                     )
             conn.commit()
 
-    def load_records(self, user_id: UserId) -> tuple[datetime | None, list[NotificationRecord]]:
-        """Load all records for user_id ordered by snapshot_at descending."""
+    def load_records(self) -> tuple[datetime | None, list[NotificationRecord]]:
+        """Load all records ordered by snapshot_at descending."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -551,7 +534,7 @@ class PostgresStorage:
                     WHERE user_id = %s
                     ORDER BY snapshot_at DESC, score DESC
                     """,
-                    (user_id,),
+                    (SINGLE_USER_ID,),
                 )
                 rows = cur.fetchall()
 
@@ -610,8 +593,8 @@ class PostgresStorage:
             )
         return latest_snapshot, records
 
-    def save_status(self, user_id: UserId, status: PollerStatus) -> None:
-        """Upsert the poller status row for ``user_id``."""
+    def save_status(self, status: PollerStatus) -> None:
+        """Upsert the poller status row."""
         account_errors_json = (
             Jsonb(
                 [
@@ -638,7 +621,7 @@ class PostgresStorage:
                         updated_at      = now()
                     """,
                     (
-                        user_id,
+                        SINGLE_USER_ID,
                         status.status,
                         status.last_poll_time,
                         status.last_error,
@@ -648,13 +631,13 @@ class PostgresStorage:
                 )
             conn.commit()
 
-    def load_status(self, user_id: UserId) -> PollerStatus:
-        """Load the poller status for ``user_id``, defaulting to ``unknown``."""
+    def load_status(self) -> PollerStatus:
+        """Load the poller status, defaulting to ``unknown``."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT status, last_poll_time, last_error, last_error_time, account_errors FROM poller_status WHERE user_id = %s",
-                    (user_id,),
+                    (SINGLE_USER_ID,),
                 )
                 row = cur.fetchone()
         if row is None:
@@ -670,33 +653,33 @@ class PostgresStorage:
             account_errors=_parse_account_errors(row[4]),
         )
 
-    def dismiss_record(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+    def dismiss_record(self, thread_id: str, account_id: str = "primary") -> None:
         """Set dismissed=true for a specific account/thread id."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE notification_records SET dismissed = true WHERE user_id = %s AND account_id = %s AND thread_id = %s",
-                    (user_id, account_id, thread_id),
+                    (SINGLE_USER_ID, account_id, thread_id),
                 )
             conn.commit()
 
-    def mark_record_read(self, user_id: UserId, thread_id: str, account_id: str = "primary") -> None:
+    def mark_record_read(self, thread_id: str, account_id: str = "primary") -> None:
         """Set unread=false for a specific account/thread id."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE notification_records SET unread = false WHERE user_id = %s AND account_id = %s AND thread_id = %s",
-                    (user_id, account_id, thread_id),
+                    (SINGLE_USER_ID, account_id, thread_id),
                 )
             conn.commit()
 
-    def get_dismissed_notification_keys(self, user_id: UserId) -> list[str]:
-        """Return account-scoped keys where dismissed=true for user_id."""
+    def get_dismissed_notification_keys(self) -> list[str]:
+        """Return account-scoped keys where dismissed=true."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT account_id, thread_id FROM notification_records WHERE user_id = %s AND dismissed = true",
-                    (user_id,),
+                    (SINGLE_USER_ID,),
                 )
                 rows = cur.fetchall()
         dismissed_ids: list[str] = []
@@ -706,13 +689,13 @@ class PostgresStorage:
             dismissed_ids.append(f"{_require_str(row[0], 'account_id')}:{_require_str(row[1], 'thread_id')}")
         return dismissed_ids
 
-    def get_dismissed_thread_ids(self, user_id: UserId) -> list[str]:
-        """Backward-compatible API returning only thread IDs."""
+    def get_dismissed_thread_ids(self) -> list[str]:
+        """Return thread IDs of dismissed records."""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT thread_id FROM notification_records WHERE user_id = %s AND dismissed = true",
-                    (user_id,),
+                    (SINGLE_USER_ID,),
                 )
                 rows = cur.fetchall()
         dismissed_ids: list[str] = []

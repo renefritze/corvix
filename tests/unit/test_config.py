@@ -56,32 +56,29 @@ dashboards:
     assert config.dashboards[0].ignore_rules[0].reason_in == ["subscribed"]
 
 
-def test_config_parses_auth_and_database_sections(tmp_path: Path) -> None:
+def test_config_parses_database_section(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text(
         """
 github:
   token_env: GITHUB_TOKEN
-auth:
-  mode: multi_user
-  session_secret: supersecret
 database:
   url_env: DATABASE_URL
 """,
         encoding="utf-8",
     )
     config = load_config(config_file)
-    assert config.auth.mode == "multi_user"
-    assert config.auth.session_secret == "supersecret"
     assert config.database.url_env == "DATABASE_URL"
 
 
-def test_config_auth_defaults(tmp_path: Path) -> None:
+def test_config_ignores_legacy_auth_section(tmp_path: Path) -> None:
+    """Configs with an 'auth:' section (from older corvix versions) load without error."""
     config_file = tmp_path / "corvix.yaml"
-    config_file.write_text("github:\n  token_env: GITHUB_TOKEN\n", encoding="utf-8")
+    config_file.write_text(
+        "github:\n  token_env: GITHUB_TOKEN\nauth:\n  mode: single_user\n",
+        encoding="utf-8",
+    )
     config = load_config(config_file)
-    assert config.auth.mode == "single_user"
-    assert config.auth.session_secret == ""
     assert config.database.url_env == "DATABASE_URL"
 
 

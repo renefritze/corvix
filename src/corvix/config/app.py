@@ -72,14 +72,6 @@ class StateConfig:
 
 
 @dataclass(slots=True)
-class AuthConfig:
-    """Authentication mode configuration."""
-
-    mode: str = "single_user"  # single_user | multi_user
-    session_secret: str = ""
-
-
-@dataclass(slots=True)
 class DatabaseConfig:
     """PostgreSQL connection configuration."""
 
@@ -97,7 +89,6 @@ class AppConfig:
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
     rules: RuleSet = field(default_factory=RuleSet)
     dashboards: list[DashboardSpec] = field(default_factory=list)
-    auth: AuthConfig = field(default_factory=AuthConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     notifications: NotificationsConfig = field(default_factory=NotificationsConfig)
 
@@ -272,13 +263,6 @@ dashboards:
             # Value compared by the operator.
             value: true
 
-# Optional auth mode for the web app.
-auth:
-  # single_user (no login) or multi_user (session-based login).
-  mode: single_user
-  # Secret used to sign sessions in multi_user mode.
-  session_secret: ""
-
 # Database settings (used by DB-backed storage/migrations/commands).
 database:
   # Env var holding SQLAlchemy database URL (also supports <VAR>_FILE).
@@ -369,14 +353,6 @@ def _parse_state(value: object) -> StateConfig:
     )
 
 
-def _parse_auth(value: object) -> AuthConfig:
-    auth = _ensure_map(value, "auth")
-    return AuthConfig(
-        mode=_get_str(auth, "mode", "single_user", "auth.mode"),
-        session_secret=_get_str(auth, "session_secret", "", "auth.session_secret"),
-    )
-
-
 def _parse_database(value: object) -> DatabaseConfig:
     database = _ensure_map(value, "database")
     return DatabaseConfig(url_env=_get_str(database, "url_env", "DATABASE_URL", "database.url_env"))
@@ -400,7 +376,6 @@ def load_config(path: Path) -> AppConfig:
     scoring = _parse_scoring(data.get("scoring", {}))
     rules = _parse_rules(data.get("rules", {}))
     dashboards = _parse_dashboards(data.get("dashboards", []))
-    auth = _parse_auth(data.get("auth", {}))
     database = _parse_database(data.get("database", {}))
     notifications = _parse_notifications(data.get("notifications", {}))
     return AppConfig(
@@ -411,7 +386,6 @@ def load_config(path: Path) -> AppConfig:
         scoring=scoring,
         rules=rules,
         dashboards=dashboards,
-        auth=auth,
         database=database,
         notifications=notifications,
     )

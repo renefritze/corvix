@@ -78,8 +78,8 @@ def test_save_and_load_records_via_protocol(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     records = [_make_record("1"), _make_record("2")]
     now = datetime.now(tz=UTC)
-    cache.save_records(user_id="ignored", records=records, generated_at=now)
-    generated_at, loaded = cache.load_records(user_id="ignored")
+    cache.save_records(records=records, generated_at=now)
+    generated_at, loaded = cache.load_records()
     assert generated_at is not None
     assert len(loaded) == 2
     assert {r.notification.thread_id for r in loaded} == {"1", "2"}
@@ -169,11 +169,11 @@ def test_dismiss_record_sets_flag(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     records = [_make_record("1"), _make_record("2")]
     now = datetime.now(tz=UTC)
-    cache.save_records(user_id="u", records=records, generated_at=now)
+    cache.save_records(records=records, generated_at=now)
 
-    cache.dismiss_record(user_id="u", thread_id="1")
+    cache.dismiss_record(thread_id="1")
 
-    _, loaded = cache.load_records(user_id="u")
+    _, loaded = cache.load_records()
     by_id = {r.notification.thread_id: r for r in loaded}
     assert by_id["1"].dismissed is True
     assert by_id["2"].dismissed is False
@@ -182,18 +182,17 @@ def test_dismiss_record_sets_flag(tmp_path: Path) -> None:
 def test_get_dismissed_thread_ids(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     cache.save_records(
-        user_id="u",
         records=[_make_record("1", dismissed=True), _make_record("2")],
         generated_at=datetime.now(tz=UTC),
     )
-    assert cache.get_dismissed_thread_ids(user_id="u") == ["1"]
+    assert cache.get_dismissed_thread_ids() == ["1"]
 
 
 def test_dismiss_nonexistent_thread_is_noop(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
-    cache.save_records(user_id="u", records=[_make_record("1")], generated_at=datetime.now(tz=UTC))
-    cache.dismiss_record(user_id="u", thread_id="does-not-exist")
-    _, loaded = cache.load_records(user_id="u")
+    cache.save_records(records=[_make_record("1")], generated_at=datetime.now(tz=UTC))
+    cache.dismiss_record(thread_id="does-not-exist")
+    _, loaded = cache.load_records()
     assert not loaded[0].dismissed
 
 
@@ -204,12 +203,12 @@ def test_dismissed_field_defaults_false() -> None:
 def test_save_preserves_existing_dismissed_flags(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     now = datetime.now(tz=UTC)
-    cache.save_records(user_id="u", records=[_make_record("1"), _make_record("2")], generated_at=now)
-    cache.dismiss_record(user_id="u", thread_id="1")
+    cache.save_records(records=[_make_record("1"), _make_record("2")], generated_at=now)
+    cache.dismiss_record(thread_id="1")
 
     cache.save(records=[_make_record("1"), _make_record("2")], generated_at=now)
 
-    _, loaded = cache.load_records(user_id="u")
+    _, loaded = cache.load_records()
     by_id = {r.notification.thread_id: r for r in loaded}
     assert by_id["1"].dismissed is True
     assert by_id["2"].dismissed is False
@@ -218,8 +217,8 @@ def test_save_preserves_existing_dismissed_flags(tmp_path: Path) -> None:
 def test_save_does_not_mutate_input_records_when_preserving_dismissed_flags(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     now = datetime.now(tz=UTC)
-    cache.save_records(user_id="u", records=[_make_record("1")], generated_at=now)
-    cache.dismiss_record(user_id="u", thread_id="1")
+    cache.save_records(records=[_make_record("1")], generated_at=now)
+    cache.dismiss_record(thread_id="1")
 
     records = [_make_record("1")]
 
@@ -243,11 +242,11 @@ def test_save_recovers_from_invalid_existing_cache(tmp_path: Path) -> None:
 def test_mark_record_read_sets_unread_false(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
     records = [_make_record("1"), _make_record("2")]
-    cache.save_records(user_id="u", records=records, generated_at=datetime.now(tz=UTC))
+    cache.save_records(records=records, generated_at=datetime.now(tz=UTC))
 
-    cache.mark_record_read(user_id="u", thread_id="1")
+    cache.mark_record_read(thread_id="1")
 
-    _, loaded = cache.load_records(user_id="u")
+    _, loaded = cache.load_records()
     by_id = {r.notification.thread_id: r for r in loaded}
     assert by_id["1"].notification.unread is False
     assert by_id["2"].notification.unread is True
@@ -255,11 +254,11 @@ def test_mark_record_read_sets_unread_false(tmp_path: Path) -> None:
 
 def test_mark_record_read_nonexistent_thread_is_noop(tmp_path: Path) -> None:
     cache = _cache(tmp_path)
-    cache.save_records(user_id="u", records=[_make_record("1")], generated_at=datetime.now(tz=UTC))
+    cache.save_records(records=[_make_record("1")], generated_at=datetime.now(tz=UTC))
 
-    cache.mark_record_read(user_id="u", thread_id="does-not-exist")
+    cache.mark_record_read(thread_id="does-not-exist")
 
-    _, loaded = cache.load_records(user_id="u")
+    _, loaded = cache.load_records()
     assert loaded[0].notification.unread is True
 
 
@@ -311,7 +310,6 @@ def test_load_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
 def test_load_status_acquires_shared_lock(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     cache = _cache(tmp_path)
     cache.save_status(
-        "",
         PollerStatus(
             status="ok",
             last_poll_time="2024-01-01T00:00:00Z",
@@ -340,7 +338,6 @@ def test_load_status_reads_unlocked_when_lock_cannot_be_opened(tmp_path: Path, m
     exist either; the read must still succeed instead of returning defaults."""
     cache = _cache(tmp_path)
     cache.save_status(
-        "",
         PollerStatus(
             status="ok",
             last_poll_time="2024-01-01T00:00:00Z",
@@ -379,7 +376,6 @@ def test_save_status_recovers_from_invalid_cache(tmp_path: Path) -> None:
     cache.path.write_text('{"notifications": invalid', encoding="utf-8")
 
     cache.save_status(
-        "",
         PollerStatus(
             status="error",
             last_poll_time=None,

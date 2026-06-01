@@ -21,7 +21,7 @@ from alembic.config import Config
 from cryptography.fernet import Fernet
 
 from corvix.domain import NotificationRecord, PollerStatus, format_timestamp
-from corvix.storage import SINGLE_USER_ID, PostgresStorage
+from corvix.storage import PostgresStorage
 from tests.e2e.playwright_types import PageLike
 
 HEALTH_TIMEOUT_SECONDS = 15.0
@@ -103,9 +103,8 @@ def _migrate_and_seed(sqlalchemy_url: str, psycopg_url: str) -> None:
     records = [NotificationRecord.from_dict(item) for item in _RECORD_DICTS]
     now = datetime.now(tz=UTC)
     with PostgresStorage(connection_string=psycopg_url) as storage:
-        storage.save_records(SINGLE_USER_ID, records, now)
+        storage.save_records(records, now)
         storage.save_status(
-            SINGLE_USER_ID,
             PollerStatus(status="ok", last_poll_time=format_timestamp(now), last_error=None, last_error_time=None),
         )
 

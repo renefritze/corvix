@@ -429,7 +429,7 @@ def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> 
             now=now,
         )
     )
-    cache.dismiss_record(user_id="", thread_id="1")
+    cache.dismiss_record(thread_id="1")
 
     console = Console(record=True)
     results = render_cached_dashboards(

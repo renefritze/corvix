@@ -208,7 +208,7 @@ class _StatusStorage(_DummyStorage):
     def __init__(self, status: PollerStatus) -> None:
         self._status = status
 
-    def load_status(self, _user_id: object) -> PollerStatus:
+    def load_status(self) -> PollerStatus:
         return self._status
 
 
@@ -277,7 +277,7 @@ def test_migrate_cache_command_no_db_url(tmp_path: Path, monkeypatch: pytest.Mon
     _write_config(config_path, tmp_path / "notifications.json")
     monkeypatch.setattr(cli, "get_database_url", lambda *_: None)
 
-    result = runner.invoke(cli.main, ["--config", str(config_path), "migrate-cache", "--user-id", "user-1"])
+    result = runner.invoke(cli.main, ["--config", str(config_path), "migrate-cache"])
 
     assert result.exit_code != 0
     assert "Environment variable 'DATABASE_URL' is not set." in result.output
@@ -290,7 +290,7 @@ def test_migrate_cache_command_empty_cache(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(cli, "get_database_url", lambda *_: "postgresql://user:pass@localhost/db")
     monkeypatch.setattr(cli.NotificationCache, "load", lambda *_: (datetime.now(tz=UTC), []))
 
-    result = runner.invoke(cli.main, ["--config", str(config_path), "migrate-cache", "--user-id", "user-1"])
+    result = runner.invoke(cli.main, ["--config", str(config_path), "migrate-cache"])
 
     assert result.exit_code == 0
     assert "nothing to migrate" in result.output
