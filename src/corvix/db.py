@@ -43,7 +43,6 @@ class NotificationRecordRow(Base):
     dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-
 class PollerStatusRow(Base):
     """Latest poller status (single-row table, keyed by the fixed single-user UUID)."""
 
