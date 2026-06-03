@@ -36,8 +36,7 @@ from corvix.pipeline.provider import ContextProvider, FieldProvider
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification
-from corvix.storage import SINGLE_USER_ID, StorageBackend
-from corvix.types import UserId
+from corvix.storage import StorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,6 @@ class PollCycleInput:
     apply_actions: bool = False
     now: datetime | None = None
     notification_targets: list[NotificationTarget] | None = None
-    user_id: UserId = SINGLE_USER_ID
 
 
 def run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
@@ -152,9 +150,8 @@ def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
         contexts_by_notification_key=pipeline_result.contexts_by_notification_key,
     )
     errors.extend(f"pipeline: {error}" for error in pipeline_result.errors)
-    cycle_input.cache.save_records(cycle_input.user_id, records, current_time)
+    cycle_input.cache.save_records(records, current_time)
     cycle_input.cache.save_status(
-        cycle_input.user_id,
         PollerStatus(
             status="ok",
             last_poll_time=format_timestamp(current_time),
@@ -185,7 +182,7 @@ def _resolve_active_clients(cycle_input: PollCycleInput) -> tuple[NotificationsC
 
 def _load_previous_records(cycle_input: PollCycleInput) -> list[NotificationRecord]:
     if cycle_input.config.notifications.enabled and cycle_input.notification_targets:
-        _, previous_records = cycle_input.cache.load_records(cycle_input.user_id)
+        _, previous_records = cycle_input.cache.load_records()
         return previous_records
     return []
 
@@ -294,7 +291,7 @@ def _dispatch_notification_events(
     return dispatcher.dispatch(events)
 
 
-def _handle_cycle_error(iteration: int, cache: StorageBackend, user_id: UserId, runs: list[PollingSummary]) -> None:
+def _handle_cycle_error(iteration: int, cache: StorageBackend, runs: list[PollingSummary]) -> None:
     """Record a poll-cycle failure and persist the error status."""
     error_time = datetime.now(tz=UTC)
     error_trace = traceback.format_exc()
@@ -302,12 +299,11 @@ def _handle_cycle_error(iteration: int, cache: StorageBackend, user_id: UserId, 
     logger.exception("Poll cycle failed on iteration %d", iteration)
     runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
     try:
-        last_poll_time = cache.load_status(user_id).last_poll_time
+        last_poll_time = cache.load_status().last_poll_time
     except (OSError, ValueError):
         last_poll_time = None
     try:
         cache.save_status(
-            user_id,
             PollerStatus(
                 status="error",
                 last_poll_time=last_poll_time,
@@ -330,7 +326,7 @@ def run_watch_loop(
         try:
             runs.append(run_poll_cycle(cycle_input))
         except Exception:
-            _handle_cycle_error(iteration, cycle_input.cache, cycle_input.user_id, runs)
+            _handle_cycle_error(iteration, cycle_input.cache, runs)
         iteration += 1
         if iterations is not None and iteration >= iterations:
             break
@@ -343,10 +339,9 @@ def render_cached_dashboards(
     cache: StorageBackend,
     console: Console,
     dashboard_name: str | None = None,
-    user_id: UserId = SINGLE_USER_ID,
 ) -> list[DashboardRenderResult]:
     """Load persisted records and render dashboards."""
-    generated_at, records = cache.load_records(user_id)
+    generated_at, records = cache.load_records()
     dashboards = _select_dashboards(config, dashboard_name)
     return render_dashboards(
         console=console,

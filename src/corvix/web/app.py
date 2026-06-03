@@ -39,9 +39,15 @@ from corvix.ingestion import GitHubNotificationsClient
 from corvix.observability import configure_logging, setup_tracing
 from corvix.observability import metrics as _metrics
 from corvix.observability.middleware import ObservabilityMiddleware
-from corvix.storage import SINGLE_USER_ID, StorageBackend, StorageConfigError, create_storage
+from corvix.storage import StorageBackend, StorageConfigError, create_storage
 from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
-from corvix.web.schemas import AccountErrorResponse, PollerStatusResponse, RuleSnippetsResponse, SnapshotResponse, build_snapshot_response
+from corvix.web.schemas import (
+    AccountErrorResponse,
+    PollerStatusResponse,
+    RuleSnippetsResponse,
+    SnapshotResponse,
+    build_snapshot_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +255,7 @@ def _read_health_poller_status() -> PollerStatus | dict[str, object]:
     except HTTPException:
         return {"status": "unhealthy", "reason": "storage_unavailable"}
     try:
-        return storage.load_status(SINGLE_USER_ID)
+        return storage.load_status()
     except (OSError, json.JSONDecodeError):
         return {"status": "unhealthy", "reason": "invalid_cache"}
     except Exception:
@@ -299,9 +305,9 @@ def _snapshot_impl(dashboard: str | None = None) -> SnapshotResponse:
     """Compute and return the typed snapshot payload."""
     config = _load_runtime_config()
     storage = _get_storage()
-    generated_at, records = storage.load_records(SINGLE_USER_ID)
+    generated_at, records = storage.load_records()
     try:
-        poller_status = storage.load_status(SINGLE_USER_ID)
+        poller_status = storage.load_status()
     except (OSError, json.JSONDecodeError):
         poller_status = PollerStatus()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
@@ -351,7 +357,7 @@ def _notification_rule_snippets_impl(
     config = _load_runtime_config()
     selected_dashboard = _select_dashboard(config.dashboards, dashboard)
     _require_account(config=config, account_id=account_id)
-    _generated_at, records = _get_storage().load_records(SINGLE_USER_ID)
+    _generated_at, records = _get_storage().load_records()
     record = _find_record(records=records, account_id=account_id, thread_id=thread_id)
     if record is None:
         msg = f"Notification '{account_id}/{thread_id}' not found in storage."
@@ -690,7 +696,7 @@ def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None
         msg = f"Failed to dismiss thread {thread_id}: {error}"
         raise HTTPException(status_code=502, detail=msg) from error
 
-    _get_storage().dismiss_record(user_id=SINGLE_USER_ID, thread_id=thread_id, account_id=account_id)
+    _get_storage().dismiss_record(thread_id=thread_id, account_id=account_id)
     return Response(content=None, status_code=204)
 
 
@@ -713,7 +719,7 @@ def _mark_notification_read_impl(account_id: str, thread_id: str) -> Response[No
         msg = f"Failed to mark thread {thread_id} as read."
         raise HTTPException(status_code=502, detail=msg) from error
 
-    _get_storage().mark_record_read(user_id=SINGLE_USER_ID, thread_id=thread_id, account_id=account_id)
+    _get_storage().mark_record_read(thread_id=thread_id, account_id=account_id)
     return Response(content=None, status_code=204)
 
 

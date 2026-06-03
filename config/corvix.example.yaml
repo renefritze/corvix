@@ -216,13 +216,6 @@ dashboards:
   include_read: true
   max_items: 300
 
-# Optional auth mode for the web app.
-auth:
-  # single_user (no login) or multi_user (session-based login).
-  mode: single_user
-  # Secret used to sign sessions in multi_user mode.
-  session_secret: ""
-
 # Database settings (used by DB-backed storage/migrations/commands).
 database:
   # Env var holding SQLAlchemy database URL (also supports <VAR>_FILE).

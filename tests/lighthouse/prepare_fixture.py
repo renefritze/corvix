@@ -15,7 +15,7 @@ from pathlib import Path
 
 from corvix.db import get_database_url
 from corvix.domain import NotificationRecord, PollerStatus, format_timestamp
-from corvix.storage import SINGLE_USER_ID, PostgresStorage
+from corvix.storage import PostgresStorage
 
 
 def main() -> int:
@@ -31,9 +31,8 @@ def main() -> int:
 
     now = datetime.now(tz=UTC)
     with PostgresStorage(connection_string=db_url) as storage:
-        storage.save_records(SINGLE_USER_ID, records, now)
+        storage.save_records(records, now)
         storage.save_status(
-            SINGLE_USER_ID,
             PollerStatus(
                 status="ok",
                 last_poll_time=format_timestamp(now),

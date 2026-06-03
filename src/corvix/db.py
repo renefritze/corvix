@@ -2,50 +2,28 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, Float, String, Text, UniqueConstraint
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from corvix.crypto import EncryptedText
 from corvix.env import get_env_value
-
-USERS_ID_FK = "users.id"
 
 
 class Base(DeclarativeBase):
     """Shared declarative base for all ORM models."""
 
 
-class User(Base):
-    """Registered user with an encrypted GitHub token."""
-
-    __tablename__ = "users"
-
-    id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    github_login: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
-    github_token: Mapped[str] = mapped_column(EncryptedText, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    preferences: Mapped[UserPreferences | None] = relationship("UserPreferences", back_populates="user", uselist=False)
-    push_subscriptions: Mapped[list[PushSubscription]] = relationship("PushSubscription", back_populates="user")
-    notification_records: Mapped[list[NotificationRecordRow]] = relationship(
-        "NotificationRecordRow", back_populates="user"
-    )
-
-
 class NotificationRecordRow(Base):
-    """Persisted notification record scoped to a user."""
+    """Persisted notification record."""
 
     __tablename__ = "notification_records"
     __table_args__ = (UniqueConstraint("user_id", "account_id", "thread_id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), nullable=False)
     account_id: Mapped[str] = mapped_column(Text, nullable=False)
     account_label: Mapped[str] = mapped_column(Text, nullable=False)
     thread_id: Mapped[str] = mapped_column(Text, nullable=False)
@@ -65,48 +43,18 @@ class NotificationRecordRow(Base):
     dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    user: Mapped[User] = relationship("User", back_populates="notification_records")
-
-
 class PollerStatusRow(Base):
-    """Latest poller status scoped to a user (replaces the JSON status blob)."""
+    """Latest poller status (single-row table, keyed by the fixed single-user UUID)."""
 
     __tablename__ = "poller_status"
 
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), primary_key=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
     last_poll_time: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_error_time: Mapped[str | None] = mapped_column(Text, nullable=True)
+    account_errors: Mapped[list[dict[str, object]] | None] = mapped_column(postgresql.JSONB, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class UserPreferences(Base):
-    """Per-user preferences (theme, browser notifications)."""
-
-    __tablename__ = "user_preferences"
-
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), primary_key=True)
-    theme: Mapped[str] = mapped_column(Text, nullable=False, default="default")
-    browser_notify: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    user: Mapped[User] = relationship("User", back_populates="preferences")
-
-
-class PushSubscription(Base):
-    """Browser push subscription for a user."""
-
-    __tablename__ = "push_subscriptions"
-    __table_args__ = (UniqueConstraint("user_id", "endpoint"),)
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[UUID] = mapped_column(postgresql.UUID(as_uuid=True), ForeignKey(USERS_ID_FK), nullable=False)
-    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
-    p256dh_key: Mapped[str] = mapped_column(Text, nullable=False)
-    auth_key: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    user: Mapped[User] = relationship("User", back_populates="push_subscriptions")
 
 
 def get_database_url(url_env: str = "DATABASE_URL") -> str | None:

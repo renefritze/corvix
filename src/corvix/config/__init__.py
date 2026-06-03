@@ -20,7 +20,6 @@ from __future__ import annotations
 from corvix.config.app import (
     DEFAULT_CONFIG,
     AppConfig,
-    AuthConfig,
     DatabaseConfig,
     EnrichmentConfig,
     GitHubLatestCommentEnrichmentConfig,
@@ -63,7 +62,6 @@ __all__ = [
     "DEFAULT_GITHUB_API_BASE_URL",
     "NO_FILTERS_DASHBOARD_NAME",
     "AppConfig",
-    "AuthConfig",
     "BrowserTabTargetConfig",
     "ContextPredicate",
     "DashboardSpec",

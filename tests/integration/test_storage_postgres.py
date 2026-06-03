@@ -6,18 +6,15 @@ import os
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID, uuid4
 
 import psycopg
 import pytest
 from alembic import command
 from alembic.config import Config
-from cryptography.fernet import Fernet
 
 from corvix.config import AppConfig
-from corvix.crypto import encrypt_token
 from corvix.domain import Notification, NotificationRecord, PollerStatus
-from corvix.storage import SINGLE_USER_ID, PostgresStorage, StorageConfigError, create_storage
+from corvix.storage import PostgresStorage, StorageConfigError, create_storage
 
 SCORE_HIGH = 50.0
 SCORE_LOW = 10.0
@@ -47,11 +44,7 @@ def migrated_postgres_url(postgres_urls: tuple[str, str]) -> Generator[str]:
     alembic_ini = root / "alembic.ini"
     sqlalchemy_url, psycopg_url = postgres_urls
     original_database_url = os.environ.get("DATABASE_URL")
-    original_encryption_key = os.environ.get("TOKEN_ENCRYPTION_KEY")
-    # Generate a deterministic test key so encrypt_token() works in _create_user helpers.
-    test_key = Fernet.generate_key().decode()
     os.environ["DATABASE_URL"] = sqlalchemy_url
-    os.environ["TOKEN_ENCRYPTION_KEY"] = test_key
     try:
         command.upgrade(Config(str(alembic_ini)), "head")
     finally:
@@ -59,12 +52,6 @@ def migrated_postgres_url(postgres_urls: tuple[str, str]) -> Generator[str]:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = original_database_url
-        if original_encryption_key is None:
-            os.environ.pop("TOKEN_ENCRYPTION_KEY", None)
-        else:
-            os.environ["TOKEN_ENCRYPTION_KEY"] = original_encryption_key
-    # Keep the key alive for the session so encrypt_token/decrypt_token work in tests.
-    os.environ["TOKEN_ENCRYPTION_KEY"] = test_key
     yield psycopg_url
 
 
@@ -72,38 +59,11 @@ def migrated_postgres_url(postgres_urls: tuple[str, str]) -> Generator[str]:
 def storage(migrated_postgres_url: str) -> Generator[PostgresStorage]:
     with psycopg.connect(migrated_postgres_url) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "TRUNCATE TABLE notification_records, push_subscriptions, user_preferences, users RESTART IDENTITY CASCADE"
-            )
-            # TRUNCATE wipes the migration-seeded single-user row; re-seed it so each
-            # test starts from the post-migration state production relies on.
-            cur.execute(
-                """
-                INSERT INTO users (id, github_login, github_token, created_at, updated_at)
-                VALUES (%s, '__corvix_single_user__', '', now(), now())
-                ON CONFLICT (id) DO NOTHING
-                """,
-                (SINGLE_USER_ID,),
-            )
+            cur.execute("TRUNCATE TABLE notification_records RESTART IDENTITY CASCADE")
+            cur.execute("DELETE FROM poller_status")
         conn.commit()
     with PostgresStorage(connection_string=migrated_postgres_url) as pg_storage:
         yield pg_storage
-
-
-def _create_user(database_url: str, user_id: UUID) -> None:
-    now = datetime.now(tz=UTC)
-    # Direct psycopg inserts bypass the ORM TypeDecorator, so we must pre-encrypt.
-    token = encrypt_token("test-token")
-    with psycopg.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO users (id, github_login, github_token, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (user_id, f"user-{str(user_id)[:8]}", token, now, now),
-            )
-        conn.commit()
 
 
 def _record(thread_id: str, score: float) -> NotificationRecord:
@@ -129,14 +89,12 @@ def _record(thread_id: str, score: float) -> NotificationRecord:
 
 
 @pytest.mark.integration
-def test_save_and_load_records(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
+def test_save_and_load_records(storage: PostgresStorage) -> None:
     now = datetime.now(tz=UTC)
     input_records = [_record("t1", SCORE_HIGH), _record("t2", SCORE_LOW)]
 
-    storage.save_records(user_id=user_id, records=input_records, generated_at=now)
-    generated_at, loaded = storage.load_records(user_id=user_id)
+    storage.save_records(records=input_records, generated_at=now)
+    generated_at, loaded = storage.load_records()
 
     assert generated_at == now
     assert {r.notification.thread_id for r in loaded} == {"t1", "t2"}
@@ -147,17 +105,15 @@ def test_save_and_load_records(migrated_postgres_url: str, storage: PostgresStor
 
 
 @pytest.mark.integration
-def test_save_records_upsert_preserves_dismissed(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
+def test_save_records_upsert_preserves_dismissed(storage: PostgresStorage) -> None:
     first_snapshot = datetime.now(tz=UTC) - timedelta(minutes=1)
     second_snapshot = datetime.now(tz=UTC)
 
-    storage.save_records(user_id=user_id, records=[_record("t1", 1.0)], generated_at=first_snapshot)
-    storage.dismiss_record(user_id=user_id, thread_id="t1")
-    storage.save_records(user_id=user_id, records=[_record("t1", SCORE_UPDATED)], generated_at=second_snapshot)
+    storage.save_records(records=[_record("t1", 1.0)], generated_at=first_snapshot)
+    storage.dismiss_record(thread_id="t1")
+    storage.save_records(records=[_record("t1", SCORE_UPDATED)], generated_at=second_snapshot)
 
-    _, loaded = storage.load_records(user_id=user_id)
+    _, loaded = storage.load_records()
     assert len(loaded) == 1
     assert loaded[0].notification.thread_id == "t1"
     assert loaded[0].score == SCORE_UPDATED
@@ -166,24 +122,21 @@ def test_save_records_upsert_preserves_dismissed(migrated_postgres_url: str, sto
 
 @pytest.mark.integration
 def test_load_records_empty_returns_none_and_empty(storage: PostgresStorage) -> None:
-    generated_at, loaded = storage.load_records(user_id=uuid4())
+    generated_at, loaded = storage.load_records()
 
     assert generated_at is None
     assert loaded == []
 
 
 @pytest.mark.integration
-def test_dismiss_record_updates_flag(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
+def test_dismiss_record_updates_flag(storage: PostgresStorage) -> None:
     storage.save_records(
-        user_id=user_id,
         records=[_record("t1", 2.0), _record("t2", 3.0)],
         generated_at=datetime.now(tz=UTC),
     )
 
-    storage.dismiss_record(user_id=user_id, thread_id="t2")
-    _, loaded = storage.load_records(user_id=user_id)
+    storage.dismiss_record(thread_id="t2")
+    _, loaded = storage.load_records()
     by_id = {record.notification.thread_id: record for record in loaded}
 
     assert by_id["t1"].dismissed is False
@@ -191,34 +144,28 @@ def test_dismiss_record_updates_flag(migrated_postgres_url: str, storage: Postgr
 
 
 @pytest.mark.integration
-def test_get_dismissed_thread_ids(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
+def test_get_dismissed_thread_ids(storage: PostgresStorage) -> None:
     storage.save_records(
-        user_id=user_id,
         records=[_record("t1", 2.0), _record("t2", 3.0), _record("t3", 4.0)],
         generated_at=datetime.now(tz=UTC),
     )
-    storage.dismiss_record(user_id=user_id, thread_id="t1")
-    storage.dismiss_record(user_id=user_id, thread_id="t3")
+    storage.dismiss_record(thread_id="t1")
+    storage.dismiss_record(thread_id="t3")
 
-    dismissed_ids = storage.get_dismissed_thread_ids(user_id=user_id)
+    dismissed_ids = storage.get_dismissed_thread_ids()
 
     assert set(dismissed_ids) == {"t1", "t3"}
 
 
 @pytest.mark.integration
-def test_mark_record_read_updates_unread_flag(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
+def test_mark_record_read_updates_unread_flag(storage: PostgresStorage) -> None:
     storage.save_records(
-        user_id=user_id,
         records=[_record("t1", 2.0), _record("t2", 3.0)],
         generated_at=datetime.now(tz=UTC),
     )
 
-    storage.mark_record_read(user_id=user_id, thread_id="t2")
-    _, loaded = storage.load_records(user_id=user_id)
+    storage.mark_record_read(thread_id="t2")
+    _, loaded = storage.load_records()
     by_id = {record.notification.thread_id: record for record in loaded}
 
     assert by_id["t1"].notification.unread is True
@@ -226,61 +173,35 @@ def test_mark_record_read_updates_unread_flag(migrated_postgres_url: str, storag
 
 
 @pytest.mark.integration
-def test_records_scoped_to_user(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    first_user = uuid4()
-    second_user = uuid4()
-    _create_user(migrated_postgres_url, first_user)
-    _create_user(migrated_postgres_url, second_user)
-    now = datetime.now(tz=UTC)
-
-    storage.save_records(user_id=first_user, records=[_record("a1", 1.0)], generated_at=now)
-    storage.save_records(user_id=second_user, records=[_record("b1", 2.0)], generated_at=now)
-
-    _, first_user_records = storage.load_records(user_id=first_user)
-    _, second_user_records = storage.load_records(user_id=second_user)
-
-    assert [record.notification.thread_id for record in first_user_records] == ["a1"]
-    assert [record.notification.thread_id for record in second_user_records] == ["b1"]
-
-
-@pytest.mark.integration
-def test_ordering_by_snapshot_then_score(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
+def test_ordering_by_snapshot_then_score(storage: PostgresStorage) -> None:
     old_snapshot = datetime.now(tz=UTC) - timedelta(hours=2)
     new_snapshot = datetime.now(tz=UTC) - timedelta(hours=1)
 
-    storage.save_records(user_id=user_id, records=[_record("old-high", 999.0)], generated_at=old_snapshot)
+    storage.save_records(records=[_record("old-high", 999.0)], generated_at=old_snapshot)
     storage.save_records(
-        user_id=user_id,
         records=[_record("new-low", 1.0), _record("new-high", 100.0)],
         generated_at=new_snapshot,
     )
 
-    _, loaded = storage.load_records(user_id=user_id)
+    _, loaded = storage.load_records()
 
     assert [record.notification.thread_id for record in loaded] == ["new-high", "new-low", "old-high"]
 
 
 @pytest.mark.integration
 def test_load_status_defaults_to_unknown(storage: PostgresStorage) -> None:
-    status = storage.load_status(user_id=uuid4())
+    status = storage.load_status()
 
     assert status.status == "unknown"
     assert status.last_poll_time is None
 
 
 @pytest.mark.integration
-def test_save_and_load_status_roundtrip(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    user_id = uuid4()
-    _create_user(migrated_postgres_url, user_id)
-
+def test_save_and_load_status_roundtrip(storage: PostgresStorage) -> None:
     storage.save_status(
-        user_id,
         PollerStatus(status="ok", last_poll_time="2024-01-01T00:00:00Z", last_error=None, last_error_time=None),
     )
     storage.save_status(
-        user_id,
         PollerStatus(
             status="error",
             last_poll_time="2024-01-01T00:00:00Z",
@@ -289,7 +210,7 @@ def test_save_and_load_status_roundtrip(migrated_postgres_url: str, storage: Pos
         ),
     )
 
-    status = storage.load_status(user_id)
+    status = storage.load_status()
     assert status.status == "error"
     assert status.last_poll_time == "2024-01-01T00:00:00Z"
     assert status.last_error == "boom"
@@ -297,18 +218,15 @@ def test_save_and_load_status_roundtrip(migrated_postgres_url: str, storage: Pos
 
 
 @pytest.mark.integration
-def test_single_user_row_is_seeded(migrated_postgres_url: str, storage: PostgresStorage) -> None:
-    # The migration seeds the single-user identity so single-user deployments can
-    # write records/status without creating a user first.
+def test_save_and_load_records_roundtrip(storage: PostgresStorage) -> None:
     storage.save_status(
-        SINGLE_USER_ID,
         PollerStatus(status="ok", last_poll_time="2024-01-01T00:00:00Z", last_error=None, last_error_time=None),
     )
-    storage.save_records(user_id=SINGLE_USER_ID, records=[_record("t1", SCORE_HIGH)], generated_at=datetime.now(tz=UTC))
+    storage.save_records(records=[_record("t1", SCORE_HIGH)], generated_at=datetime.now(tz=UTC))
 
-    _, loaded = storage.load_records(user_id=SINGLE_USER_ID)
+    _, loaded = storage.load_records()
     assert [record.notification.thread_id for record in loaded] == ["t1"]
-    assert storage.load_status(SINGLE_USER_ID).status == "ok"
+    assert storage.load_status().status == "ok"
 
 
 @pytest.mark.integration

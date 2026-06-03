@@ -25,7 +25,6 @@ from corvix.services import (
     run_watch_loop,
 )
 from corvix.storage import (
-    SINGLE_USER_ID,
     NotificationCache,
     PostgresStorage,
     StorageBackend,
@@ -212,15 +211,9 @@ def serve_command(ctx: click.Context, host: str, port: int, reload: bool) -> Non
 
 
 @main.command("migrate-cache")
-@click.option(
-    "--user-id",
-    default=str(SINGLE_USER_ID),
-    show_default=True,
-    help="UUID of the user to assign imported records to (defaults to the single-user identity).",
-)
 @click.pass_context
-def migrate_cache_command(ctx: click.Context, user_id: str) -> None:
-    """Import legacy JSON cache records into PostgreSQL for a given user.
+def migrate_cache_command(ctx: click.Context) -> None:
+    """Import legacy JSON cache records into PostgreSQL.
 
     Reads the cache file from the config, then upserts all records into the
     PostgreSQL database using the DATABASE_URL (or the env var named in
@@ -242,8 +235,8 @@ def migrate_cache_command(ctx: click.Context, user_id: str) -> None:
 
     snapshot_time = generated_at if generated_at is not None else datetime.now(tz=UTC)
     with PostgresStorage(connection_string=db_url) as storage:
-        storage.save_records(user_id=user_id, records=records, generated_at=snapshot_time)
-    click.echo(f"Migrated {len(records)} records for user {user_id}.")
+        storage.save_records(records=records, generated_at=snapshot_time)
+    click.echo(f"Migrated {len(records)} records.")
 
 
 @main.command("poller-health")
@@ -257,7 +250,7 @@ def poller_health_command(ctx: click.Context) -> None:
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
     with _build_storage(app_config) as storage:
-        status = storage.load_status(SINGLE_USER_ID)
+        status = storage.load_status()
     if status.status == "error":
         msg = f"Poller reported an error: {status.last_error}"
         raise click.ClickException(msg)
