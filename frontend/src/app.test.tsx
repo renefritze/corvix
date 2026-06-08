@@ -10,6 +10,27 @@ import { App } from "./app";
 import { makeItem, makeSnapshot } from "./test/fixtures";
 import { type FetchInput, requestUrl, setPath } from "./test/http";
 
+// Spy on fetch so GETs to the snapshot endpoint resolve to `snapshot` and any
+// POST (mark-read / dismiss) succeeds. Used by tests that only need a single
+// dashboard snapshot served.
+function mockSnapshotFetch(snapshot: ReturnType<typeof makeSnapshot>) {
+	return vi
+		.spyOn(globalThis, "fetch")
+		.mockImplementation(async (input: FetchInput, init?: RequestInit) => {
+			const url = requestUrl(input);
+			if (init?.method === "POST") {
+				return { ok: true } as Response;
+			}
+			if (url.includes("/api/v1/snapshot")) {
+				return {
+					ok: true,
+					json: async () => snapshot,
+				} as Response;
+			}
+			return { ok: false, status: 404 } as Response;
+		});
+}
+
 describe("App", () => {
 	it("loads snapshot, filters items, and switches dashboards", async () => {
 		setPath("/");
@@ -343,21 +364,7 @@ describe("App", () => {
 			dashboard_names: ["overview"],
 		});
 
-		const fetchMock = vi
-			.spyOn(globalThis, "fetch")
-			.mockImplementation(async (input: FetchInput, init?: RequestInit) => {
-				const url = requestUrl(input);
-				if (init?.method === "POST") {
-					return { ok: true } as Response;
-				}
-				if (url.includes("/api/v1/snapshot")) {
-					return {
-						ok: true,
-						json: async () => snapshot,
-					} as Response;
-				}
-				return { ok: false, status: 404 } as Response;
-			});
+		const fetchMock = mockSnapshotFetch(snapshot);
 
 		render(<App />);
 		const user = userEvent.setup();
@@ -432,21 +439,7 @@ describe("App", () => {
 			dashboard_names: ["overview"],
 		});
 
-		const fetchMock = vi
-			.spyOn(globalThis, "fetch")
-			.mockImplementation(async (input: FetchInput, init?: RequestInit) => {
-				const url = requestUrl(input);
-				if (init?.method === "POST") {
-					return { ok: true } as Response;
-				}
-				if (url.includes("/api/v1/snapshot")) {
-					return {
-						ok: true,
-						json: async () => snapshot,
-					} as Response;
-				}
-				return { ok: false, status: 404 } as Response;
-			});
+		const fetchMock = mockSnapshotFetch(snapshot);
 
 		render(<App />);
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

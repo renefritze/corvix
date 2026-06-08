@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "preact";
 import { makeItem } from "../test/fixtures";
 import type { ColumnWidths } from "../types";
 import { NotificationTable } from "./NotificationTable";
@@ -12,11 +13,28 @@ const widths: ColumnWidths = {
 	updated_at: 110,
 };
 
-const resizeProps = {
-	columnWidths: widths,
-	onResizeStart: vi.fn(),
-	onResetColumnWidth: vi.fn(),
-};
+type TableProps = ComponentProps<typeof NotificationTable>;
+
+function renderTable(overrides: Partial<TableProps> = {}) {
+	const props: TableProps = {
+		groups: [],
+		sortColumn: "score",
+		sortDirection: "desc",
+		onSort: vi.fn(),
+		onDismiss: vi.fn(),
+		onDismissGroupRead: vi.fn(),
+		onMarkGroupRead: vi.fn(),
+		markingGroupNames: new Set<string>(),
+		onOpenTarget: vi.fn(),
+		onRequestIgnoreRule: vi.fn(),
+		pendingDismissals: new Set<string>(),
+		columnWidths: widths,
+		onResizeStart: vi.fn(),
+		onResetColumnWidth: vi.fn(),
+		...overrides,
+	};
+	return render(<NotificationTable {...props} />);
+}
 
 describe("NotificationTable", () => {
 	it("renders groups and sorts rows", () => {
@@ -30,22 +48,7 @@ describe("NotificationTable", () => {
 			},
 		];
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onDismissGroupRead={vi.fn()}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set(["1"])}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, pendingDismissals: new Set(["1"]) });
 
 		expect(screen.getAllByText("org/repo-a").length).toBeGreaterThan(0);
 		const links = screen.getAllByRole("link");
@@ -65,22 +68,7 @@ describe("NotificationTable", () => {
 			},
 		];
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="subject_title"
-				sortDirection="asc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onDismissGroupRead={vi.fn()}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, sortColumn: "subject_title", sortDirection: "asc" });
 
 		const links = screen.getAllByRole("link");
 		expect(links[0]).toHaveTextContent("Alpha");
@@ -99,22 +87,7 @@ describe("NotificationTable", () => {
 		];
 		const onMarkGroupRead = vi.fn();
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onDismissGroupRead={vi.fn()}
-				onMarkGroupRead={onMarkGroupRead}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, onMarkGroupRead });
 
 		const user = userEvent.setup();
 		await user.click(
@@ -139,22 +112,7 @@ describe("NotificationTable", () => {
 		];
 		const onDismissGroupRead = vi.fn();
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onDismissGroupRead={onDismissGroupRead}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, onDismissGroupRead });
 
 		const user = userEvent.setup();
 		const removeReadButton = screen.getByRole("button", {
@@ -179,22 +137,7 @@ describe("NotificationTable", () => {
 			},
 		];
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onDismissGroupRead={vi.fn()}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set(["org/repo-a"])}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, markingGroupNames: new Set(["org/repo-a"]) });
 
 		const button = screen.getByRole("button", {
 			name: /Mark all visible unread notifications in org\/repo-a as read/,
