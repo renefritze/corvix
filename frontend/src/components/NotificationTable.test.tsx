@@ -157,11 +157,12 @@ describe("NotificationTable", () => {
 		);
 
 		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", {
-				name: /Dismiss all visible read notifications in org\/repo-a/,
-			}),
-		);
+		const removeReadButton = screen.getByRole("button", {
+			name: /Dismiss all visible read notifications in org\/repo-a/,
+		});
+		expect(removeReadButton).toHaveTextContent("Remove read (1)");
+
+		await user.click(removeReadButton);
 
 		expect(onDismissGroupRead).toHaveBeenCalledTimes(1);
 		expect(onDismissGroupRead).toHaveBeenCalledWith(

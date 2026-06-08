@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.e2e.playwright_types import PageLike, RouteLike
+from tests.e2e.playwright_types import LocatorLike, PageLike, RouteLike
 
 pytest.importorskip("playwright")
 
@@ -247,44 +247,46 @@ def test_groups_displayed_with_headers(app_page: PageLike) -> None:
     expect(headers.nth(1)).to_contain_text("(1)")
 
 
-@pytest.mark.e2e
-def test_group_header_mark_all_read_applies_to_visible_unread(app_page: PageLike) -> None:
+def _group_action_button(app_page: PageLike, group_name: str, action_label: str) -> LocatorLike:
+    """Return the single group-header action button matching ``action_label``."""
     expect = pytest.importorskip("playwright.sync_api").expect
 
     group_headers = app_page.locator("[data-testid='group-header-row']")
     expect(group_headers).to_have_count(2)
 
-    repo_a_header = group_headers.filter(has_text="org/repo-a")
-    mark_all_button = repo_a_header.get_by_role(
+    button = group_headers.filter(has_text=group_name).get_by_role(
         "button",
-        name="Mark all visible unread notifications in org/repo-a as read",
+        name=action_label,
     )
-    expect(mark_all_button).to_have_count(1)
+    expect(button).to_have_count(1)
+    return button
+
+
+@pytest.mark.e2e
+def test_group_header_mark_all_read_applies_to_visible_unread(app_page: PageLike) -> None:
+    expect = pytest.importorskip("playwright.sync_api").expect
+
+    mark_all_button = _group_action_button(
+        app_page,
+        "org/repo-a",
+        "Mark all visible unread notifications in org/repo-a as read",
+    )
     expect(mark_all_button).to_have_text("Mark all read (1)")
 
     mark_all_button.click()
 
-    expect(
-        repo_a_header.get_by_role(
-            "button",
-            name="Mark all visible unread notifications in org/repo-a as read",
-        ),
-    ).to_have_count(0)
+    expect(mark_all_button).to_have_count(0)
 
 
 @pytest.mark.e2e
 def test_group_header_remove_read_applies_to_visible_read(app_page: PageLike) -> None:
     expect = pytest.importorskip("playwright.sync_api").expect
 
-    group_headers = app_page.locator("[data-testid='group-header-row']")
-    expect(group_headers).to_have_count(2)
-
-    repo_a_header = group_headers.filter(has_text="org/repo-a")
-    remove_read_button = repo_a_header.get_by_role(
-        "button",
-        name="Dismiss all visible read notifications in org/repo-a",
+    remove_read_button = _group_action_button(
+        app_page,
+        "org/repo-a",
+        "Dismiss all visible read notifications in org/repo-a",
     )
-    expect(remove_read_button).to_have_count(1)
     expect(remove_read_button).to_have_text("Remove read (1)")
 
     remove_read_button.click()
