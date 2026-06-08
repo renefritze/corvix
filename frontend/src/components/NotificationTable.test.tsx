@@ -129,6 +129,41 @@ describe("NotificationTable", () => {
 		);
 	});
 
+	it("disables remove-read action while its read threads are pending dismissal", async () => {
+		const readItem = makeItem({
+			thread_id: "2",
+			unread: false,
+			subject_title: "Two",
+		});
+		const groups = [
+			{
+				name: "org/repo-a",
+				items: [
+					makeItem({ thread_id: "1", unread: true, subject_title: "One" }),
+					readItem,
+				],
+			},
+		];
+		const onDismissGroupRead = vi.fn();
+
+		renderTable({
+			groups,
+			onDismissGroupRead,
+			pendingDismissals: new Set([
+				`${readItem.account_id}:${readItem.thread_id}`,
+			]),
+		});
+
+		const button = screen.getByRole("button", {
+			name: /Dismiss all visible read notifications in org\/repo-a/,
+		});
+		expect(button).toBeDisabled();
+
+		const user = userEvent.setup();
+		await user.click(button);
+		expect(onDismissGroupRead).not.toHaveBeenCalled();
+	});
+
 	it("disables group action while mark-read batch is in progress", () => {
 		const groups = [
 			{

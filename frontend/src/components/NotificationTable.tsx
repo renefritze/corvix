@@ -119,6 +119,10 @@ export function NotificationTable({
 					const unreadCount = group.items.filter((item) => item.unread).length;
 					const readCount = group.items.length - unreadCount;
 					const isMarkingRead = markingGroupNames.has(group.name);
+					const isDismissingGroup = group.items.some(
+						(item) =>
+							!item.unread && pendingDismissals.has(notificationKey(item)),
+					);
 					return [
 						<tr
 							key={`group-${group.name}`}
@@ -138,9 +142,11 @@ export function NotificationTable({
 											<GroupActionButton
 												label={`Remove read (${readCount})`}
 												ariaLabel={`Dismiss all visible read notifications in ${group.name}`}
-												onClick={() =>
-													onDismissGroupRead(group.name, group.items)
-												}
+												onClick={() => {
+													if (isDismissingGroup) return;
+													onDismissGroupRead(group.name, group.items);
+												}}
+												disabled={isDismissingGroup}
 											/>
 										)}
 										{unreadCount > 0 && (
