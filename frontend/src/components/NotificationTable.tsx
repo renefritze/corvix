@@ -11,6 +11,32 @@ import { TableHeader } from "./TableHeader";
 import { TableRow } from "./TableRow";
 import styles from "./table.module.css";
 
+interface GroupActionButtonProps {
+	readonly label: string;
+	readonly ariaLabel: string;
+	readonly onClick: () => void;
+	readonly disabled?: boolean;
+}
+
+function GroupActionButton({
+	label,
+	ariaLabel,
+	onClick,
+	disabled,
+}: GroupActionButtonProps) {
+	return (
+		<button
+			type="button"
+			class={styles.groupMarkReadBtn}
+			onClick={onClick}
+			disabled={disabled}
+			aria-label={ariaLabel}
+		>
+			{label}
+		</button>
+	);
+}
+
 function sortItems(
 	items: DashboardItem[],
 	col: SortColumn,
@@ -109,29 +135,25 @@ export function NotificationTable({
 									</div>
 									<div class={styles.groupHeaderActions}>
 										{readCount > 0 && (
-											<button
-												type="button"
-												class={styles.groupMarkReadBtn}
+											<GroupActionButton
+												label={`Remove read (${readCount})`}
+												ariaLabel={`Dismiss all visible read notifications in ${group.name}`}
 												onClick={() =>
 													onDismissGroupRead(group.name, group.items)
 												}
-												aria-label={`Dismiss all visible read notifications in ${group.name}`}
-											>
-												{`Remove read (${readCount})`}
-											</button>
+											/>
 										)}
 										{unreadCount > 0 && (
-											<button
-												type="button"
-												class={styles.groupMarkReadBtn}
+											<GroupActionButton
+												label={
+													isMarkingRead
+														? "Marking..."
+														: `Mark all read (${unreadCount})`
+												}
+												ariaLabel={`Mark all visible unread notifications in ${group.name} as read`}
 												onClick={() => onMarkGroupRead(group.name, group.items)}
 												disabled={isMarkingRead}
-												aria-label={`Mark all visible unread notifications in ${group.name} as read`}
-											>
-												{isMarkingRead
-													? "Marking..."
-													: `Mark all read (${unreadCount})`}
-											</button>
+											/>
 										)}
 									</div>
 								</div>
