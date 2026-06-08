@@ -1,6 +1,7 @@
 import { Router, getCurrentUrl } from "preact-router";
 import type { RoutableProps } from "preact-router";
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
+import styles from "./app.module.css";
 import { AuthProvider } from "./auth/AuthContext";
 import { AuthGate } from "./auth/AuthGate";
 import { EmptyState } from "./components/EmptyState";
@@ -24,7 +25,6 @@ import { useKeyboard } from "./hooks/useKeyboard";
 import { useMarkRead } from "./hooks/useMarkRead";
 import { notificationKey } from "./types";
 import type { DashboardItem } from "./types";
-import styles from "./app.module.css";
 
 interface DashboardProps {
 	// The active dashboard name from the /dashboards/:name route (already decoded).
@@ -145,6 +145,17 @@ function Dashboard({ name }: DashboardProps) {
 		if (accountId && threadId) dismiss(accountId, threadId);
 	}, [dismiss]);
 
+	const handleDismissGroupRead = useCallback(
+		(_groupName: string, items: DashboardItem[]) => {
+			for (const item of items) {
+				if (!item.unread) {
+					dismiss(item.account_id, item.thread_id);
+				}
+			}
+		},
+		[dismiss],
+	);
+
 	useKeyboard({
 		onRefresh: refresh,
 		onFocusFilters: () => filterBarRef.current?.focus(),
@@ -187,6 +198,7 @@ function Dashboard({ name }: DashboardProps) {
 						sortDirection={sortDirection}
 						onSort={handleSort}
 						onDismiss={dismiss}
+						onDismissGroupRead={handleDismissGroupRead}
 						onMarkGroupRead={markGroupRead}
 						markingGroupNames={markingGroupNames}
 						onOpenTarget={openTarget}

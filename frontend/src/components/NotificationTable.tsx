@@ -11,6 +11,32 @@ import { TableHeader } from "./TableHeader";
 import { TableRow } from "./TableRow";
 import styles from "./table.module.css";
 
+interface GroupActionButtonProps {
+	readonly label: string;
+	readonly ariaLabel: string;
+	readonly onClick: () => void;
+	readonly disabled?: boolean;
+}
+
+function GroupActionButton({
+	label,
+	ariaLabel,
+	onClick,
+	disabled,
+}: GroupActionButtonProps) {
+	return (
+		<button
+			type="button"
+			class={styles.groupMarkReadBtn}
+			onClick={onClick}
+			disabled={disabled}
+			aria-label={ariaLabel}
+		>
+			{label}
+		</button>
+	);
+}
+
 function sortItems(
 	items: DashboardItem[],
 	col: SortColumn,
@@ -39,6 +65,10 @@ interface NotificationTableProps {
 	readonly sortDirection: SortDirection;
 	readonly onSort: (col: SortColumn) => void;
 	readonly onDismiss: (accountId: string, threadId: string) => void;
+	readonly onDismissGroupRead: (
+		groupName: string,
+		items: DashboardItem[],
+	) => void;
 	readonly onMarkGroupRead: (groupName: string, items: DashboardItem[]) => void;
 	readonly markingGroupNames: Set<string>;
 	readonly onOpenTarget: (accountId: string, threadId: string) => void;
@@ -58,6 +88,7 @@ export function NotificationTable({
 	sortDirection,
 	onSort,
 	onDismiss,
+	onDismissGroupRead,
 	onMarkGroupRead,
 	markingGroupNames,
 	onOpenTarget,
@@ -86,28 +117,51 @@ export function NotificationTable({
 				{groups.map((group) => {
 					const sorted = sortItems(group.items, sortColumn, sortDirection);
 					const unreadCount = group.items.filter((item) => item.unread).length;
+					const readCount = group.items.length - unreadCount;
 					const isMarkingRead = markingGroupNames.has(group.name);
+					const isDismissingGroup = group.items.some(
+						(item) =>
+							!item.unread && pendingDismissals.has(notificationKey(item)),
+					);
 					return [
-						<tr key={`group-${group.name}`} class={styles.groupHeaderRow} data-testid="group-header-row">
+						<tr
+							key={`group-${group.name}`}
+							class={styles.groupHeaderRow}
+							data-testid="group-header-row"
+						>
 							<td colSpan={COLS} class="group-header-cell">
 								<div class={styles.groupHeaderContent}>
 									<div>
 										{group.name}{" "}
-										<span class={styles.groupCount}>({group.items.length})</span>
+										<span class={styles.groupCount}>
+											({group.items.length})
+										</span>
 									</div>
-									{unreadCount > 0 && (
-										<button
-											type="button"
-											class={styles.groupMarkReadBtn}
-											onClick={() => onMarkGroupRead(group.name, group.items)}
-											disabled={isMarkingRead}
-											aria-label={`Mark all visible unread notifications in ${group.name} as read`}
-										>
-											{isMarkingRead
-												? "Marking..."
-												: `Mark all read (${unreadCount})`}
-										</button>
-									)}
+									<div class={styles.groupHeaderActions}>
+										{readCount > 0 && (
+											<GroupActionButton
+												label={`Remove read (${readCount})`}
+												ariaLabel={`Dismiss all visible read notifications in ${group.name}`}
+												onClick={() => {
+													if (isDismissingGroup) return;
+													onDismissGroupRead(group.name, group.items);
+												}}
+												disabled={isDismissingGroup}
+											/>
+										)}
+										{unreadCount > 0 && (
+											<GroupActionButton
+												label={
+													isMarkingRead
+														? "Marking..."
+														: `Mark all read (${unreadCount})`
+												}
+												ariaLabel={`Mark all visible unread notifications in ${group.name} as read`}
+												onClick={() => onMarkGroupRead(group.name, group.items)}
+												disabled={isMarkingRead}
+											/>
+										)}
+									</div>
 								</div>
 							</td>
 						</tr>,

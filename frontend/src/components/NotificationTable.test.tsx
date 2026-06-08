@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "preact";
 import { makeItem } from "../test/fixtures";
 import type { ColumnWidths } from "../types";
 import { NotificationTable } from "./NotificationTable";
@@ -12,11 +13,28 @@ const widths: ColumnWidths = {
 	updated_at: 110,
 };
 
-const resizeProps = {
-	columnWidths: widths,
-	onResizeStart: vi.fn(),
-	onResetColumnWidth: vi.fn(),
-};
+type TableProps = ComponentProps<typeof NotificationTable>;
+
+function renderTable(overrides: Partial<TableProps> = {}) {
+	const props: TableProps = {
+		groups: [],
+		sortColumn: "score",
+		sortDirection: "desc",
+		onSort: vi.fn(),
+		onDismiss: vi.fn(),
+		onDismissGroupRead: vi.fn(),
+		onMarkGroupRead: vi.fn(),
+		markingGroupNames: new Set<string>(),
+		onOpenTarget: vi.fn(),
+		onRequestIgnoreRule: vi.fn(),
+		pendingDismissals: new Set<string>(),
+		columnWidths: widths,
+		onResizeStart: vi.fn(),
+		onResetColumnWidth: vi.fn(),
+		...overrides,
+	};
+	return render(<NotificationTable {...props} />);
+}
 
 describe("NotificationTable", () => {
 	it("renders groups and sorts rows", () => {
@@ -30,21 +48,7 @@ describe("NotificationTable", () => {
 			},
 		];
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set(["1"])}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, pendingDismissals: new Set(["1"]) });
 
 		expect(screen.getAllByText("org/repo-a").length).toBeGreaterThan(0);
 		const links = screen.getAllByRole("link");
@@ -64,21 +68,7 @@ describe("NotificationTable", () => {
 			},
 		];
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="subject_title"
-				sortDirection="asc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, sortColumn: "subject_title", sortDirection: "asc" });
 
 		const links = screen.getAllByRole("link");
 		expect(links[0]).toHaveTextContent("Alpha");
@@ -97,21 +87,7 @@ describe("NotificationTable", () => {
 		];
 		const onMarkGroupRead = vi.fn();
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onMarkGroupRead={onMarkGroupRead}
-				markingGroupNames={new Set()}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, onMarkGroupRead });
 
 		const user = userEvent.setup();
 		await user.click(
@@ -124,6 +100,70 @@ describe("NotificationTable", () => {
 		expect(onMarkGroupRead).toHaveBeenCalledWith("org/repo-a", groups[0].items);
 	});
 
+	it("renders group remove-read action and invokes callback", async () => {
+		const groups = [
+			{
+				name: "org/repo-a",
+				items: [
+					makeItem({ thread_id: "1", unread: true, subject_title: "One" }),
+					makeItem({ thread_id: "2", unread: false, subject_title: "Two" }),
+				],
+			},
+		];
+		const onDismissGroupRead = vi.fn();
+
+		renderTable({ groups, onDismissGroupRead });
+
+		const user = userEvent.setup();
+		const removeReadButton = screen.getByRole("button", {
+			name: /Dismiss all visible read notifications in org\/repo-a/,
+		});
+		expect(removeReadButton).toHaveTextContent("Remove read (1)");
+
+		await user.click(removeReadButton);
+
+		expect(onDismissGroupRead).toHaveBeenCalledTimes(1);
+		expect(onDismissGroupRead).toHaveBeenCalledWith(
+			"org/repo-a",
+			groups[0].items,
+		);
+	});
+
+	it("disables remove-read action while its read threads are pending dismissal", async () => {
+		const readItem = makeItem({
+			thread_id: "2",
+			unread: false,
+			subject_title: "Two",
+		});
+		const groups = [
+			{
+				name: "org/repo-a",
+				items: [
+					makeItem({ thread_id: "1", unread: true, subject_title: "One" }),
+					readItem,
+				],
+			},
+		];
+		const onDismissGroupRead = vi.fn();
+
+		renderTable({
+			groups,
+			onDismissGroupRead,
+			pendingDismissals: new Set([
+				`${readItem.account_id}:${readItem.thread_id}`,
+			]),
+		});
+
+		const button = screen.getByRole("button", {
+			name: /Dismiss all visible read notifications in org\/repo-a/,
+		});
+		expect(button).toBeDisabled();
+
+		const user = userEvent.setup();
+		await user.click(button);
+		expect(onDismissGroupRead).not.toHaveBeenCalled();
+	});
+
 	it("disables group action while mark-read batch is in progress", () => {
 		const groups = [
 			{
@@ -132,21 +172,7 @@ describe("NotificationTable", () => {
 			},
 		];
 
-		render(
-			<NotificationTable
-				groups={groups}
-				sortColumn="score"
-				sortDirection="desc"
-				onSort={vi.fn()}
-				onDismiss={vi.fn()}
-				onMarkGroupRead={vi.fn()}
-				markingGroupNames={new Set(["org/repo-a"])}
-				onOpenTarget={vi.fn()}
-				onRequestIgnoreRule={vi.fn()}
-				pendingDismissals={new Set()}
-				{...resizeProps}
-			/>,
-		);
+		renderTable({ groups, markingGroupNames: new Set(["org/repo-a"]) });
 
 		const button = screen.getByRole("button", {
 			name: /Mark all visible unread notifications in org\/repo-a as read/,
