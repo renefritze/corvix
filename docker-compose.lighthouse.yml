@@ -43,10 +43,14 @@ services:
       web-lighthouse:
         condition: service_healthy
     working_dir: /workspace
+    # Chromium 150 stalls during startup when it cannot reach a D-Bus system
+    # bus (the container has none by default), so lhci times out with
+    # "Unable to connect to Chrome". Start a throwaway system bus first, then
+    # run the collection.
     command:
-    - lhci
-    - autorun
-    - --config=.lighthouserc.json
+    - sh
+    - -c
+    - mkdir -p /run/dbus && dbus-uuidgen --ensure && dbus-daemon --system --fork && exec lhci autorun --config=.lighthouserc.json
     environment:
       CHROME_PATH: /usr/bin/chromium
     healthcheck:
