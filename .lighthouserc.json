@@ -8,7 +8,7 @@
             ],
             "settings": {
                 "chromePath": "/usr/bin/chromium",
-                "chromeFlags": "--no-sandbox --disable-dev-shm-usage",
+                "chromeFlags": "--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu",
                 "preset": "desktop",
                 "throttlingMethod": "devtools"
             }
