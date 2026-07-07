@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     CHROME_PATH=/usr/bin/chromium
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation \
+    && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation dbus \
     && npm install -g @lhci/cli \
     && rm -rf /var/lib/apt/lists/*
 
