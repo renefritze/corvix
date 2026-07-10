@@ -3,6 +3,17 @@ import preact from "@preact/preset-vite";
 
 export default defineConfig(({ mode }) => ({
   plugins: mode === "test" ? [] : [preact()],
+  // Pin the JSX runtime to Preact for Vite's built-in (oxc) transform. In test
+  // mode the preact preset is not loaded, and the *.test.tsx files are excluded
+  // from tsconfig.json, so the transform would otherwise default to React and
+  // emit an unresolvable `react/jsx-dev-runtime` import (regressed by Vite 8.1's
+  // oxc JSX handling honouring tsconfig include/exclude).
+  oxc: {
+    jsx: {
+      runtime: "automatic",
+      importSource: "preact",
+    },
+  },
   build: {
     outDir: "../src/corvix/web/static/assets",
     emptyOutDir: true,
