@@ -13,13 +13,6 @@ repos:
     additional_dependencies:
     - pip_system_certs==4.0
   - id: check-jsonschema
-    alias: check-vcpkg-json
-    name: Check vcpkg manifest
-    files: ^vcpkg\.json$
-    args: [--schemafile, 'https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json']
-    additional_dependencies:
-    - pip_system_certs==4.0
-  - id: check-jsonschema
     alias: check-markdownlint-cli2-config
     name: Validate markdownlint-cli2 config
     files: ^\.markdownlint-cli2\.jsonc$
@@ -37,25 +30,13 @@ repos:
   rev: b5ca1890231d5e1e5181fef75a1be609d1e25029  # frozen: v0.21.0
   hooks:
   - id: yamlfmt
-    exclude: (.clang-(format|tidy)|tests/python/test_.*)
+    exclude: tests/python/test_.*
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
   rev: 0839f92796ae388643a08a21640a029b322be5c2  # frozen: v0.15.2
   hooks:
   - id: ruff-check
   - id: ruff-format
-  # manually run `check` and `format` on the preset generator script
-  - id: ruff-check
-    alias: ruff-check-presets
-    name: Check .CMakePresets.json.in
-    files: .CMakePresets.json.in
-    # the hook defines `types_or` which we cannot overrride with a single `types`
-    types_or: [file]
-  - id: ruff-format
-    name: Format .CMakePresets.json.in
-    alias: ruff-format-presets
-    files: .CMakePresets.json.in
-    types_or: [file]
 - repo: https://github.com/astral-sh/uv-pre-commit
   rev: 0.10.11
   hooks:
@@ -171,10 +152,3 @@ repos:
   - id: check-symlinks
   - id: debug-statements
   - id: fix-byte-order-marker
-- repo: local
-  hooks:
-  - id: reject-user-presets
-    name: CMakeUserPresets.json must not be committed
-    entry: reject CMakeUserPresets.json
-    language: fail
-    files: CMakeUserPresets.json

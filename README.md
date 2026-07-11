@@ -180,9 +180,3 @@ Corvix ships with two built-in dashboards, selectable via the dropdown in the we
 - Best for: deciding what to deal with right now
 
 The first dashboard listed in your config is loaded by default. You can add, remove, or reorder dashboards under the `dashboards:` key in `config/corvix.yaml`.
-
-## After generating your project
-
-- setup branch protection+automerge in [GitHub project settings](https://github.com/renefritze/corvix/settings/branches)
-- request install for the codecov.io app in [GitHub project settings](https://github.com/renefritze/corvix/settings/installations)
-- configure codecov.io in [codecov.io settings](https://codecov.io/gh/renefritze/corvix/settings)

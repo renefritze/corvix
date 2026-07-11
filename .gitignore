@@ -733,3 +733,6 @@ _version.py
 .playwright-cli/
 .agents/settings.local.json
 docs/_build*
+
+# Ad-hoc screenshot/DOM debugging artifacts (see `make ui-screenshot` for the canonical screenshot)
+/corvix-home*
