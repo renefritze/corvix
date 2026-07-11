@@ -24,7 +24,6 @@ dependencies = [
     "litestar>=2.10",
     "uvicorn>=0.30",
     "asyncpg>=0.31.0",
-    "cryptography>=44.0.0",
     "psycopg[binary,pool]>=3.3.3",
     "alembic>=1.18.4",
     "prometheus-client>=0.21",
@@ -67,6 +66,7 @@ docs = [
 ]
 dev = [
     "build",
+    "cryptography",
     "ty",
     "ruff",
     "pytest",
