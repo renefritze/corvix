@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import cast
 
@@ -81,11 +81,7 @@ class _CapturingContextProvider:
     """Records the web_url it sees when enrich() is called."""
 
     name: str = "test.context"
-    seen_web_urls: list[str | None] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.seen_web_urls is None:
-            self.seen_web_urls = []
+    seen_web_urls: list[str | None] = field(default_factory=list)
 
     def enrich(self, notification: Notification, _client: JsonFetchClient, _ctx: PipelineContext) -> dict[str, object]:
         self.seen_web_urls.append(notification.web_url)
