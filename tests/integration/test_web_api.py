@@ -1114,102 +1114,62 @@ class TestTokenAuth:
 
 
 # ---------------------------------------------------------------------------
-# Deprecated /api/ routes — backward compat during versioning transition
+# /api/health — unversioned container-healthcheck alias (kept intentionally)
 # ---------------------------------------------------------------------------
 
 
-class TestDeprecatedApiRoutes:
-    """Deprecated /api/ routes must still work and carry a Deprecation header."""
+class TestHealthAlias:
+    """/api/health is a plain, public alias of /api/v1/health (no Deprecation header)."""
 
-    def test_health_deprecated_responds(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_health_alias_responds(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
         response = client.get("/api/health")
         assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-        assert response.headers.get("Deprecation") == "true"
+        # The alias is no longer deprecated; it must not advertise a Deprecation header.
+        assert "Deprecation" not in response.headers
 
-    def test_themes_deprecated_returns_same_data(self, client: TestClient) -> None:
-        v1_resp = client.get("/api/v1/themes")
-        dep_resp = client.get("/api/themes")
-        assert dep_resp.status_code == HTTPStatus.OK
-        assert dep_resp.json() == v1_resp.json()
-        assert dep_resp.headers.get("Deprecation") == "true"
+    def test_health_alias_matches_v1(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
+        v1_resp = client.get("/api/v1/health")
+        alias_resp = client.get("/api/health")
+        assert alias_resp.status_code == v1_resp.status_code
+        assert alias_resp.json() == v1_resp.json()
 
-    def test_dashboards_deprecated_returns_same_data(self, configured_client: TestClient) -> None:
-        v1_resp = configured_client.get("/api/v1/dashboards")
-        dep_resp = configured_client.get("/api/dashboards")
-        assert dep_resp.status_code == HTTPStatus.OK
-        assert dep_resp.json() == v1_resp.json()
-        assert dep_resp.headers.get("Deprecation") == "true"
-
-    def test_snapshot_deprecated_returns_same_data(self, configured_client: TestClient) -> None:
-        v1_resp = configured_client.get("/api/v1/snapshot")
-        dep_resp = configured_client.get("/api/snapshot")
-        assert dep_resp.status_code == HTTPStatus.OK
-        assert dep_resp.json() == v1_resp.json()
-        assert dep_resp.headers.get("Deprecation") == "true"
-
-    def test_rule_snippets_deprecated_returns_same_data(self, populated_client: TestClient) -> None:
-        v1_resp = populated_client.get("/api/v1/notifications/primary/101/rule-snippets?dashboard=overview")
-        dep_resp = populated_client.get("/api/notifications/primary/101/rule-snippets?dashboard=overview")
-        assert dep_resp.status_code == HTTPStatus.OK
-        assert dep_resp.json() == v1_resp.json()
-        assert dep_resp.headers.get("Deprecation") == "true"
-
-    def test_dismiss_deprecated_carries_deprecation_header(
-        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("GITHUB_TOKEN", "token")
-        monkeypatch.setattr(
-            "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
-            lambda _self, _tid: None,
-        )
-        response = configured_client.post("/api/notifications/primary/abc123/dismiss")
-        assert response.status_code == HTTPStatus.NO_CONTENT
-        assert response.headers.get("Deprecation") == "true"
-
-    def test_dismiss_default_account_deprecated_carries_deprecation_header(
-        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("GITHUB_TOKEN", "token")
-        monkeypatch.setattr(
-            "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
-            lambda _self, _tid: None,
-        )
-        response = configured_client.post("/api/notifications/abc123/dismiss")
-        assert response.status_code == HTTPStatus.NO_CONTENT
-        assert response.headers.get("Deprecation") == "true"
-
-    def test_mark_read_deprecated_carries_deprecation_header(
-        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("GITHUB_TOKEN", "token")
-        monkeypatch.setattr(
-            "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
-            lambda _self, _tid: None,
-        )
-        response = configured_client.post("/api/notifications/primary/abc123/mark-read")
-        assert response.status_code == HTTPStatus.NO_CONTENT
-        assert response.headers.get("Deprecation") == "true"
-
-    def test_mark_read_default_account_deprecated_carries_deprecation_header(
-        self, configured_client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("GITHUB_TOKEN", "token")
-        monkeypatch.setattr(
-            "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
-            lambda _self, _tid: None,
-        )
-        response = configured_client.post("/api/notifications/abc123/mark-read")
-        assert response.status_code == HTTPStatus.NO_CONTENT
-        assert response.headers.get("Deprecation") == "true"
-
-    def test_health_deprecated_is_public_without_auth(
+    def test_health_alias_is_public_without_auth(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
         response = client.get("/api/health")
         assert response.status_code != HTTPStatus.UNAUTHORIZED
+
+
+class TestRemovedApiAliases:
+    """The deprecated unversioned /api/* aliases were removed (issue #127)."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/themes",
+            "/api/dashboards",
+            "/api/snapshot",
+            "/api/notifications/primary/101/rule-snippets",
+        ],
+    )
+    def test_removed_get_aliases_return_404(self, configured_client: TestClient, path: str) -> None:
+        assert configured_client.get(path).status_code == HTTPStatus.NOT_FOUND
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/notifications/primary/abc123/dismiss",
+            "/api/notifications/abc123/dismiss",
+            "/api/notifications/primary/abc123/mark-read",
+            "/api/notifications/abc123/mark-read",
+        ],
+    )
+    def test_removed_post_aliases_return_404(self, configured_client: TestClient, path: str) -> None:
+        assert configured_client.post(path).status_code == HTTPStatus.NOT_FOUND
 
 
 class TestObservability:

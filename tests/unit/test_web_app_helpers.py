@@ -40,11 +40,6 @@ def test_asset_version_token_returns_dev_when_assets_are_missing(
     assert web_app._asset_version_token() == "dev"
 
 
-def test_default_account_id_raises_when_no_accounts_are_configured() -> None:
-    with pytest.raises(HTTPException, match="No GitHub accounts configured"):
-        web_app._default_account_id(AppConfig())
-
-
 def test_yaml_scalar_uses_plain_string_conversion_for_numbers() -> None:
     assert web_app._yaml_scalar(42) == "42"
 

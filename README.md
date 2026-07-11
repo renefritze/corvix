@@ -58,6 +58,10 @@ or environment before starting the `web` container:
 CORVIX_SECRET_TOKEN=your-strong-random-secret
 ```
 
+The JSON API is served under `/api/v1/*`; the only unversioned route is
+`/api/health`, a public alias kept for container health checks. (The legacy
+unversioned `/api/*` aliases were removed — the UI uses `/api/v1/*` exclusively.)
+
 When set:
 
 - All `/api/*` endpoints (except `/api/health`) require an
