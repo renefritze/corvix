@@ -149,17 +149,13 @@ def test_health(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
     response = client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    payload = response.json()
-    assert payload["status"] == "unhealthy"
-    assert payload["reason"] == "config_unavailable"
+    assert response.json() == {"status": "unhealthy"}
 
 
 def test_health_when_poller_unknown(configured_client: TestClient) -> None:
     response = configured_client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    payload = response.json()
-    assert payload["status"] == "unhealthy"
-    assert payload["reason"] == "poller_not_running"
+    assert response.json() == {"status": "unhealthy"}
 
 
 def test_health_when_poller_healthy(configured_client: TestClient) -> None:
@@ -202,10 +198,7 @@ def test_health_when_poller_stale(configured_client: TestClient) -> None:
     )
     response = configured_client.get("/api/v1/health")
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    payload = response.json()
-    assert payload["status"] == "unhealthy"
-    assert payload["reason"] == "stale"
-    assert "last_poll_seconds_ago" in payload
+    assert response.json() == {"status": "unhealthy"}
 
 
 def test_health_when_cache_is_invalid(configured_client: TestClient) -> None:
@@ -216,10 +209,11 @@ def test_health_when_cache_is_invalid(configured_client: TestClient) -> None:
     response = configured_client.get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    assert response.json() == {"status": "unhealthy", "reason": "invalid_cache"}
+    assert response.json() == {"status": "unhealthy"}
 
 
-def test_health_when_poller_error_trims_last_line(configured_client: TestClient) -> None:
+def test_health_when_poller_error_does_not_leak_detail(configured_client: TestClient) -> None:
+    """The public health endpoint must not leak internal error strings (issue #131)."""
     config_path = Path(os.environ["CORVIX_CONFIG"])
     cache_file = load_config(config_path).resolve_cache_file()
     cache_file.write_text(
@@ -240,11 +234,7 @@ def test_health_when_poller_error_trims_last_line(configured_client: TestClient)
     response = configured_client.get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    assert response.json() == {
-        "status": "unhealthy",
-        "reason": "poller_error",
-        "detail": "RuntimeError: boom",
-    }
+    assert response.json() == {"status": "unhealthy"}
 
 
 def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) -> None:
@@ -267,7 +257,7 @@ def test_health_when_last_poll_time_is_invalid(configured_client: TestClient) ->
     response = configured_client.get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    assert response.json() == {"status": "unhealthy", "reason": "invalid_poll_time"}
+    assert response.json() == {"status": "unhealthy"}
 
 
 def _write_minimal_config(tmp_path: Path) -> Path:
@@ -296,7 +286,7 @@ def test_health_storage_unavailable_without_database(tmp_path: Path, monkeypatch
     response = TestClient(app).get("/api/v1/health")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    assert response.json() == {"status": "unhealthy", "reason": "storage_unavailable"}
+    assert response.json() == {"status": "unhealthy"}
 
 
 def test_snapshot_storage_unavailable_returns_500(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1082,6 +1072,14 @@ class TestTokenAuth:
         response = client.get("/api/v1/health")
         assert response.status_code != HTTPStatus.INTERNAL_SERVER_ERROR
 
+    def test_metrics_500_when_both_token_and_file_set(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """/metrics is gated like /api/*, so it must also fail closed."""
+        self._set_both_token_env_vars(monkeypatch, tmp_path)
+        response = client.get("/metrics")
+        assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+
     def test_get_secret_raises_secret_config_error_when_both_set(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
@@ -1208,9 +1206,33 @@ class TestObservability:
         response = client.get("/metrics", headers={"X-Request-ID": "trace-123"})
         assert response.headers.get("x-request-id") == "trace-123"
 
-    def test_metrics_public_when_auth_enabled(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_metrics_public_when_auth_not_configured(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        response = client.get("/metrics")
+        assert response.status_code == HTTPStatus.OK
+
+    def test_metrics_401_without_auth_when_auth_enabled(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """/metrics carries route templates and request counts, so it requires
+        the same token as /api/* once CORVIX_SECRET_TOKEN is set (issue #131)."""
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         response = client.get("/metrics")
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+    def test_metrics_200_with_bearer_token_when_auth_enabled(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/metrics", headers={"Authorization": f"Bearer {_SECRET}"})
+        assert response.status_code == HTTPStatus.OK
+
+    def test_metrics_200_with_x_corvix_token_when_auth_enabled(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
+        response = client.get("/metrics", headers={"X-Corvix-Token": _SECRET})
         assert response.status_code == HTTPStatus.OK
 
     def test_startup_hook_configures_observability(self) -> None:

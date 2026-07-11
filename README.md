@@ -64,11 +64,12 @@ unversioned `/api/*` aliases were removed — the UI uses `/api/v1/*` exclusivel
 
 When set:
 
-- All `/api/*` endpoints (except `/api/health`) require an
+- All `/api/*` endpoints (except `/api/health`) and `/metrics` require an
   `Authorization: Bearer <token>` or `X-Corvix-Token: <token>` header.
 - The web UI redirects to `/login` where you enter the same token; a session cookie
   is issued on success and clears on `/logout`.
-- `/api/health` remains public so Docker health checks continue to work.
+- `/api/health` remains public so Docker health checks continue to work, but its
+  response is trimmed to `{"status": "ok"|"unhealthy"}` — no error detail.
 - Static assets (`/assets/*`) are always public.
 
 You can also store the token in a Docker secrets file and point to it with

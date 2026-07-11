@@ -34,12 +34,17 @@ During a web request, every log line is automatically tagged with the
 
 ## Prometheus metrics
 
-The web service exposes a Prometheus endpoint at **`GET /metrics`**. It is
-always public (no authentication required) so a scraper can reach it even when
-`CORVIX_SECRET_TOKEN` is set, mirroring the `/api/health` endpoint.
+The web service exposes a Prometheus endpoint at **`GET /metrics`**. When
+`CORVIX_SECRET_TOKEN` is set, `/metrics` requires the same credentials as
+`/api/*` routes (an `Authorization: Bearer <token>` or `X-Corvix-Token: <token>`
+header) — configure your Prometheus scrape job with a bearer token. When no
+secret token is configured, `/metrics` is unauthenticated like the rest of
+the API.
 
 ```bash
 curl http://localhost:8000/metrics
+# with auth enabled:
+curl -H "Authorization: Bearer $CORVIX_SECRET_TOKEN" http://localhost:8000/metrics
 ```
 
 ### Exported metrics
@@ -67,6 +72,8 @@ scrape_configs:
   - job_name: corvix
     static_configs:
       - targets: ["corvix-web:8000"]
+    # Only needed when CORVIX_SECRET_TOKEN is set:
+    # bearer_token: "your-strong-random-secret"
 ```
 
 The poller process records the poll-cycle and GitHub-API metrics but does not
