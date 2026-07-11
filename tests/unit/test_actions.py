@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from corvix.actions import ActionExecutionContext, DismissGateway, MarkReadGateway, execute_actions
 from corvix.config import RuleAction
 from corvix.domain import Notification, NotificationRecord
-from corvix.web.app import INDEX_HTML
+from corvix.web.assets import INDEX_HTML
 
 
 def _make_notification(thread_id: str = "1", unread: bool = True) -> Notification:

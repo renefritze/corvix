@@ -15,8 +15,11 @@ from litestar.testing import TestClient
 import corvix.web.middleware as _mw
 from corvix.config import load_config
 from corvix.storage import NotificationCache
-from corvix.web.app import INDEX_HTML, THEMES, _validate_secret_config, app, set_storage_backend
+from corvix.web.app import _validate_secret_config, app
+from corvix.web.assets import INDEX_HTML
 from corvix.web.middleware import _verify_session_cookie
+from corvix.web.routes_api import THEMES
+from corvix.web.storage_provider import set_storage_backend
 
 
 @pytest.fixture(autouse=True)
@@ -629,7 +632,7 @@ def test_dismiss_success(configured_client: TestClient, monkeypatch: pytest.Monk
     calls: list[str] = []
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr(
-        "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
+        "corvix.web.actions.GitHubNotificationsClient.dismiss_thread",
         lambda _self, thread_id: calls.append(thread_id),
     )
 
@@ -646,7 +649,7 @@ def test_dismiss_success_with_explicit_account_route(
     calls: list[str] = []
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr(
-        "corvix.web.app.GitHubNotificationsClient.dismiss_thread",
+        "corvix.web.actions.GitHubNotificationsClient.dismiss_thread",
         lambda _self, thread_id: calls.append(thread_id),
     )
 
@@ -662,7 +665,7 @@ def test_dismiss_github_error_returns_502(configured_client: TestClient, monkeyp
     def _raise(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.dismiss_thread", _raise)
+    monkeypatch.setattr("corvix.web.actions.GitHubNotificationsClient.dismiss_thread", _raise)
 
     response = configured_client.post("/api/v1/notifications/primary/123/dismiss")
 
@@ -674,7 +677,7 @@ def test_dismiss_token_env_error_returns_500(
     configured_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("corvix.web.app.get_env_value", _raise_bad_env)
+    monkeypatch.setattr("corvix.web.actions.get_env_value", _raise_bad_env)
 
     response = configured_client.post("/api/v1/notifications/primary/123/dismiss")
 
@@ -695,7 +698,7 @@ def test_mark_read_success(configured_client: TestClient, monkeypatch: pytest.Mo
     calls: list[str] = []
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr(
-        "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
+        "corvix.web.actions.GitHubNotificationsClient.mark_thread_read",
         lambda _self, thread_id: calls.append(thread_id),
     )
 
@@ -712,7 +715,7 @@ def test_mark_read_success_with_explicit_account_route(
     calls: list[str] = []
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr(
-        "corvix.web.app.GitHubNotificationsClient.mark_thread_read",
+        "corvix.web.actions.GitHubNotificationsClient.mark_thread_read",
         lambda _self, thread_id: calls.append(thread_id),
     )
 
@@ -735,7 +738,7 @@ def test_mark_read_updates_cache_unread_state(configured_client: TestClient, mon
         encoding="utf-8",
     )
     monkeypatch.setenv("GITHUB_TOKEN", "token")
-    monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.mark_thread_read", lambda *_args: None)
+    monkeypatch.setattr("corvix.web.actions.GitHubNotificationsClient.mark_thread_read", lambda *_args: None)
 
     response = configured_client.post("/api/v1/notifications/primary/1/mark-read")
     assert response.status_code == HTTPStatus.NO_CONTENT
@@ -753,7 +756,7 @@ def test_mark_read_github_error_returns_502(configured_client: TestClient, monke
     def _raise(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("corvix.web.app.GitHubNotificationsClient.mark_thread_read", _raise)
+    monkeypatch.setattr("corvix.web.actions.GitHubNotificationsClient.mark_thread_read", _raise)
 
     response = configured_client.post("/api/v1/notifications/primary/123/mark-read")
 
@@ -766,7 +769,7 @@ def test_mark_read_token_env_error_returns_500(
     configured_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("corvix.web.app.get_env_value", _raise_bad_env)
+    monkeypatch.setattr("corvix.web.actions.get_env_value", _raise_bad_env)
 
     response = configured_client.post("/api/v1/notifications/primary/123/mark-read")
 
@@ -1135,9 +1138,7 @@ class TestHealthAlias:
         assert alias_resp.status_code == v1_resp.status_code
         assert alias_resp.json() == v1_resp.json()
 
-    def test_health_alias_is_public_without_auth(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_health_alias_is_public_without_auth(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CORVIX_SECRET_TOKEN", _SECRET)
         monkeypatch.setenv("CORVIX_CONFIG", "/nonexistent/path/corvix.yaml")
         response = client.get("/api/health")
