@@ -1086,6 +1086,22 @@ class TestTokenAuth:
         with pytest.raises(_mw.SecretConfigError):
             _mw._get_secret()
 
+    def test_get_secret_raises_from_cache_on_repeated_calls_when_both_set(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The misconfigured state is itself cached, so a second call within the
+        TTL must raise without re-reading the environment.
+        """
+        self._set_both_token_env_vars(monkeypatch, tmp_path)
+        with pytest.raises(_mw.SecretConfigError):
+            _mw._get_secret()
+        # If _get_secret() re-read the environment now, it would return ""
+        # instead of raising — clearing both vars proves it hit the cache.
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("CORVIX_SECRET_TOKEN_FILE", raising=False)
+        with pytest.raises(_mw.SecretConfigError):
+            _mw._get_secret()
+
     def test_validate_secret_config_raises_when_both_set(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         self._set_both_token_env_vars(monkeypatch, tmp_path)
         with pytest.raises(RuntimeError, match="CORVIX_SECRET_TOKEN"):
