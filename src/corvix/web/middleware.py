@@ -13,6 +13,15 @@ When ``CORVIX_SECRET_TOKEN`` (or ``CORVIX_SECRET_TOKEN_FILE``) is set:
 When the environment variable is *not* set, the middleware is a no-op and the
 app behaves exactly as before (backward compatible).
 
+Fail-closed misconfiguration
+-----------------------------
+If both ``CORVIX_SECRET_TOKEN`` and ``CORVIX_SECRET_TOKEN_FILE`` are set,
+:func:`corvix.env.get_env_value` cannot determine which one wins.  This is
+treated as a hard misconfiguration, never as "auth disabled": the app
+refuses to start (see ``_validate_secret_config`` in ``corvix.web.app``),
+and as defense in depth this middleware also rejects every non-public
+request with ``500`` instead of passing it through.
+
 HTTPS detection
 ---------------
 The ``corvix_session`` cookie is marked ``Secure`` only when the request
@@ -56,9 +65,7 @@ SESSION_MAX_AGE_SECONDS: int = 24 * 60 * 60  # 24 hours
 # Both the versioned (/api/v1/health) and the deprecated (/api/health) health
 # endpoints are always public so container health checks never need credentials.
 # ``/metrics`` is public so Prometheus can scrape without credentials.
-_PUBLIC_EXACT: frozenset[str] = frozenset(
-    {"/api/health", "/api/v1/health", "/metrics", "/login", "/logout", "/assets"}
-)
+_PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/api/v1/health", "/metrics", "/login", "/logout", "/assets"})
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/",)
 
 # ---------------------------------------------------------------------------
@@ -120,9 +127,21 @@ def _parse_cookies(cookie_header: str) -> dict[str, str]:
 # Secret resolution with TTL cache
 # ---------------------------------------------------------------------------
 
+
+class SecretConfigError(RuntimeError):
+    """Raised when CORVIX_SECRET_TOKEN and CORVIX_SECRET_TOKEN_FILE are both set."""
+
+
+_MISCONFIGURED_MESSAGE = (
+    "CORVIX_SECRET_TOKEN misconfigured: both CORVIX_SECRET_TOKEN and "
+    "CORVIX_SECRET_TOKEN_FILE are set. Refusing to authenticate requests "
+    "(fail closed) until this is resolved."
+)
+
 _MISCONFIGURED: bool = False
 _SECRET_CACHE: tuple[float, str] | None = None
 _SECRET_CACHE_TTL: float = 60.0  # seconds
+_MISCONFIGURED_UNTIL: float = 0.0
 
 
 def _get_secret() -> str:
@@ -132,13 +151,19 @@ def _get_secret() -> str:
     using ``CORVIX_SECRET_TOKEN_FILE`` do not incur a synchronous disk read on
     every request.  A configuration change takes effect within one TTL window.
 
-    When both ``CORVIX_SECRET_TOKEN`` and ``CORVIX_SECRET_TOKEN_FILE`` are set
-    simultaneously, logs a warning *once* per process and returns an empty
-    string (auth disabled) to avoid flooding logs under load.
+    Raises:
+        SecretConfigError: when both ``CORVIX_SECRET_TOKEN`` and
+        ``CORVIX_SECRET_TOKEN_FILE`` are set. This is a hard failure — callers
+        must fail closed (deny the request) rather than treat it as "no auth
+        configured". Logs an error *once* per process to avoid flooding logs
+        under load; the misconfigured state is itself cached for the TTL so
+        repeated requests do not re-read the environment.
     """
-    global _MISCONFIGURED, _SECRET_CACHE  # noqa: PLW0603
+    global _MISCONFIGURED, _SECRET_CACHE, _MISCONFIGURED_UNTIL  # noqa: PLW0603
 
     now = time.monotonic()
+    if now < _MISCONFIGURED_UNTIL:
+        raise SecretConfigError(_MISCONFIGURED_MESSAGE)
     if _SECRET_CACHE is not None and now - _SECRET_CACHE[0] < _SECRET_CACHE_TTL:
         return _SECRET_CACHE[1]
 
@@ -146,11 +171,11 @@ def _get_secret() -> str:
         value = get_env_value("CORVIX_SECRET_TOKEN") or ""
     except ValueError:
         if not _MISCONFIGURED:
-            logger.warning(
-                "CORVIX_SECRET_TOKEN misconfigured (both direct and _FILE set); auth disabled."
-            )
+            logger.error(_MISCONFIGURED_MESSAGE)
             _MISCONFIGURED = True
-        value = ""
+        _SECRET_CACHE = None
+        _MISCONFIGURED_UNTIL = now + _SECRET_CACHE_TTL
+        raise SecretConfigError(_MISCONFIGURED_MESSAGE) from None
 
     _SECRET_CACHE = (now, value)
     return value
@@ -173,36 +198,48 @@ def _is_public(path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-async def _send_json_401(send: Send) -> None:
-    """Send a minimal JSON 401 Unauthorized response via ASGI."""
-    body = b'{"detail":"Unauthorized"}'
+_ASGI_RESPONSE_START = "http.response.start"
+_ASGI_RESPONSE_BODY = "http.response.body"
+
+
+async def _send_asgi_response(send: Send, status: int, body: bytes, headers: list[tuple[bytes, bytes]]) -> None:
+    """Send a complete ASGI HTTP response (start + body events)."""
     await send(
         {
-            "type": "http.response.start",
-            "status": 401,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"www-authenticate", b'Bearer realm="Corvix"'),
-                (b"content-length", str(len(body)).encode()),
-            ],
+            "type": _ASGI_RESPONSE_START,
+            "status": status,
+            "headers": [*headers, (b"content-length", str(len(body)).encode())],
         }
     )
-    await send({"type": "http.response.body", "body": body, "more_body": False})
+    await send({"type": _ASGI_RESPONSE_BODY, "body": body, "more_body": False})
+
+
+async def _send_json_401(send: Send) -> None:
+    """Send a minimal JSON 401 Unauthorized response via ASGI."""
+    await _send_asgi_response(
+        send,
+        401,
+        b'{"detail":"Unauthorized"}',
+        [
+            (b"content-type", b"application/json"),
+            (b"www-authenticate", b'Bearer realm="Corvix"'),
+        ],
+    )
+
+
+async def _send_json_500(send: Send) -> None:
+    """Send a minimal JSON 500 response for a misconfigured secret (fail closed)."""
+    await _send_asgi_response(
+        send,
+        500,
+        b'{"detail":"Server misconfigured: authentication secret is invalid"}',
+        [(b"content-type", b"application/json")],
+    )
 
 
 async def _send_redirect(send: Send, location: bytes) -> None:
     """Send a 302 redirect response via ASGI."""
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 302,
-            "headers": [
-                (b"location", location),
-                (b"content-length", b"0"),
-            ],
-        }
-    )
-    await send({"type": "http.response.body", "body": b"", "more_body": False})
+    await _send_asgi_response(send, 302, b"", [(b"location", location)])
 
 
 # ---------------------------------------------------------------------------
@@ -288,14 +325,21 @@ class TokenAuthMiddleware(ASGIMiddleware):
 
     async def handle(self, scope: Scope, receive: Receive, send: Send, next_app: ASGIApp) -> None:
         """Authenticate the request or pass it through."""
-        secret = _get_secret()
-        if not secret:
-            await next_app(scope, receive, send)
-            return
-
         path: str = scope["path"]
 
         if _is_public(path):
+            await next_app(scope, receive, send)
+            return
+
+        try:
+            secret = _get_secret()
+        except SecretConfigError:
+            # Fail closed: a misconfigured secret must never be treated as
+            # "auth disabled" for a route that isn't already public.
+            await _send_json_500(send)
+            return
+
+        if not secret:
             await next_app(scope, receive, send)
             return
 
