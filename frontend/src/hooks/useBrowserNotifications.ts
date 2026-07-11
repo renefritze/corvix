@@ -141,8 +141,7 @@ export function useBrowserNotifications({
 	config,
 }: UseBrowserNotificationsOptions): UseBrowserNotificationsReturn {
 	const supported =
-		typeof globalThis.window !== "undefined" &&
-		"Notification" in globalThis.window;
+		globalThis.window !== undefined && "Notification" in globalThis.window;
 
 	const getPermission = (): NotifPermission => {
 		if (!supported) return "unsupported";
@@ -162,7 +161,7 @@ export function useBrowserNotifications({
 
 	// Subscribe to dedupe updates broadcast by other tabs.
 	useEffect(() => {
-		if (typeof globalThis.BroadcastChannel === "undefined") return;
+		if (globalThis.BroadcastChannel === undefined) return;
 		const channel = new globalThis.BroadcastChannel(SYNC_CHANNEL);
 		channelRef.current = channel;
 
