@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import TypeIs
+from typing import TypeIs, cast
 
 from corvix.domain import Notification
 from corvix.pipeline.base import JsonFetchClient
@@ -32,5 +32,5 @@ class GitHubThreadSubjectProvider:
             return notification
         subject_url = subject.get("url")
         if isinstance(subject_url, str) and subject_url:
-            return replace(notification, subject_url=subject_url)
+            return cast("Notification", replace(notification, subject_url=subject_url))
         return notification
