@@ -33,6 +33,18 @@ class WebPushTargetConfig:
 
 
 @dataclass(slots=True)
+class SlackTargetConfig:
+    """Config for the built-in Slack incoming-webhook target.
+
+    The webhook URL is read from ``webhook_url_env`` (also supports the
+    ``<VAR>_FILE`` convention) so the secret never lives in ``corvix.yaml``.
+    """
+
+    enabled: bool = False
+    webhook_url_env: str = "CORVIX_SLACK_WEBHOOK_URL"
+
+
+@dataclass(slots=True)
 class NotificationsDetectConfig:
     """Controls which records qualify for notification events."""
 
@@ -48,6 +60,7 @@ class NotificationsConfig:
     detect: NotificationsDetectConfig = field(default_factory=NotificationsDetectConfig)
     browser_tab: BrowserTabTargetConfig = field(default_factory=BrowserTabTargetConfig)
     web_push: WebPushTargetConfig = field(default_factory=WebPushTargetConfig)
+    slack: SlackTargetConfig = field(default_factory=SlackTargetConfig)
 
 
 def _parse_browser_tab(browser_raw: dict[str, object]) -> BrowserTabTargetConfig:
@@ -77,6 +90,7 @@ def _parse_notifications(value: object) -> NotificationsConfig:
     detect_raw = _ensure_map(notif.get("detect", {}), "notifications.detect")
     browser_raw = _ensure_map(notif.get("browser_tab", {}), "notifications.browser_tab")
     web_push_raw = _ensure_map(notif.get("web_push", {}), "notifications.web_push")
+    slack_raw = _ensure_map(notif.get("slack", {}), "notifications.slack")
     return NotificationsConfig(
         enabled=_get_bool(notif, "enabled", True, "notifications.enabled"),
         detect=NotificationsDetectConfig(
@@ -99,5 +113,14 @@ def _parse_notifications(value: object) -> NotificationsConfig:
                 "notifications.web_push.vapid_private_key_env",
             ),
             subject=_get_str(web_push_raw, "subject", "", "notifications.web_push.subject"),
+        ),
+        slack=SlackTargetConfig(
+            enabled=_get_bool(slack_raw, "enabled", False, "notifications.slack.enabled"),
+            webhook_url_env=_get_str(
+                slack_raw,
+                "webhook_url_env",
+                "CORVIX_SLACK_WEBHOOK_URL",
+                "notifications.slack.webhook_url_env",
+            ),
         ),
     )

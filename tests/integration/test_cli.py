@@ -4,18 +4,58 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 import corvix
 from corvix import cli
+from corvix.config import AppConfig, NotificationsConfig, SlackTargetConfig
 from corvix.domain import Notification, NotificationRecord
+from corvix.notifications.targets.slack import SlackTarget
 from tests.support.storage import JsonFileStorage
 
 
 def test_version() -> None:
     assert corvix.__version__
+
+
+def test_build_targets_constructs_slack_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORVIX_SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/abc")
+    config = AppConfig(notifications=NotificationsConfig(slack=SlackTargetConfig(enabled=True)))
+
+    targets = cli._build_targets(config)
+
+    assert len(targets) == 1
+    slack = targets[0]
+    assert isinstance(slack, SlackTarget)
+    assert slack.webhook_url == "https://hooks.slack.com/services/abc"
+
+
+def test_build_targets_warns_and_skips_slack_without_secret(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("CORVIX_SLACK_WEBHOOK_URL", raising=False)
+    config = AppConfig(notifications=NotificationsConfig(slack=SlackTargetConfig(enabled=True)))
+
+    with caplog.at_level("WARNING"):
+        targets = cli._build_targets(config)
+
+    assert targets == []
+    assert "CORVIX_SLACK_WEBHOOK_URL" in caplog.text
+
+
+def test_build_targets_empty_when_dispatch_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORVIX_SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/abc")
+    config = AppConfig(notifications=NotificationsConfig(enabled=False, slack=SlackTargetConfig(enabled=True)))
+
+    assert cli._build_targets(config) == []
+
+
+def test_build_targets_empty_for_default_config() -> None:
+    # Default config has slack disabled; only client-side browser delivery is active.
+    assert cli._build_targets(AppConfig()) == []
 
 
 def test_command_line_interface() -> None:
@@ -120,6 +160,89 @@ def test_poll_dry_run_with_mocked_github(tmp_path: Path, monkeypatch: pytest.Mon
     assert "Fetched: 0" in result.output
     assert "Actions executed: 0" in result.output
     assert cache_path.exists()
+
+
+def test_poll_dispatches_to_slack_target_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    config_path = tmp_path / "corvix.yaml"
+    cache_path = tmp_path / "notifications.json"
+    config_path.write_text(
+        f"""
+github:
+  token_env: GITHUB_TOKEN
+polling:
+  interval_seconds: 0
+  per_page: 10
+  max_pages: 1
+state:
+  cache_file: {cache_path}
+notifications:
+  enabled: true
+  slack:
+    enabled: true
+    webhook_url_env: CORVIX_SLACK_WEBHOOK_URL
+dashboards:
+  - name: triage
+    group_by: repository
+    sort_by: score
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setenv("CORVIX_SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/abc")
+
+    note = Notification(
+        thread_id="1",
+        repository="org/repo",
+        reason="mention",
+        subject_title="Please review",
+        subject_type="PullRequest",
+        unread=True,
+        updated_at=datetime.now(tz=UTC),
+        thread_url="https://api.github.com/notifications/threads/1",
+        web_url="https://github.com/org/repo/pull/1",
+    )
+
+    class FakeClient:
+        account_id = "primary"
+        account_label = "Primary"
+
+        def __init__(self, **_kwargs: object) -> None:
+            # Stub accepts production constructor kwargs used by CLI wiring.
+            pass
+
+        def fetch_notifications(self, _polling: object) -> list[Notification]:
+            return [note]
+
+        def mark_thread_read(self, _thread_id: str) -> None:
+            return
+
+        def dismiss_thread(self, _thread_id: str) -> None:
+            return
+
+        def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> dict[str, object]:
+            del url, timeout_seconds
+            return {"subject": {"url": None}}
+
+    monkeypatch.setattr(cli, "GitHubNotificationsClient", FakeClient)
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: JsonFileStorage(path=cache_path))
+
+    posted: list[bytes] = []
+
+    def _fake_urlopen(request: object, timeout: float = 5.0) -> object:
+        posted.append(request.data)  # type: ignore[attr-defined]
+        ctx = MagicMock()
+        ctx.__enter__ = lambda s: s
+        ctx.__exit__ = MagicMock(return_value=False)
+        return ctx
+
+    with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+        result = runner.invoke(cli.main, ["--config", str(config_path), "poll", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    # The newly-unread notification was dispatched to the configured Slack target.
+    assert len(posted) == 1
+    assert b"Please review" in posted[0]
 
 
 def test_watch_with_iterations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
