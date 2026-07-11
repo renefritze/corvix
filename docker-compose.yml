@@ -1,6 +1,4 @@
 ---
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -24,6 +22,8 @@ services:
   migrate:
     build:
       context: .
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     command: ["alembic", "upgrade", "head"]
     environment:
       DATABASE_URL_FILE: /run/secrets/database_url
@@ -40,6 +40,8 @@ services:
     build:
       context: .
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     # --proxy-headers tells uvicorn to trust X-Forwarded-Proto from a reverse
     # proxy, which lets Litestar's request.url.scheme reflect the real protocol
     # (used for the Secure cookie flag on /login).
@@ -65,7 +67,10 @@ services:
     # Load environment variables from a `.env` file (multiple named tokens allowed)
     env_file: .env
     ports:
-    - "8000:8000"
+    # Bound to loopback only: Corvix ships unauthenticated by default (see
+    # README Security section). To expose it beyond localhost, widen this to
+    # "0.0.0.0:8000:8000" deliberately and set CORVIX_SECRET_TOKEN first.
+    - "127.0.0.1:8000:8000"
     volumes:
     - ./config:/app/config
     depends_on:
@@ -89,6 +94,8 @@ services:
     build:
       context: .
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     command:
     - corvix
     - --config
