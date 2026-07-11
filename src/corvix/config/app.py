@@ -139,12 +139,6 @@ polling:
   # Restrict results to threads you participate in when true.
   participating: false
 
-# Legacy JSON cache path. Notifications are now stored in PostgreSQL (required);
-# this path is only read by the one-shot `corvix migrate-cache` upgrade command.
-state:
-  # Legacy JSON cache path, used solely by `corvix migrate-cache`.
-  cache_file: ~/.cache/corvix/notifications.json
-
 # Priority scoring model used when sort_by=score.
 scoring:
   # Points added to unread notifications.

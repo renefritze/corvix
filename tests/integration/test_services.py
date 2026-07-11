@@ -27,8 +27,8 @@ from corvix.config import (
 from corvix.domain import AccountError, Notification, PollerStatus
 from corvix.notifications.models import DeliveryResult, NotificationEvent
 from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
-from corvix.storage import NotificationCache
 from corvix.types import JsonValue
+from tests.support.storage import JsonFileStorage
 
 EXPECTED_FETCHED = 2
 EXPECTED_EXCLUDED = 1
@@ -141,7 +141,7 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     client = FakeClient(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summary = run_poll_cycle(
         PollCycleInput(
@@ -168,7 +168,7 @@ def test_poll_cycle_applies_actions_and_persists_cache(tmp_path: Path) -> None:
 def test_poll_cycle_requires_at_least_one_client(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     with pytest.raises(ValueError, match="At least one notifications client"):
         run_poll_cycle(PollCycleInput(config=config, cache=cache))
@@ -179,7 +179,7 @@ def test_poll_cycle_dispatches_only_new_unread_non_excluded_notifications(tmp_pa
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     client = FakeClient(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
     target = RecordingTarget()
 
     summary = run_poll_cycle(
@@ -205,7 +205,7 @@ def test_poll_cycle_reports_missing_account_client(tmp_path: Path) -> None:
     notifications = _build_notifications(now)
     notifications[1] = replace(notifications[1], account_id="secondary", account_label="Secondary")
     client = FakeClient(notifications)
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summary = run_poll_cycle(
         PollCycleInput(
@@ -240,7 +240,7 @@ def test_poll_cycle_persists_dismissed_records(tmp_path: Path) -> None:
         ]
     )
     client = FakeClientWithDismiss(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summary = run_poll_cycle(
         PollCycleInput(
@@ -269,7 +269,7 @@ def test_dashboard_renders_from_cached_records(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     client = FakeClient(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     run_poll_cycle(
         PollCycleInput(
@@ -299,7 +299,7 @@ def test_no_filters_dashboard_renders_excluded_cached_records(tmp_path: Path) ->
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     client = FakeClient(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     run_poll_cycle(
         PollCycleInput(
@@ -395,7 +395,7 @@ def test_poll_with_global_and_repository_rules(tmp_path: Path) -> None:
             ),
         ]
     )
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summary = run_poll_cycle(
         PollCycleInput(
@@ -423,7 +423,7 @@ def test_poll_then_dismiss_then_render_excludes_notification(tmp_path: Path) -> 
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     client = FakeClient(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     run_poll_cycle(
         PollCycleInput(
@@ -478,7 +478,7 @@ def test_poll_cycle_hydrates_web_urls_with_thread_subject_fallback(tmp_path: Pat
             },
         },
     )
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     run_poll_cycle(
         PollCycleInput(
@@ -499,7 +499,7 @@ def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     client = FakeClient(_build_notifications(now))
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summaries = run_watch_loop(
         PollCycleInput(
@@ -518,7 +518,7 @@ def test_watch_loop_runs_n_iterations(tmp_path: Path) -> None:
 def test_watch_loop_persists_error_status_when_poll_cycle_fails(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summaries = run_watch_loop(
         PollCycleInput(
@@ -539,7 +539,7 @@ def test_watch_loop_persists_error_status_when_poll_cycle_fails(tmp_path: Path) 
 def test_watch_loop_preserves_account_errors_on_full_cycle_failure(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
     account_error = AccountError(account_id="acct-1", account_label="Acct One", error="boom")
     cache.save_status(PollerStatus(status="ok", account_errors=(account_error,)))
 
@@ -563,12 +563,12 @@ def test_watch_loop_falls_back_when_previous_status_cannot_be_loaded(
 ) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     def _raise_load_status(*_args: object, **_kwargs: object) -> None:
         raise ValueError("corrupt cache")
 
-    monkeypatch.setattr(NotificationCache, "load_status", _raise_load_status)
+    monkeypatch.setattr(JsonFileStorage, "load_status", _raise_load_status)
 
     run_watch_loop(
         PollCycleInput(
@@ -593,12 +593,12 @@ def test_watch_loop_logs_warning_when_error_status_cannot_be_persisted(
 ) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     def _raise_save_status(*_args: object, **_kwargs: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr(NotificationCache, "save_status", _raise_save_status)
+    monkeypatch.setattr(JsonFileStorage, "save_status", _raise_save_status)
 
     with caplog.at_level("WARNING"):
         summaries = run_watch_loop(
@@ -642,7 +642,7 @@ def test_poll_cycle_enrichment_failure_is_fail_open(tmp_path: Path) -> None:
             }
         },
     )
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summary = run_poll_cycle(
         PollCycleInput(
@@ -694,7 +694,7 @@ def test_poll_cycle_pr_state_provider_included_when_enabled(tmp_path: Path) -> N
             },
         },
     )
-    cache = NotificationCache(path=cache_path)
+    cache = JsonFileStorage(path=cache_path)
 
     summary = run_poll_cycle(
         PollCycleInput(

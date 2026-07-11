@@ -12,11 +12,11 @@ from litestar.exceptions import HTTPException
 from litestar.response import ServerSentEvent, ServerSentEventMessage
 
 from corvix.config import load_config
-from corvix.storage import NotificationCache
 from corvix.web import sse
 from corvix.web.app import app
 from corvix.web.sse import _snapshot_event_generator, _sse_poll_interval
 from corvix.web.storage_provider import set_storage_backend
+from tests.support.storage import JsonFileStorage
 
 
 async def _drain(
@@ -251,7 +251,7 @@ dashboards:
         encoding="utf-8",
     )
     monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
-    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
+    set_storage_backend(JsonFileStorage(path=load_config(config_file).resolve_cache_file()))
     try:
         yield
     finally:

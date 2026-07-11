@@ -27,10 +27,10 @@ import pytest
 from litestar.testing import TestClient
 
 from corvix.config import load_config
-from corvix.storage import NotificationCache
 from corvix.web.app import app
 from corvix.web.schemas import RuleSnippetsResponse, SnapshotResponse
 from corvix.web.storage_provider import set_storage_backend
+from tests.support.storage import JsonFileStorage
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _OPENAPI_PATH = _REPO_ROOT / "frontend" / "openapi.json"
@@ -119,7 +119,7 @@ dashboards:
         encoding="utf-8",
     )
     monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
-    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
+    set_storage_backend(JsonFileStorage(path=load_config(config_file).resolve_cache_file()))
     return TestClient(app)
 
 

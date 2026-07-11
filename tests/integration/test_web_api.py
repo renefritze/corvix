@@ -14,12 +14,12 @@ from litestar.testing import TestClient
 
 import corvix.web.middleware as _mw
 from corvix.config import load_config
-from corvix.storage import NotificationCache
 from corvix.web.app import _validate_secret_config, app
 from corvix.web.assets import INDEX_HTML
 from corvix.web.middleware import _verify_session_cookie
 from corvix.web.routes_api import THEMES
 from corvix.web.storage_provider import set_storage_backend
+from tests.support.storage import JsonFileStorage
 
 
 @pytest.fixture(autouse=True)
@@ -67,7 +67,7 @@ dashboards:
         encoding="utf-8",
     )
     monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
-    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
+    set_storage_backend(JsonFileStorage(path=load_config(config_file).resolve_cache_file()))
     return TestClient(app)
 
 
@@ -138,7 +138,7 @@ dashboards:
         encoding="utf-8",
     )
     monkeypatch.setenv("CORVIX_CONFIG", str(config_file))
-    set_storage_backend(NotificationCache(path=load_config(config_file).resolve_cache_file()))
+    set_storage_backend(JsonFileStorage(path=load_config(config_file).resolve_cache_file()))
     return TestClient(app)
 
 
