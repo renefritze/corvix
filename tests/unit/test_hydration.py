@@ -49,10 +49,12 @@ class _FakeClient(JsonFetchClient):
         self,
         responses: dict[str, JsonValue],
         api_base_url: str = "https://api.example.com",
+        account_id: str = "primary",
     ) -> None:
         self.responses = responses
         self.calls: list[str] = []
         self.api_base_url = api_base_url
+        self.account_id = account_id
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
@@ -65,10 +67,12 @@ class _FakeRaiseClient(JsonFetchClient):
         self,
         exc: Exception | None = None,
         api_base_url: str = "https://api.example.com",
+        account_id: str = "primary",
     ) -> None:
         self.calls: list[str] = []
         self._exc = exc or RuntimeError("simulated failure")
         self.api_base_url = api_base_url
+        self.account_id = account_id
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
