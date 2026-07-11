@@ -263,20 +263,16 @@ def _read_health_poller_status() -> PollerStatus | dict[str, object]:
         return {"status": "unhealthy", "reason": "storage_unavailable"}
 
 
-_DEPRECATION_HEADER = "Deprecation"
-_DEPRECATION_HEADER_VALUE = "true"
-
-
 # ---------------------------------------------------------------------------
 # Implementation helpers
 # These plain (non-decorated) functions contain the business logic shared
-# between the versioned /api/v1/ route handlers and the deprecated /api/
-# backward-compat wrappers.  Never call the decorated Litestar route handlers
-# directly — use these helpers instead.
+# between the versioned ``/api/v1/`` route handlers and the unversioned
+# ``/api/health`` container-healthcheck alias.  Never call the decorated
+# Litestar route handlers directly — use these helpers instead.
 # ---------------------------------------------------------------------------
 
 
-def _health_impl(extra_headers: dict[str, str] | None = None) -> Response[dict[str, object]]:
+def _health_impl() -> Response[dict[str, object]]:
     """Compute and return the health check response."""
     poller_status = _read_health_poller_status()
     payload: dict[str, object]
@@ -297,7 +293,6 @@ def _health_impl(extra_headers: dict[str, str] | None = None) -> Response[dict[s
         content=payload,
         status_code=int(status_code),
         media_type="application/json",
-        headers=extra_headers,
     )
 
 
@@ -596,86 +591,19 @@ def mark_notification_read(account_id: str, thread_id: str) -> Response[None]:
 
 
 # ---------------------------------------------------------------------------
-# Deprecated /api/ routes — kept for backward compatibility during transition.
-# All routes below mirror their /api/v1/ counterparts but include a
-# ``Deprecation: true`` response header (RFC 8594). Clients should migrate to
-# the /api/v1/ equivalents. These routes will be removed in a future release.
+# /api/health — unversioned container-healthcheck alias (kept intentionally)
 # ---------------------------------------------------------------------------
-
-_DEPRECATED_HEADERS = {_DEPRECATION_HEADER: _DEPRECATION_HEADER_VALUE}
+# docker-compose's healthcheck (and the e2e/Lighthouse harnesses) probe
+# ``/api/health``.  It is a stable, always-public alias of ``/api/v1/health``
+# kept so those container checks need not track the API version.  Every other
+# unversioned ``/api/*`` alias was removed (see issue #127); the frontend uses
+# ``/api/v1/*`` exclusively.
 
 
 @get("/api/health")
-def health_deprecated() -> Response[dict[str, object]]:
-    """Deprecated: use /api/v1/health."""
-    return _health_impl(extra_headers=_DEPRECATED_HEADERS)
-
-
-@get("/api/themes", sync_to_thread=False)
-def api_themes_deprecated() -> Response[dict[str, object]]:
-    """Deprecated: use /api/v1/themes."""
-    return Response(content={"themes": THEMES}, headers=_DEPRECATED_HEADERS)
-
-
-@get("/api/dashboards")
-def dashboards_deprecated() -> Response[dict[str, object]]:
-    """Deprecated: use /api/v1/dashboards."""
-    config = _load_runtime_config()
-    names = _dashboard_names(config.dashboards)
-    return Response(content={"dashboard_names": names}, headers=_DEPRECATED_HEADERS)
-
-
-@get("/api/snapshot")
-def snapshot_deprecated(dashboard: str | None = None) -> Response[SnapshotResponse]:
-    """Deprecated: use /api/v1/snapshot."""
-    return Response(content=_snapshot_impl(dashboard=dashboard), headers=_DEPRECATED_HEADERS)
-
-
-@get("/api/notifications/{account_id:str}/{thread_id:str}/rule-snippets")
-def notification_rule_snippets_deprecated(
-    account_id: str,
-    thread_id: str,
-    dashboard: str | None = None,
-) -> Response[RuleSnippetsResponse]:
-    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/rule-snippets."""
-    return Response(
-        content=_notification_rule_snippets_impl(
-            account_id=account_id,
-            thread_id=thread_id,
-            dashboard=dashboard,
-        ),
-        headers=_DEPRECATED_HEADERS,
-    )
-
-
-@post("/api/notifications/{account_id:str}/{thread_id:str}/dismiss", sync_to_thread=True)
-def dismiss_notification_deprecated(account_id: str, thread_id: str) -> Response[None]:
-    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/dismiss."""
-    _dismiss_notification_impl(account_id=account_id, thread_id=thread_id)
-    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
-
-
-@post("/api/notifications/{thread_id:str}/dismiss", sync_to_thread=True)
-def dismiss_notification_default_account(thread_id: str) -> Response[None]:
-    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/dismiss."""
-    config = _load_runtime_config()
-    _dismiss_notification_impl(account_id=_default_account_id(config), thread_id=thread_id)
-    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
-
-
-@post("/api/notifications/{account_id:str}/{thread_id:str}/mark-read", sync_to_thread=True)
-def mark_notification_read_deprecated(account_id: str, thread_id: str) -> Response[None]:
-    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/mark-read."""
-    _mark_notification_read_impl(account_id=account_id, thread_id=thread_id)
-    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
-
-
-@post("/api/notifications/{thread_id:str}/mark-read", sync_to_thread=True)
-def mark_notification_read_default_account(thread_id: str) -> Response[None]:
-    """Deprecated: use /api/v1/notifications/{account_id}/{thread_id}/mark-read."""
-    config = _load_runtime_config()
-    _mark_notification_read_impl(account_id=_default_account_id(config), thread_id=thread_id)
-    return Response(content=None, status_code=204, headers=_DEPRECATED_HEADERS)
+def health_container() -> Response[dict[str, object]]:
+    """Unversioned health alias for container healthchecks; see ``/api/v1/health``."""
+    return _health_impl()
 
 
 def _dismiss_notification_impl(account_id: str, thread_id: str) -> Response[None]:
@@ -737,13 +665,6 @@ def _build_github_client(config: AppConfig, account: GitHubAccountConfig, token:
         api_base_url=account.api_base_url,
         request_timeout_seconds=config.polling.request_timeout_seconds,
     )
-
-
-def _default_account_id(config: AppConfig) -> str:
-    if not config.github.accounts:
-        msg = "No GitHub accounts configured."
-        raise HTTPException(status_code=500, detail=msg)
-    return config.github.accounts[0].id
 
 
 def _find_record(
@@ -1044,16 +965,8 @@ app = Litestar(
         notification_rule_snippets,
         dismiss_notification,
         mark_notification_read,
-        # /api/ — deprecated routes (backward compat; scheduled for removal)
-        health_deprecated,
-        api_themes_deprecated,
-        dashboards_deprecated,
-        snapshot_deprecated,
-        notification_rule_snippets_deprecated,
-        dismiss_notification_deprecated,
-        dismiss_notification_default_account,
-        mark_notification_read_deprecated,
-        mark_notification_read_default_account,
+        # /api/health — unversioned container-healthcheck alias (kept intentionally)
+        health_container,
         create_static_files_router(
             path="/assets",
             directories=[_STATIC_ASSETS_DIR],
