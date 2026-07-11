@@ -167,7 +167,7 @@ export function useBrowserNotifications({
 
 		const onMessage = (event: MessageEvent) => {
 			const data = event.data as Partial<SeenSyncMessage> | null;
-			if (!data || data.type !== "seen" || !Array.isArray(data.entries)) {
+			if (data?.type !== "seen" || !Array.isArray(data.entries)) {
 				return;
 			}
 			const seen = seenRef.current;
