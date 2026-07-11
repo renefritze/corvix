@@ -66,11 +66,12 @@ def storage(migrated_postgres_url: str) -> Generator[PostgresStorage]:
         yield pg_storage
 
 
-def _record(thread_id: str, score: float) -> NotificationRecord:
+def _record(thread_id: str, score: float, account_id: str = "primary") -> NotificationRecord:
     now = datetime.now(tz=UTC)
     return NotificationRecord(
         notification=Notification(
             thread_id=thread_id,
+            account_id=account_id,
             repository="org/repo",
             reason="mention",
             subject_title=f"Subject {thread_id}",
@@ -170,6 +171,54 @@ def test_mark_record_read_updates_unread_flag(storage: PostgresStorage) -> None:
 
     assert by_id["t1"].notification.unread is True
     assert by_id["t2"].notification.unread is False
+
+
+@pytest.mark.integration
+def test_prune_orphaned_records_removes_unconfigured_accounts(storage: PostgresStorage) -> None:
+    storage.save_records(
+        records=[
+            _record("t1", 1.0, account_id="primary"),
+            _record("t2", 2.0, account_id="work"),
+            _record("t3", 3.0, account_id="old-renamed"),
+        ],
+        generated_at=datetime.now(tz=UTC),
+    )
+
+    deleted = storage.prune_orphaned_records(["primary", "work"])
+
+    assert deleted == 1
+    _, loaded = storage.load_records()
+    assert {(r.notification.account_id, r.notification.thread_id) for r in loaded} == {
+        ("primary", "t1"),
+        ("work", "t2"),
+    }
+
+
+@pytest.mark.integration
+def test_prune_orphaned_records_preserves_configured_accounts_that_failed(storage: PostgresStorage) -> None:
+    # "work" produced no fresh records this cycle (a fetch failure), but it is
+    # still configured, so pruning against the full configured set keeps it.
+    storage.save_records(
+        records=[_record("t1", 1.0, account_id="primary"), _record("t2", 2.0, account_id="work")],
+        generated_at=datetime.now(tz=UTC),
+    )
+
+    deleted = storage.prune_orphaned_records(["primary", "work"])
+
+    assert deleted == 0
+    _, loaded = storage.load_records()
+    assert {r.notification.account_id for r in loaded} == {"primary", "work"}
+
+
+@pytest.mark.integration
+def test_prune_orphaned_records_empty_account_ids_is_noop(storage: PostgresStorage) -> None:
+    storage.save_records(records=[_record("t1", 1.0)], generated_at=datetime.now(tz=UTC))
+
+    deleted = storage.prune_orphaned_records([])
+
+    assert deleted == 0
+    _, loaded = storage.load_records()
+    assert [r.notification.thread_id for r in loaded] == ["t1"]
 
 
 @pytest.mark.integration

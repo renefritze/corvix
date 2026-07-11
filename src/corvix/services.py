@@ -151,6 +151,7 @@ def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
     )
     errors.extend(f"pipeline: {error}" for error in pipeline_result.errors)
     cycle_input.cache.save_records(records, current_time)
+    _prune_orphaned_records(cycle_input)
     cycle_input.cache.save_status(
         PollerStatus(
             status="ok",
@@ -170,6 +171,23 @@ def _run_poll_cycle(cycle_input: PollCycleInput) -> PollingSummary:
         errors=errors,
         dispatch=dispatch,
     )
+
+
+def _prune_orphaned_records(cycle_input: PollCycleInput) -> None:
+    """Delete stored records whose account is no longer configured.
+
+    Renaming or removing an ``accounts[].id`` in config otherwise leaves
+    permanent "zombie" rows: they clutter dashboards, inflate counts, and are
+    un-actionable in the UI (dismiss/mark-read 404 because the account no longer
+    resolves). Pruning keys off the *configured* account set, so an account that
+    merely failed to fetch this cycle is preserved — it is still configured.
+    """
+    account_ids = [account.id for account in cycle_input.config.github.accounts]
+    if not account_ids:
+        return
+    deleted = cycle_input.cache.prune_orphaned_records(account_ids)
+    if deleted:
+        logger.info("pruned orphaned notification records", extra={"deleted": deleted})
 
 
 def _resolve_active_clients(cycle_input: PollCycleInput) -> tuple[NotificationsClient, ...]:
