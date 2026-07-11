@@ -82,10 +82,18 @@ environment:
 
 **Deployment checklist:**
 
+- The default `docker-compose.yml` publishes the `web` service on
+  `127.0.0.1:8000` (loopback only), matching Corvix's single-user,
+  not-web-accessible deployment model. To expose it beyond localhost, widen
+  the `ports` mapping to `"0.0.0.0:8000:8000"` deliberately and set
+  `CORVIX_SECRET_TOKEN` first.
 - Set `CORVIX_SECRET_TOKEN` *or* restrict port 8000 to localhost and put a
   TLS-terminating reverse proxy (nginx, Caddy, Traefik) with its own access
   control in front.
 - The app does not enforce TLS itself; use a reverse proxy for HTTPS in production.
+- Containers run as a non-root user and drop all Linux capabilities
+  (`cap_drop: [ALL]`, `no-new-privileges:true`) for the `web`, `poller`, and
+  `migrate` services.
 
 ## Contributor Tooling
 
