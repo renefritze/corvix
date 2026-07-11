@@ -9,8 +9,8 @@ from typing import TypeIs
 from urllib.parse import ParseResult, quote, urlparse
 
 from corvix.domain import Notification
-from corvix.hydration.base import HydrationContext
 from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.provider import PipelineContext
 
 _MIN_API_REPO_SEGMENTS = 4
 _MIN_RESOURCE_SEGMENTS = 2
@@ -51,7 +51,7 @@ class GitHubWebUrlProvider:
     timeout_seconds: float = 10.0
     name: str = "github.web_url"
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> Notification:
+    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
         if notification.web_url is not None:
             return notification
         repo_base = notification.repository_url or f"https://github.com/{notification.repository}"
@@ -79,7 +79,7 @@ class GitHubWebUrlProvider:
     def _resolve_check_suite(
         self,
         client: JsonFetchClient,
-        ctx: HydrationContext,
+        ctx: PipelineContext,
         notification: Notification,
         repo_base: str,
     ) -> str | None:
@@ -134,7 +134,7 @@ class GitHubWebUrlProvider:
     def _resolve_check_suite_from_subject_url(
         self,
         client: JsonFetchClient,
-        ctx: HydrationContext,
+        ctx: PipelineContext,
         subject_url: str,
         repository: str,
     ) -> str | None:
@@ -162,7 +162,7 @@ class GitHubWebUrlProvider:
                     return html_url
         return None
 
-    def _resolve_release(self, client: JsonFetchClient, ctx: HydrationContext, subject_url: str) -> str | None:
+    def _resolve_release(self, client: JsonFetchClient, ctx: PipelineContext, subject_url: str) -> str | None:
         _, segments, repos_index = _parse_github_api_path(subject_url)
         if repos_index < 0 or len(segments) < repos_index + 5 or segments[repos_index + 3] != "releases":
             return None
