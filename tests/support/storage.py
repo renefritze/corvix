@@ -15,7 +15,7 @@ production class carried (tests are single-process, so neither is needed).
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -112,6 +112,23 @@ class JsonFileStorage:
             return replace(record, notification=replace(record.notification, unread=False))
 
         self._update_record(thread_id=thread_id, account_id=account_id, mutate=_mark)
+
+    def prune_orphaned_records(self, account_ids: Sequence[str]) -> int:
+        ids = list(account_ids)
+        if not ids:
+            return 0
+        generated_at, records = self._load() if self._exists() else (None, [])
+        kept = [record for record in records if record.notification.account_id in ids]
+        deleted = len(records) - len(kept)
+        if deleted == 0:
+            return 0
+        timestamp = generated_at if generated_at is not None else datetime.now(tz=UTC)
+        try:
+            existing_status: PollerStatus | None = self._load_status()
+        except (ValueError, OSError):
+            existing_status = None
+        self._write(records=kept, generated_at=timestamp, poller_status=existing_status)
+        return deleted
 
     def get_dismissed_notification_keys(self) -> list[str]:
         _, records = self.load()

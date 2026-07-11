@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -14,6 +15,8 @@ from corvix.config import (
     AppConfig,
     DashboardSpec,
     EnrichmentConfig,
+    GitHubAccountConfig,
+    GitHubConfig,
     GitHubLatestCommentEnrichmentConfig,
     GitHubPRStateEnrichmentConfig,
     MatchCriteria,
@@ -24,7 +27,7 @@ from corvix.config import (
     ScoringConfig,
     StateConfig,
 )
-from corvix.domain import AccountError, Notification, PollerStatus
+from corvix.domain import AccountError, Notification, NotificationRecord, PollerStatus
 from corvix.notifications.models import DeliveryResult, NotificationEvent
 from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.types import JsonValue
@@ -224,6 +227,66 @@ def test_poll_cycle_reports_missing_account_client(tmp_path: Path) -> None:
         "pipeline: No client found for account 'secondary'.",
     ]
     assert [record.notification.thread_id for record in records] == ["1"]
+
+
+class PruneRecordingStorage(JsonFileStorage):
+    """JsonFileStorage that records the account IDs prune is called with."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path=path)
+        self.prune_calls: list[list[str]] = []
+
+    def prune_orphaned_records(self, account_ids: Sequence[str]) -> int:
+        self.prune_calls.append(list(account_ids))
+        return super().prune_orphaned_records(account_ids)
+
+
+def test_poll_cycle_prunes_records_for_unconfigured_accounts(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    config.github = GitHubConfig(accounts=[GitHubAccountConfig(id="primary", label="Primary", token_env="GH")])
+    client = FakeClient(_build_notifications(now))
+    cache = PruneRecordingStorage(path=cache_path)
+
+    run_poll_cycle(PollCycleInput(config=config, client=client, cache=cache, apply_actions=False, now=now))
+
+    # The poll cycle prunes against the full configured account set.
+    assert cache.prune_calls == [["primary"]]
+
+
+def test_poll_cycle_skips_prune_when_no_accounts_configured(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)  # default GitHubConfig has no accounts
+    client = FakeClient(_build_notifications(now))
+    cache = PruneRecordingStorage(path=cache_path)
+
+    run_poll_cycle(PollCycleInput(config=config, client=client, cache=cache, apply_actions=False, now=now))
+
+    assert cache.prune_calls == []
+
+
+def test_json_storage_prune_removes_only_unconfigured_accounts(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    cache = JsonFileStorage(path=tmp_path / "notifications.json")
+    notifications = _build_notifications(now)
+    orphan = replace(notifications[0], thread_id="orphan", account_id="old", account_label="Old")
+    records = [
+        NotificationRecord(notification=notifications[0], score=1.0, excluded=False),
+        NotificationRecord(notification=orphan, score=1.0, excluded=False),
+    ]
+    cache.save(records, now)
+
+    deleted = cache.prune_orphaned_records(["primary"])
+
+    assert deleted == 1
+    _, remaining = cache.load()
+    assert [r.notification.account_id for r in remaining] == ["primary"]
+
+    # A no-op prune (nothing orphaned, and empty set) leaves the file untouched.
+    assert cache.prune_orphaned_records(["primary"]) == 0
+    assert cache.prune_orphaned_records([]) == 0
 
 
 def test_poll_cycle_persists_dismissed_records(tmp_path: Path) -> None:

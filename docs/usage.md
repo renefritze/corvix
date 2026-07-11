@@ -46,6 +46,11 @@ github:
 
 Single-account setups are valid by keeping a single account entry.
 
+Each account `id` is stored with every notification record and should be treated
+as permanent. Renaming or removing an `id` orphans that account's stored records;
+the poller prunes them on the next cycle (they are otherwise un-actionable in the
+UI, since dismiss/mark-read can no longer resolve the account).
+
 ### Enrichment
 
 Enable enrichment before rule evaluation:

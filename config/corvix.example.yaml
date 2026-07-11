@@ -3,7 +3,10 @@
 github:
   # One or more account entries; each account uses its own token env var.
   accounts:
-  # Stable account identifier stored with each notification record.
+  # Stable account identifier stored with each notification record. Treat this
+  # as permanent: renaming or removing an id prunes that account's stored
+  # notification records on the next poll cycle (they are otherwise
+  # un-actionable in the UI once the account no longer resolves).
   - id: primary
     # Human-readable label shown in UI/API payloads.
     label: Primary

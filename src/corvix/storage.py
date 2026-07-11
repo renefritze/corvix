@@ -7,6 +7,7 @@ the :class:`StorageBackend` protocol used across the app.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -59,6 +60,8 @@ class StorageBackend(Protocol):
     def dismiss_record(self, thread_id: str, account_id: str = "primary") -> None: ...
 
     def mark_record_read(self, thread_id: str, account_id: str = "primary") -> None: ...
+
+    def prune_orphaned_records(self, account_ids: Sequence[str]) -> int: ...
 
     def get_dismissed_notification_keys(self) -> list[str]: ...
 
@@ -364,6 +367,33 @@ class PostgresStorage:
                     (SINGLE_USER_ID, account_id, thread_id),
                 )
             conn.commit()
+
+    def prune_orphaned_records(self, account_ids: Sequence[str]) -> int:
+        """Delete records whose ``account_id`` is not in *account_ids*.
+
+        Used to clear rows left behind when an account is removed or its ``id``
+        is renamed in config: such records are un-actionable in the UI (their
+        account no longer resolves) and otherwise linger forever. *account_ids*
+        must be the full set of currently-configured account IDs; accounts that
+        merely failed to poll this cycle are still configured, so their rows are
+        preserved. Returns the number of rows deleted.
+
+        Passing an empty sequence is a no-op (it never deletes every record),
+        guarding against wiping the table if the configured account set is
+        momentarily unavailable.
+        """
+        ids = list(account_ids)
+        if not ids:
+            return 0
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM notification_records WHERE user_id = %s AND account_id <> ALL(%s)",
+                    (SINGLE_USER_ID, ids),
+                )
+                deleted = cur.rowcount
+            conn.commit()
+        return deleted
 
     def get_dismissed_notification_keys(self) -> list[str]:
         """Return account-scoped keys where dismissed=true."""
