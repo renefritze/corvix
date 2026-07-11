@@ -73,7 +73,7 @@ Corvix fetches GitHub notifications, scores and filters them via configurable ru
 - **`scoring.py`** — Pure function `score_notification()`. Weights for unread bonus, reason, repo, subject type, title keywords, and age decay.
 - **`rules.py`** — Pure function `evaluate_rules()`. Matches notifications against `MatchCriteria` (repo, reason, subject_type, title regex, unread, score, age). Rules can exclude from dashboards or trigger actions.
 - **`actions.py`** — `execute_actions()` runs rule-specified actions (`mark_read`, `dismiss`). Uses `MarkReadGateway`/`DismissGateway` protocols for testability. Default mode is dry-run; pass `apply_actions=True` to actually modify GitHub state.
-- **`storage.py`** — `NotificationCache`: reads/writes `list[NotificationRecord]` as JSON to `~/.cache/corvix/notifications.json`.
+- **`storage.py`** — `StorageBackend` protocol and `PostgresStorage`, the PostgreSQL-backed persistence shared by the poller and web service.
 - **`services.py`** — Orchestration: `run_poll_cycle()` wires fetch→enrichment→score→rules→actions→persist and optional notification dispatch; `run_watch_loop()` adds periodic scheduling; `render_cached_dashboards()` loads cache and renders without polling.
 - **`notifications/`** — Event detection and dispatch pipeline (`detector.py`, `dispatcher.py`, `models.py`, `targets/base.py`) for newly-unread notifications.
 - **`enrichment/`** — Enrichment engine and providers (`github_latest_comment`, `github_pr_state`) for context-aware rule matching.
@@ -81,7 +81,7 @@ Corvix fetches GitHub notifications, scores and filters them via configurable ru
 - **`presentation.py`** — Rich-based terminal rendering of dashboard groups.
 - **`web/app.py`** — Litestar app. Routes include `GET /`, `GET /dashboards/{dashboard_name}`, `GET /api/health`, `GET /api/themes`, `GET /api/dashboards`, `GET /api/snapshot`, `GET /api/events` (Server-Sent Events), and dismiss/mark-read POST endpoints. The UI subscribes to `/api/v1/events` and receives a pushed `snapshot` event only when the data changes; it falls back to 15s interval polling when SSE is unavailable. The server-side poll interval is configurable via `CORVIX_SSE_POLL_INTERVAL_SECONDS` (default 3s).
 - **`web/schemas.py`** — Typed response dataclasses (`SnapshotResponse`, `RuleSnippetsResponse`, …) that are the single source of truth for the JSON API shapes. Route handlers are annotated to return them, so Litestar auto-generates an OpenAPI document. `scripts/export_openapi.py` renders that document to `frontend/openapi.json` (**committed**; drift-checked in CI). `openapi-typescript` then generates `frontend/src/api-types.gen.ts` from it during `npm run build` — that file is generated, not committed (gitignored like the JS/CSS bundles). `frontend/src/types.ts` re-exports those types. Run `make gen-types` after changing the schemas and commit the updated `openapi.json`. `tests/unit/test_api_contract.py` verifies both the OpenAPI sync and that live responses conform to the schemas.
-- **`cli.py`** — Click CLI: `init-config`, `poll`, `watch`, `dashboard`, `serve`, `migrate-cache`.
+- **`cli.py`** — Click CLI: `init-config`, `poll`, `watch`, `dashboard`, `serve`, `poller-health`.
 
 ### Docker Compose
 

@@ -11,7 +11,7 @@ from click.testing import CliRunner
 import corvix
 from corvix import cli
 from corvix.domain import Notification, NotificationRecord
-from corvix.storage import NotificationCache
+from tests.support.storage import JsonFileStorage
 
 
 def test_version() -> None:
@@ -112,7 +112,7 @@ def test_poll_dry_run_with_mocked_github(tmp_path: Path, monkeypatch: pytest.Mon
             return
 
     monkeypatch.setattr(cli, "GitHubNotificationsClient", FakeClient)
-    monkeypatch.setattr(cli, "_build_storage", lambda _config: NotificationCache(path=cache_path))
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: JsonFileStorage(path=cache_path))
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "poll", "--dry-run"])
 
@@ -144,7 +144,7 @@ def test_watch_with_iterations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
             return
 
     monkeypatch.setattr(cli, "GitHubNotificationsClient", FakeClient)
-    monkeypatch.setattr(cli, "_build_storage", lambda _config: NotificationCache(path=cache_path))
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: JsonFileStorage(path=cache_path))
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "watch", "--iterations", "2"])
 
@@ -158,8 +158,8 @@ def test_dashboard_renders_cached_data(tmp_path: Path, monkeypatch: pytest.Monke
     config_path = tmp_path / "corvix.yaml"
     cache_path = tmp_path / "notifications.json"
     _write_config(config_path, cache_path)
-    NotificationCache(path=cache_path).save([_record("100")], generated_at=datetime.now(tz=UTC))
-    monkeypatch.setattr(cli, "_build_storage", lambda _config: NotificationCache(path=cache_path))
+    JsonFileStorage(path=cache_path).save([_record("100")], generated_at=datetime.now(tz=UTC))
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: JsonFileStorage(path=cache_path))
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "dashboard"])
 
@@ -172,8 +172,8 @@ def test_dashboard_named_filter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     config_path = tmp_path / "corvix.yaml"
     cache_path = tmp_path / "notifications.json"
     _write_config(config_path, cache_path, include_overview=True)
-    NotificationCache(path=cache_path).save([_record("100")], generated_at=datetime.now(tz=UTC))
-    monkeypatch.setattr(cli, "_build_storage", lambda _config: NotificationCache(path=cache_path))
+    JsonFileStorage(path=cache_path).save([_record("100")], generated_at=datetime.now(tz=UTC))
+    monkeypatch.setattr(cli, "_build_storage", lambda _config: JsonFileStorage(path=cache_path))
 
     result = runner.invoke(cli.main, ["--config", str(config_path), "dashboard", "--name", "triage"])
 

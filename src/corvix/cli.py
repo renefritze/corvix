@@ -12,7 +12,6 @@ import click
 from rich.console import Console
 
 from corvix.config import AppConfig, GitHubAccountConfig, PollingConfig, load_config, write_default_config
-from corvix.db import get_database_url
 from corvix.domain import parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
@@ -25,8 +24,6 @@ from corvix.services import (
     run_watch_loop,
 )
 from corvix.storage import (
-    NotificationCache,
-    PostgresStorage,
     StorageBackend,
     StorageConfigError,
     create_storage,
@@ -208,35 +205,6 @@ def serve_command(ctx: click.Context, host: str, port: int, reload: bool) -> Non
     environ["CORVIX_WEB_RELOAD"] = "true" if reload else "false"
 
     run_web()
-
-
-@main.command("migrate-cache")
-@click.pass_context
-def migrate_cache_command(ctx: click.Context) -> None:
-    """Import legacy JSON cache records into PostgreSQL.
-
-    Reads the cache file from the config, then upserts all records into the
-    PostgreSQL database using the DATABASE_URL (or the env var named in
-    config.database.url_env). This is a one-shot upgrade helper for installs
-    that still have a ``notifications.json`` file from older versions.
-    """
-    config_path = _config_path_from_context(ctx)
-    app_config = _load_app_config(config_path)
-    db_url = get_database_url(app_config.database.url_env)
-    if not db_url:
-        msg = f"Environment variable '{app_config.database.url_env}' is not set."
-        raise click.ClickException(msg)
-
-    cache = NotificationCache(path=app_config.resolve_cache_file())
-    generated_at, records = cache.load()
-    if not records:
-        click.echo("Cache is empty or not found — nothing to migrate.")
-        return
-
-    snapshot_time = generated_at if generated_at is not None else datetime.now(tz=UTC)
-    with PostgresStorage(connection_string=db_url) as storage:
-        storage.save_records(records=records, generated_at=snapshot_time)
-    click.echo(f"Migrated {len(records)} records.")
 
 
 @main.command("poller-health")

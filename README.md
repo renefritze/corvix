@@ -116,7 +116,7 @@ make lighthouse
 ## Platform Support
 
 - Corvix currently targets Linux/POSIX environments.
-- The legacy JSON cache (used only by `corvix migrate-cache`) relies on `fcntl` advisory file locks and is not supported on Windows.
+- Persistence is PostgreSQL-only; the poller and web service share a database.
 
 ## Features
 

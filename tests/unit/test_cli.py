@@ -271,31 +271,6 @@ def test_serve_command_sets_env_vars(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert cli.environ["CORVIX_WEB_RELOAD"] == "true"
 
 
-def test_migrate_cache_command_no_db_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    runner = CliRunner()
-    config_path = tmp_path / "corvix.yaml"
-    _write_config(config_path, tmp_path / "notifications.json")
-    monkeypatch.setattr(cli, "get_database_url", lambda *_: None)
-
-    result = runner.invoke(cli.main, ["--config", str(config_path), "migrate-cache"])
-
-    assert result.exit_code != 0
-    assert "Environment variable 'DATABASE_URL' is not set." in result.output
-
-
-def test_migrate_cache_command_empty_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    runner = CliRunner()
-    config_path = tmp_path / "corvix.yaml"
-    _write_config(config_path, tmp_path / "notifications.json")
-    monkeypatch.setattr(cli, "get_database_url", lambda *_: "postgresql://user:pass@localhost/db")
-    monkeypatch.setattr(cli.NotificationCache, "load", lambda *_: (datetime.now(tz=UTC), []))
-
-    result = runner.invoke(cli.main, ["--config", str(config_path), "migrate-cache"])
-
-    assert result.exit_code == 0
-    assert "nothing to migrate" in result.output
-
-
 def test_load_app_config_invalid_yaml(tmp_path: Path) -> None:
     config_path = tmp_path / "bad.yaml"
     config_path.write_text("github: []\n", encoding="utf-8")
