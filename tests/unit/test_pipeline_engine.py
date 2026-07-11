@@ -317,7 +317,8 @@ def test_clients_by_account_routes_to_correct_client() -> None:
     assert ("2", "https://b.example.com") in seen
 
 
-def test_missing_account_falls_back_to_default_client() -> None:
+def test_missing_account_is_skipped_and_recorded_as_error() -> None:
+    """A notification with no registered client is skipped and recorded as an error, not routed to another account's client."""
     n = _notification(thread_id="1", account_id="unknown")
     default_client = _FakeClient(responses={}, api_base_url="https://default.example.com")
     seen: list[str] = []
@@ -331,9 +332,13 @@ def test_missing_account_falls_back_to_default_client() -> None:
             return notification
 
     engine = PipelineEngine(providers=[_SpyProvider()])
-    _ = engine.run(notifications=[n], client=default_client, clients_by_account={"other-account": _FakeClient({})})
+    result = engine.run(
+        notifications=[n], client=default_client, clients_by_account={"other-account": _FakeClient({})}
+    )
 
-    assert seen == ["https://default.example.com"]
+    assert seen == []
+    assert result.notifications == [n]
+    assert result.errors == ["No client found for account 'unknown'."]
 
 
 # ---------------------------------------------------------------------------
