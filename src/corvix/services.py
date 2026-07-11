@@ -21,10 +21,6 @@ from corvix.domain import (
     format_timestamp,
     notification_key,
 )
-from corvix.enrichment.providers.github_latest_comment import GitHubLatestCommentProvider
-from corvix.enrichment.providers.github_pr_state import GitHubPRStateProvider
-from corvix.hydration.providers.github_thread_subject import GitHubThreadSubjectProvider
-from corvix.hydration.providers.github_web_url import GitHubWebUrlProvider
 from corvix.notifications.detector import detect_new_unread_events
 from corvix.notifications.dispatcher import NotificationDispatcher
 from corvix.notifications.models import DispatchResult
@@ -33,6 +29,10 @@ from corvix.observability import metrics, span
 from corvix.pipeline.base import JsonFetchClient
 from corvix.pipeline.engine import PipelineEngine
 from corvix.pipeline.provider import ContextProvider, FieldProvider
+from corvix.pipeline.providers.github_latest_comment import GitHubLatestCommentProvider
+from corvix.pipeline.providers.github_pr_state import GitHubPRStateProvider
+from corvix.pipeline.providers.github_thread_subject import GitHubThreadSubjectProvider
+from corvix.pipeline.providers.github_web_url import GitHubWebUrlProvider
 from corvix.presentation import DashboardRenderResult, render_dashboards
 from corvix.rules import evaluate_rules
 from corvix.scoring import score_notification

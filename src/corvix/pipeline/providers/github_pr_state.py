@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import TypeIs
 
 from corvix.domain import Notification
-from corvix.enrichment.base import EnrichmentContext, JsonFetchClient
+from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.provider import PipelineContext
 
 
 def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
@@ -24,7 +25,7 @@ class GitHubPRStateProvider:
         self,
         notification: Notification,
         client: JsonFetchClient,
-        ctx: EnrichmentContext,
+        ctx: PipelineContext,
     ) -> dict[str, object]:
         """Return pull-request state metadata under the provider namespace."""
         if notification.subject_type != "PullRequest" or not notification.subject_url:

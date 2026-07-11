@@ -6,8 +6,8 @@ from dataclasses import dataclass, replace
 from typing import TypeIs
 
 from corvix.domain import Notification
-from corvix.hydration.base import HydrationContext
 from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.provider import PipelineContext
 
 
 def _is_str_object_map(value: object) -> TypeIs[dict[str, object]]:
@@ -21,7 +21,7 @@ class GitHubThreadSubjectProvider:
     timeout_seconds: float = 10.0
     name: str = "github.thread_subject"
 
-    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: HydrationContext) -> Notification:
+    def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
         if notification.subject_url is not None or not notification.thread_url:
             return notification
         payload = ctx.get_json(client=client, url=notification.thread_url, timeout_seconds=self.timeout_seconds)

@@ -1,13 +1,14 @@
-"""Tests for hydration engine and providers."""
+"""Tests for the field-completion providers (thread-subject, web-url) via PipelineEngine."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 from corvix.domain import Notification
-from corvix.hydration.engine import HydrationEngine
-from corvix.hydration.providers.github_thread_subject import GitHubThreadSubjectProvider
-from corvix.hydration.providers.github_web_url import (
+from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.engine import PipelineEngine
+from corvix.pipeline.providers.github_thread_subject import GitHubThreadSubjectProvider
+from corvix.pipeline.providers.github_web_url import (
     GitHubWebUrlProvider,
     _build_actions_api_base,
     _match_check_suite_run,
@@ -15,7 +16,6 @@ from corvix.hydration.providers.github_web_url import (
     _parse_github_timestamp,
     map_subject_api_url_to_web,
 )
-from corvix.pipeline.base import JsonFetchClient
 from corvix.types import JsonValue
 
 
@@ -158,7 +158,7 @@ def test_hydration_uses_repository_url_for_direct_mapping() -> None:
         web_url=None,
         repository_url="https://ghe.example.com/org/repo",
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=_FakeClient(responses={}))
 
@@ -177,7 +177,7 @@ def test_hydration_thread_subject_then_check_suite_web_url() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -199,7 +199,7 @@ def test_hydration_release_web_url_from_api_payload() -> None:
             }
         }
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -221,7 +221,7 @@ def test_hydration_check_suite_enterprise_prefix() -> None:
         },
         api_base_url="https://ghe.example.com/api/v3",
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -241,7 +241,7 @@ def test_hydration_release_enterprise_prefix() -> None:
             }
         }
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -251,7 +251,7 @@ def test_hydration_release_enterprise_prefix() -> None:
 def test_hydration_fails_open_for_malformed_thread_payload() -> None:
     notification = _notification(thread_id="7", subject_type="CheckSuite", subject_url=None, web_url=None)
     client = _FakeClient(responses={"https://api.example.com/notifications/threads/7": []})
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -290,7 +290,7 @@ def test_hydration_check_suite_without_subject_url_resolves_exact_run() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -315,7 +315,7 @@ def test_hydration_check_suite_without_subject_url_falls_back_to_branch_page() -
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -353,7 +353,7 @@ def test_hydration_check_suite_attempt_title_matches_run_attempt() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -431,7 +431,7 @@ def test_build_actions_api_base_enterprise() -> None:
 
 def test_hydration_skips_when_web_url_already_set() -> None:
     notification = _notification(web_url="https://github.com/org/repo/pull/1")
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     engine.run(notifications=[notification], client=_FakeClient(responses={}))
 
@@ -450,7 +450,7 @@ def test_check_suite_subject_url_api_error_falls_to_fallback() -> None:
         subject_title="Docs workflow run failed for main branch",
     )
     raise_client = _FakeRaiseClient()
-    engine = HydrationEngine(
+    engine = PipelineEngine(
         providers=[GitHubWebUrlProvider()],
         max_requests_per_cycle=2,
     )
@@ -484,7 +484,7 @@ def test_check_suite_subject_url_not_check_suite_pattern() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -512,7 +512,7 @@ def test_check_suite_from_subject_url_non_dict_response() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -532,7 +532,7 @@ def test_check_suite_from_subject_url_empty_check_runs() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     engine.run(notifications=[notification], client=client)
 
@@ -548,7 +548,7 @@ def test_release_subject_url_not_release_pattern() -> None:
         subject_url="https://api.example.com/repos/org/repo/tags/v1.0",
         web_url=None,
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     engine.run(notifications=[notification], client=_FakeClient(responses={}))
 
@@ -566,7 +566,7 @@ def test_release_non_dict_response() -> None:
             "https://api.example.com/repos/org/repo/releases/123": ["not", "a", "dict"],
         }
     )
-    engine = HydrationEngine(providers=[GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubWebUrlProvider()])
 
     engine.run(notifications=[notification], client=client)
 
@@ -601,7 +601,7 @@ def test_enterprise_check_suite_fallback() -> None:
             },
         }
     )
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -620,7 +620,7 @@ def test_thread_subject_skips_when_subject_url_already_set() -> None:
         web_url=None,
     )
     client = _FakeClient(responses={})
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider(), GitHubWebUrlProvider()])
 
     engine.run(notifications=[notification], client=client)
 
@@ -634,7 +634,7 @@ def test_thread_subject_ignores_non_dict_subject_field() -> None:
             "https://api.example.com/notifications/threads/7": {"subject": "not-a-dict"},
         }
     )
-    engine = HydrationEngine(providers=[GitHubThreadSubjectProvider()])
+    engine = PipelineEngine(providers=[GitHubThreadSubjectProvider()])
 
     result = engine.run(notifications=[notification], client=client)
 
@@ -642,12 +642,12 @@ def test_thread_subject_ignores_non_dict_subject_field() -> None:
     assert notification.subject_url is None
 
 
-# -- HydrationEngine empty providers (line 33) --
+# -- PipelineEngine empty providers (line 33) --
 
 
 def test_engine_empty_providers_returns_empty_result() -> None:
     notification = _notification()
-    engine = HydrationEngine(providers=[])
+    engine = PipelineEngine(providers=[])
 
     result = engine.run(notifications=[notification], client=_FakeClient(responses={}))
 

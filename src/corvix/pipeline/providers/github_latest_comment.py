@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from typing import TypeIs
 
 from corvix.domain import Notification
-from corvix.enrichment.base import EnrichmentContext, JsonFetchClient
+from corvix.pipeline.base import JsonFetchClient
+from corvix.pipeline.provider import PipelineContext
 
 _TEST_REPORT_LINK_ONLY_RE = re.compile(r"^\[\s*Test report\s*\]\([^\s)]+\)$", re.IGNORECASE)
 
@@ -28,7 +29,7 @@ class GitHubLatestCommentProvider:
         self,
         notification: Notification,
         client: JsonFetchClient,
-        ctx: EnrichmentContext,
+        ctx: PipelineContext,
     ) -> dict[str, object]:
         """Return latest comment metadata under the provider namespace."""
         if notification.reason != "comment" or not notification.thread_url:
