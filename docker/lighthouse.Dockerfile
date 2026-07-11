@@ -15,7 +15,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates fonts-liberation dbus \
     && npm install -g @lhci/cli playwright \
     && playwright install --with-deps chromium \
-    && ln -sf "$(node -e "console.log(require('$(npm root -g)/playwright').chromium.executablePath())")" /usr/bin/chromium \
+    && ln -sf \
+    "$(node -e "console.log(require('$(npm root -g)/playwright').chromium.executablePath())")" \
+    /usr/bin/chromium \
     && test -x /usr/bin/chromium \
     && rm -rf /var/lib/apt/lists/*
 
