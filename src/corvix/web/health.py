@@ -44,11 +44,6 @@ def _health_check_staleness(last_poll_str: str) -> dict[str, object]:
     return {"status": "ok"}
 
 
-def _health_response(payload: dict[str, object]) -> Response[dict[str, object]]:
-    status_code = HTTPStatus.OK if payload.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
-    return Response(content=payload, status_code=status_code, media_type="application/json")
-
-
 def _read_health_poller_status() -> PollerStatus | dict[str, object]:
     """Resolve the poller status for the health check, or a failure payload."""
     try:
@@ -69,7 +64,15 @@ def _read_health_poller_status() -> PollerStatus | dict[str, object]:
 
 
 def _health_impl() -> Response[dict[str, object]]:
-    """Compute and return the health check response."""
+    """Compute and return the health check response.
+
+    Both health endpoints are always public (issue #131), even when
+    ``CORVIX_SECRET_TOKEN`` is set, so the response body is trimmed to a bare
+    ``{"status": ...}`` — no ``reason``, ``detail``, or other internals that
+    could leak service state to an unauthenticated caller. The full detail
+    (``poller_status.last_error``, per-account errors, ...) remains available
+    to authenticated clients via ``/api/v1/snapshot``.
+    """
     poller_status = _read_health_poller_status()
     payload: dict[str, object]
     if isinstance(poller_status, dict):
@@ -84,9 +87,10 @@ def _health_impl() -> Response[dict[str, object]]:
             payload = {"status": "unhealthy", "reason": "invalid_poll_time"}
         else:
             payload = _health_check_staleness(last_poll_str)
-    status_code = HTTPStatus.OK if payload.get("status") == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
+    status = payload.get("status", "unhealthy")
+    status_code = HTTPStatus.OK if status == "ok" else HTTPStatus.SERVICE_UNAVAILABLE
     return Response(
-        content=payload,
+        content={"status": status},
         status_code=int(status_code),
         media_type="application/json",
     )
@@ -98,10 +102,11 @@ def health() -> Response[dict[str, object]]:
 
     Returns 200 with {"status": "ok"} when config and storage are readable,
     the poller is running, and the poller's last poll time is not stale.
+    Returns 503 with {"status": "unhealthy"} otherwise.
 
-    Returns 503 with {"status": "unhealthy"} and one of these reasons:
-    "config_unavailable", "storage_unavailable", "invalid_cache",
-    "poller_not_running", "poller_error", "invalid_poll_time", or "stale".
+    This endpoint is always public, so the response carries no further
+    detail; see the authenticated ``/api/v1/snapshot`` endpoint for
+    poller error detail.
     """
     return _health_impl()
 

@@ -2,10 +2,11 @@
 
 When ``CORVIX_SECRET_TOKEN`` (or ``CORVIX_SECRET_TOKEN_FILE``) is set:
 
-* ``/api/*`` routes (except ``/api/health``) require an
+* ``/api/*`` routes (except ``/api/health``) and ``/metrics`` require an
   ``Authorization: Bearer <token>`` or ``X-Corvix-Token: <token>`` header,
   **or** a valid ``corvix_session`` cookie (so the browser SPA works after
-  logging in via the web UI without needing to inject headers).
+  logging in via the web UI without needing to inject headers; Prometheus
+  scrape configs use the bearer-token form).
 * UI routes (``/``, ``/dashboards/*``) require a ``corvix_session`` cookie;
   requests without a valid cookie are redirected to ``/login``.
 * ``/api/health``, ``/assets/*``, ``/login``, and ``/logout`` are always public.
@@ -64,8 +65,10 @@ SESSION_MAX_AGE_SECONDS: int = 24 * 60 * 60  # 24 hours
 # making unrelated paths like /assets-private/ public.
 # Both the versioned (/api/v1/health) and the deprecated (/api/health) health
 # endpoints are always public so container health checks never need credentials.
-# ``/metrics`` is public so Prometheus can scrape without credentials.
-_PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/api/v1/health", "/metrics", "/login", "/logout", "/assets"})
+# ``/metrics`` is deliberately NOT here: when auth is enabled it requires the
+# same Bearer/X-Corvix-Token credentials as ``/api/*`` (see ``TokenAuthMiddleware``),
+# since it exposes route templates and request counts (issue #131).
+_PUBLIC_EXACT: frozenset[str] = frozenset({"/api/health", "/api/v1/health", "/login", "/logout", "/assets"})
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/assets/",)
 
 # ---------------------------------------------------------------------------
@@ -345,8 +348,8 @@ class TokenAuthMiddleware(ASGIMiddleware):
 
         raw_headers = _parse_request_headers(scope)
 
-        if path.startswith("/api/"):
-            # ----- API routes: Bearer/X-Corvix-Token header OR session cookie -----
+        if path.startswith("/api/") or path == "/metrics":
+            # ----- API routes (+ /metrics): Bearer/X-Corvix-Token header OR session cookie -----
             if not _check_api_auth(raw_headers, secret):
                 await _send_json_401(send)
                 return
