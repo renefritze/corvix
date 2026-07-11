@@ -11,10 +11,12 @@ import pytest
 from litestar.exceptions import HTTPException
 from litestar.response import ServerSentEvent, ServerSentEventMessage
 
-import corvix.web.app as web_app
 from corvix.config import load_config
 from corvix.storage import NotificationCache
-from corvix.web.app import _snapshot_event_generator, _sse_poll_interval, app, set_storage_backend
+from corvix.web import sse
+from corvix.web.app import app
+from corvix.web.sse import _snapshot_event_generator, _sse_poll_interval
+from corvix.web.storage_provider import set_storage_backend
 
 
 async def _drain(
@@ -41,15 +43,15 @@ def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _immediate(_seconds: float) -> None:
         await real_sleep(0)
 
-    monkeypatch.setattr(web_app.asyncio, "sleep", _immediate)
+    monkeypatch.setattr(sse.asyncio, "sleep", _immediate)
 
 
 @pytest.fixture(autouse=True)
 def _clear_snapshot_cache() -> Generator[None]:
     """Isolate the process-wide SSE body cache between tests."""
-    web_app._snapshot_body_cache.clear()
+    sse._snapshot_body_cache.clear()
     yield
-    web_app._snapshot_body_cache.clear()
+    sse._snapshot_body_cache.clear()
 
 
 # --- _sse_poll_interval ---
@@ -57,7 +59,7 @@ def _clear_snapshot_cache() -> Generator[None]:
 
 def test_sse_poll_interval_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CORVIX_SSE_POLL_INTERVAL_SECONDS", raising=False)
-    assert _sse_poll_interval() == pytest.approx(web_app._SSE_DEFAULT_POLL_INTERVAL_SECONDS)
+    assert _sse_poll_interval() == pytest.approx(sse._SSE_DEFAULT_POLL_INTERVAL_SECONDS)
 
 
 def test_sse_poll_interval_custom(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,7 +70,7 @@ def test_sse_poll_interval_custom(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize("raw", ["not-a-number", "0", "-2"])
 def test_sse_poll_interval_falls_back(raw: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORVIX_SSE_POLL_INTERVAL_SECONDS", raw)
-    assert _sse_poll_interval() == pytest.approx(web_app._SSE_DEFAULT_POLL_INTERVAL_SECONDS)
+    assert _sse_poll_interval() == pytest.approx(sse._SSE_DEFAULT_POLL_INTERVAL_SECONDS)
 
 
 # --- _snapshot_event_generator ---
@@ -78,9 +80,9 @@ def test_generator_pushes_only_on_change(monkeypatch: pytest.MonkeyPatch) -> Non
     bodies = iter(['{"name":"a"}', '{"name":"a"}', '{"name":"b"}'])
     # Patch the cached wrapper so each tick gets a fresh body (the real cache
     # would otherwise reuse the first build since no wall-clock time elapses).
-    monkeypatch.setattr(web_app, "_cached_snapshot_event_body", lambda _dashboard, _ttl: next(bodies))
+    monkeypatch.setattr(sse, "_cached_snapshot_event_body", lambda _dashboard, _ttl: next(bodies))
     # Force the keep-alive branch on the unchanged (second) tick.
-    monkeypatch.setattr(web_app, "_SSE_KEEPALIVE_SECONDS", -1.0)
+    monkeypatch.setattr(sse, "_SSE_KEEPALIVE_SECONDS", -1.0)
 
     messages = asyncio.run(_drain(_snapshot_event_generator("overview"), 3))
 
@@ -100,8 +102,8 @@ def test_generator_skips_keepalive_when_idle_window_not_elapsed(
     # neither push a snapshot nor emit a keep-alive, so the third (changed) tick
     # is the next message we receive.
     bodies = iter(['{"name":"a"}', '{"name":"a"}', '{"name":"b"}'])
-    monkeypatch.setattr(web_app, "_cached_snapshot_event_body", lambda _dashboard, _ttl: next(bodies))
-    monkeypatch.setattr(web_app, "_SSE_KEEPALIVE_SECONDS", 3600.0)
+    monkeypatch.setattr(sse, "_cached_snapshot_event_body", lambda _dashboard, _ttl: next(bodies))
+    monkeypatch.setattr(sse, "_SSE_KEEPALIVE_SECONDS", 3600.0)
 
     messages = asyncio.run(_drain(_snapshot_event_generator(None), 2))
 
@@ -114,7 +116,7 @@ def test_generator_emits_error_event_on_http_exception(monkeypatch: pytest.Monke
     def _boom(_dashboard: str | None) -> str:
         raise HTTPException(status_code=500, detail="config broken")
 
-    monkeypatch.setattr(web_app, "_snapshot_event_body", _boom)
+    monkeypatch.setattr(sse, "_snapshot_event_body", _boom)
 
     messages = asyncio.run(_drain(_snapshot_event_generator(None), 1))
 
@@ -129,7 +131,7 @@ def test_generator_reports_unexpected_error_without_leaking_detail(
     def _boom(_dashboard: str | None) -> str:
         raise RuntimeError("psycopg connection refused: host=secret-db")
 
-    monkeypatch.setattr(web_app, "_snapshot_event_body", _boom)
+    monkeypatch.setattr(sse, "_snapshot_event_body", _boom)
 
     messages = asyncio.run(_drain(_snapshot_event_generator(None), 1))
 
@@ -149,10 +151,10 @@ def test_cached_body_is_reused_within_ttl(monkeypatch: pytest.MonkeyPatch) -> No
         calls["n"] += 1
         return f'{{"build":{calls["n"]}}}'
 
-    monkeypatch.setattr(web_app, "_snapshot_event_body", _build)
+    monkeypatch.setattr(sse, "_snapshot_event_body", _build)
 
-    first = web_app._cached_snapshot_event_body("overview", ttl=100.0)
-    second = web_app._cached_snapshot_event_body("overview", ttl=100.0)
+    first = sse._cached_snapshot_event_body("overview", ttl=100.0)
+    second = sse._cached_snapshot_event_body("overview", ttl=100.0)
 
     # A single storage read is shared by both callers within the TTL window.
     assert first == second == '{"build":1}'
@@ -166,12 +168,12 @@ def test_cached_body_rebuilds_when_stale(monkeypatch: pytest.MonkeyPatch) -> Non
         calls["n"] += 1
         return f'{{"build":{calls["n"]}}}'
 
-    monkeypatch.setattr(web_app, "_snapshot_event_body", _build)
+    monkeypatch.setattr(sse, "_snapshot_event_body", _build)
 
     # ttl=0 means no cached entry is ever fresh (strict age < ttl), so every
     # call rebuilds -- this is the lone-client case that must not be slowed.
-    web_app._cached_snapshot_event_body("overview", ttl=0.0)
-    web_app._cached_snapshot_event_body("overview", ttl=0.0)
+    sse._cached_snapshot_event_body("overview", ttl=0.0)
+    sse._cached_snapshot_event_body("overview", ttl=0.0)
 
     assert calls["n"] == 2
 
@@ -183,10 +185,10 @@ def test_cached_body_is_keyed_by_dashboard(monkeypatch: pytest.MonkeyPatch) -> N
         calls["n"] += 1
         return json.dumps({"dashboard": dashboard})
 
-    monkeypatch.setattr(web_app, "_snapshot_event_body", _build)
+    monkeypatch.setattr(sse, "_snapshot_event_body", _build)
 
-    overview = web_app._cached_snapshot_event_body("overview", ttl=100.0)
-    triage = web_app._cached_snapshot_event_body("triage", ttl=100.0)
+    overview = sse._cached_snapshot_event_body("overview", ttl=100.0)
+    triage = sse._cached_snapshot_event_body("triage", ttl=100.0)
 
     # Distinct dashboards do not share a cache entry.
     assert json.loads(overview) == {"dashboard": "overview"}
@@ -203,7 +205,7 @@ def test_generator_recovers_after_error(monkeypatch: pytest.MonkeyPatch) -> None
             raise HTTPException(status_code=503, detail="storage down")
         return '{"name":"ok"}'
 
-    monkeypatch.setattr(web_app, "_snapshot_event_body", _flaky)
+    monkeypatch.setattr(sse, "_snapshot_event_body", _flaky)
 
     messages = asyncio.run(_drain(_snapshot_event_generator(None), 2))
 
@@ -219,7 +221,7 @@ def test_events_route_is_registered() -> None:
 
 def test_events_handler_returns_sse_response() -> None:
     """The route handler wraps the snapshot generator in an SSE response."""
-    response = asyncio.run(web_app.events.fn(dashboard="overview"))
+    response = asyncio.run(sse.events.fn(dashboard="overview"))
     assert isinstance(response, ServerSentEvent)
 
 
@@ -259,7 +261,7 @@ dashboards:
 @pytest.mark.usefixtures("_configured_storage")
 def test_snapshot_event_body_serializes_real_payload() -> None:
     """The body builder serializes a real snapshot to compact JSON."""
-    body = web_app._snapshot_event_body("overview")
+    body = sse._snapshot_event_body("overview")
     payload = json.loads(body)
     assert payload["name"] == "overview"
     assert "groups" in payload

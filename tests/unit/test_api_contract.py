@@ -28,8 +28,9 @@ from litestar.testing import TestClient
 
 from corvix.config import load_config
 from corvix.storage import NotificationCache
-from corvix.web.app import app, set_storage_backend
+from corvix.web.app import app
 from corvix.web.schemas import RuleSnippetsResponse, SnapshotResponse
+from corvix.web.storage_provider import set_storage_backend
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _OPENAPI_PATH = _REPO_ROOT / "frontend" / "openapi.json"

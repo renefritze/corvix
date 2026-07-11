@@ -9,7 +9,7 @@ from importlib.resources import files as resource_files
 
 import pytest
 
-import corvix.web.app as _web_app
+import corvix.web.runtime_config as _runtime_config
 
 pytest_plugins = [
     "tests.fixtures",
@@ -35,6 +35,6 @@ def _reset_runtime_config_cache() -> Generator[None]:
     bleed into subsequent tests that use a different ``CORVIX_CONFIG`` path,
     causing spurious passes or failures.
     """
-    _web_app._clear_config_cache()
+    _runtime_config._clear_config_cache()
     yield
-    _web_app._clear_config_cache()
+    _runtime_config._clear_config_cache()
