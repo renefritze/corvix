@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
-from cryptography.fernet import Fernet, InvalidToken
+
+if TYPE_CHECKING:
+    from cryptography.fernet import Fernet
 
 revision: str = "c3a1f2e9b8d0"
 down_revision: str | None = "6d0e5f9d2a1b"
@@ -22,7 +25,24 @@ depends_on: str | Sequence[str] | None = None
 
 
 def _get_fernet() -> Fernet:
-    """Return a Fernet instance from TOKEN_ENCRYPTION_KEY env var."""
+    """Return a Fernet instance from TOKEN_ENCRYPTION_KEY env var.
+
+    Imports ``cryptography`` lazily: a fresh install never populates
+    ``users.github_token``, so ``upgrade()`` never reaches this function and
+    the package no longer needs ``cryptography`` as a runtime dependency for
+    that common path. Only a legacy database with real plaintext tokens
+    requires it to be installed.
+    """
+    try:
+        from cryptography.fernet import Fernet  # noqa: PLC0415
+    except ImportError as exc:
+        msg = (
+            "This database has plaintext github_token values from a legacy install "
+            "and needs the 'cryptography' package installed to encrypt them: "
+            "pip install cryptography"
+        )
+        raise RuntimeError(msg) from exc
+
     key = os.environ.get("TOKEN_ENCRYPTION_KEY")
     if not key:
         # Also support Docker secret file convention handled by get_env_value,
@@ -61,6 +81,8 @@ def upgrade() -> None:
         # Fernet ciphertext always starts with the version byte 0x80, which
         # encodes to "gAAAAA" in URL-safe base64.
         if token.startswith("gAAAAA"):
+            from cryptography.fernet import InvalidToken  # noqa: PLC0415
+
             # Token looks already encrypted — verify it decrypts with the
             # current key so we catch a mismatched TOKEN_ENCRYPTION_KEY early
             # rather than leaving the database in a partially-migrated state.

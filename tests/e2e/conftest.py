@@ -18,7 +18,6 @@ from urllib.request import urlopen
 import pytest
 from alembic import command
 from alembic.config import Config
-from cryptography.fernet import Fernet
 
 from corvix.domain import NotificationRecord, PollerStatus, format_timestamp
 from corvix.storage import PostgresStorage
@@ -85,9 +84,7 @@ def _migrate_and_seed(sqlalchemy_url: str, psycopg_url: str) -> None:
     """Apply migrations and seed the single-user notification records."""
     alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
     previous_url = os.environ.get("DATABASE_URL")
-    previous_key = os.environ.get("TOKEN_ENCRYPTION_KEY")
     os.environ["DATABASE_URL"] = sqlalchemy_url
-    os.environ.setdefault("TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     try:
         command.upgrade(Config(str(alembic_ini)), "head")
     finally:
@@ -95,10 +92,6 @@ def _migrate_and_seed(sqlalchemy_url: str, psycopg_url: str) -> None:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous_url
-        if previous_key is None:
-            os.environ.pop("TOKEN_ENCRYPTION_KEY", None)
-        else:
-            os.environ["TOKEN_ENCRYPTION_KEY"] = previous_key
 
     records = [NotificationRecord.from_dict(item) for item in _RECORD_DICTS]
     now = datetime.now(tz=UTC)

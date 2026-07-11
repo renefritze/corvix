@@ -29,9 +29,6 @@ services:
       DATABASE_URL_FILE: /run/secrets/database_url
     secrets:
     - database_url
-    # Provides TOKEN_ENCRYPTION_KEY when upgrading a database that still holds
-    # plaintext github tokens (the encrypt-existing-tokens migration needs it).
-    env_file: .env
     depends_on:
       db:
         condition: service_healthy
