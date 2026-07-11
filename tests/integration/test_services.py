@@ -24,7 +24,7 @@ from corvix.config import (
     ScoringConfig,
     StateConfig,
 )
-from corvix.domain import Notification
+from corvix.domain import AccountError, Notification, PollerStatus
 from corvix.notifications.models import DeliveryResult, NotificationEvent
 from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.storage import NotificationCache
@@ -534,6 +534,56 @@ def test_watch_loop_persists_error_status_when_poll_cycle_fails(tmp_path: Path) 
     assert "At least one notifications client is required for polling." in summaries[0].errors[0]
     assert poller_status.status == "error"
     assert poller_status.last_error is not None
+
+
+def test_watch_loop_preserves_account_errors_on_full_cycle_failure(tmp_path: Path) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    cache = NotificationCache(path=cache_path)
+    account_error = AccountError(account_id="acct-1", account_label="Acct One", error="boom")
+    cache.save_status(PollerStatus(status="ok", account_errors=(account_error,)))
+
+    run_watch_loop(
+        PollCycleInput(
+            config=config,
+            cache=cache,
+            apply_actions=False,
+        ),
+        iterations=1,
+    )
+    poller_status = cache.load_status()
+
+    assert poller_status.status == "error"
+    assert poller_status.account_errors == (account_error,)
+
+
+def test_watch_loop_falls_back_when_previous_status_cannot_be_loaded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    cache = NotificationCache(path=cache_path)
+
+    def _raise_load_status(*_args: object, **_kwargs: object) -> None:
+        raise ValueError("corrupt cache")
+
+    monkeypatch.setattr(NotificationCache, "load_status", _raise_load_status)
+
+    run_watch_loop(
+        PollCycleInput(
+            config=config,
+            cache=cache,
+            apply_actions=False,
+        ),
+        iterations=1,
+    )
+    monkeypatch.undo()
+    poller_status = cache.load_status()
+
+    assert poller_status.status == "error"
+    assert poller_status.last_poll_time is None
+    assert poller_status.account_errors == ()
 
 
 def test_watch_loop_logs_warning_when_error_status_cannot_be_persisted(

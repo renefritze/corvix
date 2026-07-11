@@ -298,9 +298,12 @@ def _handle_cycle_error(iteration: int, cache: StorageBackend, runs: list[Pollin
     logger.exception("Poll cycle failed on iteration %d", iteration)
     runs.append(PollingSummary(fetched=0, excluded=0, actions_taken=0, errors=[error_msg]))
     try:
-        last_poll_time = cache.load_status().last_poll_time
+        previous_status = cache.load_status()
+        last_poll_time = previous_status.last_poll_time
+        account_errors = previous_status.account_errors
     except (OSError, ValueError):
         last_poll_time = None
+        account_errors = ()
     try:
         cache.save_status(
             PollerStatus(
@@ -308,6 +311,7 @@ def _handle_cycle_error(iteration: int, cache: StorageBackend, runs: list[Pollin
                 last_poll_time=last_poll_time,
                 last_error=error_msg,
                 last_error_time=format_timestamp(error_time),
+                account_errors=account_errors,
             ),
         )
     except Exception:
