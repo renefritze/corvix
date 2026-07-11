@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import TypeIs
+from typing import TypeIs, cast
 from urllib.parse import ParseResult, quote, urlparse
 
 from corvix.domain import Notification
@@ -62,7 +62,9 @@ class GitHubWebUrlProvider:
                 repo_base=repo_base,
             )
             if direct_url is not None:
-                return replace(notification, web_url=direct_url)
+                # cast: SonarPython infers replace() as DataclassInstance (S5886); ty
+                # already knows it is Notification, hence the redundant-cast ignore.
+                return cast("Notification", replace(notification, web_url=direct_url))  # ty: ignore[redundant-cast]
         if notification.subject_type == "CheckSuite":
             web_url = self._resolve_check_suite(
                 client=client,
