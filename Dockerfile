@@ -24,9 +24,8 @@ COPY src /app/src
 COPY config/corvix.example.yaml /app/config/corvix.example.yaml
 COPY --from=frontend-builder /src/corvix/web/static/assets /app/src/corvix/web/static/assets
 
-RUN uv sync --frozen --no-dev
-
-RUN useradd --system --no-create-home --shell /usr/sbin/nologin corvix \
+RUN uv sync --frozen --no-dev \
+    && useradd --system --no-create-home --shell /usr/sbin/nologin corvix \
     && chown -R corvix:corvix /app /opt/venv
 USER corvix
 
