@@ -19,7 +19,8 @@ from corvix.storage import PostgresStorage
 
 
 def main() -> int:
-    template = Path(os.environ["LH_TEMPLATE"])  # NOSONAR: path set by docker-compose, not user input
+    # LH_TEMPLATE is set by docker-compose, not user input.
+    template = Path(os.environ["LH_TEMPLATE"])  # NOSONAR
     payload = json.loads(template.read_text(encoding="utf-8"))
     raw_notifications = payload.get("notifications", []) if isinstance(payload, dict) else []
     records = [NotificationRecord.from_dict(item) for item in raw_notifications if isinstance(item, dict)]
