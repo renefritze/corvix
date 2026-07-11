@@ -40,7 +40,13 @@ from corvix.observability import configure_logging, setup_tracing
 from corvix.observability import metrics as _metrics
 from corvix.observability.middleware import ObservabilityMiddleware
 from corvix.storage import StorageBackend, StorageConfigError, create_storage
-from corvix.web.middleware import SESSION_MAX_AGE_SECONDS, TokenAuthMiddleware, _get_secret, _make_session_cookie
+from corvix.web.middleware import (
+    SESSION_MAX_AGE_SECONDS,
+    SecretConfigError,
+    TokenAuthMiddleware,
+    _get_secret,
+    _make_session_cookie,
+)
 from corvix.web.schemas import (
     AccountErrorResponse,
     PollerStatusResponse,
@@ -165,8 +171,16 @@ def _get_auth_secret() -> str:
 
     Using the shared implementation ensures consistent TTL caching, memoized
     misconfiguration logging, and ``_FILE`` support in one place.
+
+    Raises:
+        HTTPException: 500, when ``CORVIX_SECRET_TOKEN`` and
+        ``CORVIX_SECRET_TOKEN_FILE`` are both set. Fails closed rather than
+        treating the request as unauthenticated.
     """
-    return _get_secret()
+    try:
+        return _get_secret()
+    except SecretConfigError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 
 @get("/login", sync_to_thread=False)
@@ -1027,6 +1041,20 @@ def _configure_observability() -> None:
     setup_tracing(service_name="corvix-web")
 
 
+def _validate_secret_config() -> None:
+    """Refuse to start when the secret token env vars are misconfigured.
+
+    ``get_env_value`` cannot tell which of ``CORVIX_SECRET_TOKEN`` and
+    ``CORVIX_SECRET_TOKEN_FILE`` should win when both are set. Failing fast
+    here — rather than silently disabling auth at request time — is the
+    preferred fix for the fail-open anti-pattern described in issue #128.
+    """
+    try:
+        get_env_value("CORVIX_SECRET_TOKEN")
+    except ValueError as error:
+        raise RuntimeError(str(error)) from error
+
+
 app = Litestar(
     route_handlers=[
         index,
@@ -1061,7 +1089,7 @@ app = Litestar(
         ),
     ],
     middleware=[ObservabilityMiddleware(), TokenAuthMiddleware()],
-    on_startup=[_configure_observability],
+    on_startup=[_validate_secret_config, _configure_observability],
     compression_config=CompressionConfig(backend="gzip", minimum_size=500),
     openapi_config=OpenAPIConfig(
         title="Corvix API",
