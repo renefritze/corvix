@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
@@ -56,7 +55,8 @@ class SlackTarget:
         for event in events:
             try:
                 self._post(_format_message(event))
-            except (urllib.error.URLError, OSError, ValueError) as exc:
+            except (OSError, ValueError) as exc:
+                # urllib.error.URLError / HTTPError are OSError subclasses.
                 logger.warning("Slack delivery failed for thread %s: %s", event.thread_id, exc)
                 errors.append(f"{event.thread_id}: {exc}")
             else:
@@ -78,6 +78,7 @@ class SlackTarget:
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=self.timeout_seconds):
+            # A non-2xx status raises HTTPError (an OSError); the body is unused.
             pass
 
 

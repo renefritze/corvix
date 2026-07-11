@@ -208,6 +208,7 @@ dashboards:
         account_label = "Primary"
 
         def __init__(self, **_kwargs: object) -> None:
+            # Stub accepts production constructor kwargs used by CLI wiring.
             pass
 
         def fetch_notifications(self, _polling: object) -> list[Notification]:
