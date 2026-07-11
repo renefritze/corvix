@@ -17,14 +17,14 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "rich",
-    "packaging",
-    "typer",
-    "PyYAML",
-    "litestar",
-    "uvicorn",
+    "rich>=13.0",
+    "packaging>=24.0",
+    "click>=8.1",
+    "PyYAML>=6.0",
+    "litestar>=2.10",
+    "uvicorn>=0.30",
     "asyncpg>=0.31.0",
-    "cryptography",
+    "cryptography>=44.0.0",
     "psycopg[binary,pool]>=3.3.3",
     "alembic>=1.18.4",
     "prometheus-client>=0.21",
