@@ -198,52 +198,48 @@ def _is_public(path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-async def _send_json_401(send: Send) -> None:
-    """Send a minimal JSON 401 Unauthorized response via ASGI."""
-    body = b'{"detail":"Unauthorized"}'
+_ASGI_RESPONSE_START = "http.response.start"
+_ASGI_RESPONSE_BODY = "http.response.body"
+
+
+async def _send_asgi_response(send: Send, status: int, body: bytes, headers: list[tuple[bytes, bytes]]) -> None:
+    """Send a complete ASGI HTTP response (start + body events)."""
     await send(
         {
-            "type": "http.response.start",
-            "status": 401,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"www-authenticate", b'Bearer realm="Corvix"'),
-                (b"content-length", str(len(body)).encode()),
-            ],
+            "type": _ASGI_RESPONSE_START,
+            "status": status,
+            "headers": [*headers, (b"content-length", str(len(body)).encode())],
         }
     )
-    await send({"type": "http.response.body", "body": body, "more_body": False})
+    await send({"type": _ASGI_RESPONSE_BODY, "body": body, "more_body": False})
+
+
+async def _send_json_401(send: Send) -> None:
+    """Send a minimal JSON 401 Unauthorized response via ASGI."""
+    await _send_asgi_response(
+        send,
+        401,
+        b'{"detail":"Unauthorized"}',
+        [
+            (b"content-type", b"application/json"),
+            (b"www-authenticate", b'Bearer realm="Corvix"'),
+        ],
+    )
 
 
 async def _send_json_500(send: Send) -> None:
     """Send a minimal JSON 500 response for a misconfigured secret (fail closed)."""
-    body = b'{"detail":"Server misconfigured: authentication secret is invalid"}'
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 500,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode()),
-            ],
-        }
+    await _send_asgi_response(
+        send,
+        500,
+        b'{"detail":"Server misconfigured: authentication secret is invalid"}',
+        [(b"content-type", b"application/json")],
     )
-    await send({"type": "http.response.body", "body": body, "more_body": False})
 
 
 async def _send_redirect(send: Send, location: bytes) -> None:
     """Send a 302 redirect response via ASGI."""
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 302,
-            "headers": [
-                (b"location", location),
-                (b"content-length", b"0"),
-            ],
-        }
-    )
-    await send({"type": "http.response.body", "body": b"", "more_body": False})
+    await _send_asgi_response(send, 302, b"", [(b"location", location)])
 
 
 # ---------------------------------------------------------------------------
