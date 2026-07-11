@@ -40,10 +40,11 @@ def _notification(
 
 
 class _FakeClient(JsonFetchClient):
-    def __init__(self, responses: dict[str, JsonValue]) -> None:
+    def __init__(self, responses: dict[str, JsonValue], account_id: str = "primary") -> None:
         self.responses = responses
         self.calls: list[str] = []
         self.api_base_url = "https://api.example.com"
+        self.account_id = account_id
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)

@@ -42,10 +42,16 @@ def _notification(
 
 
 class _FakeClient:
-    def __init__(self, responses: dict[str, JsonValue], api_base_url: str = "https://api.example.com") -> None:
+    def __init__(
+        self,
+        responses: dict[str, JsonValue],
+        api_base_url: str = "https://api.example.com",
+        account_id: str = "primary",
+    ) -> None:
         self.responses = responses
         self.calls: list[str] = []
         self.api_base_url = api_base_url
+        self.account_id = account_id
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         del timeout_seconds
@@ -292,8 +298,8 @@ def test_multiple_notifications_all_processed() -> None:
 def test_clients_by_account_routes_to_correct_client() -> None:
     n1 = _notification(thread_id="1", account_id="account-a")
     n2 = _notification(thread_id="2", account_id="account-b")
-    client_a = _FakeClient(responses={}, api_base_url="https://a.example.com")
-    client_b = _FakeClient(responses={}, api_base_url="https://b.example.com")
+    client_a = _FakeClient(responses={}, api_base_url="https://a.example.com", account_id="account-a")
+    client_b = _FakeClient(responses={}, api_base_url="https://b.example.com", account_id="account-b")
     default_client = _FakeClient(responses={}, api_base_url="https://default.example.com")
 
     seen: list[tuple[str, str]] = []
@@ -315,6 +321,35 @@ def test_clients_by_account_routes_to_correct_client() -> None:
 
     assert ("1", "https://a.example.com") in seen
     assert ("2", "https://b.example.com") in seen
+
+
+def test_url_cache_is_scoped_per_account() -> None:
+    """The same URL fetched under two accounts must not share a cached payload.
+
+    Regression test for issue #123: the per-cycle URL cache used to be keyed by
+    URL alone, so whichever account's request landed first would have its
+    payload served to the other account's notification, even though each
+    account's client authenticates with its own token.
+    """
+    shared_url = "https://api.example.com/shared"
+    n1 = _notification(thread_id="1", account_id="account-a")
+    n2 = _notification(thread_id="2", account_id="account-b")
+    client_a = _FakeClient(responses={shared_url: {"url": "https://github.com/org/repo/issues/1"}}, account_id="account-a")
+    client_b = _FakeClient(responses={shared_url: {"url": "https://github.com/org/repo/issues/2"}}, account_id="account-b")
+
+    engine = PipelineEngine(providers=[_CachingFieldProvider()], max_requests_per_cycle=10)
+    result = engine.run(
+        notifications=[n1, n2],
+        client=client_a,
+        clients_by_account={"account-a": client_a, "account-b": client_b},
+    )
+
+    by_thread = {n.thread_id: n.web_url for n in result.notifications}
+    assert by_thread["1"] == "https://github.com/org/repo/issues/1"
+    assert by_thread["2"] == "https://github.com/org/repo/issues/2"
+    # Each account's client made its own request; nothing was served from the other's cache entry.
+    assert client_a.calls == [shared_url]
+    assert client_b.calls == [shared_url]
 
 
 def test_missing_account_is_skipped_and_recorded_as_error() -> None:
