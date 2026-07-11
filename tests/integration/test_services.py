@@ -38,6 +38,8 @@ EXPECTED_WATCH_ITERATIONS = 2
 
 class FakeClient:
     api_base_url: str = "https://api.github.com"
+    account_id: str = "primary"
+    account_label: str = "primary"
 
     def __init__(self, notifications: list[Notification], responses: dict[str, JsonValue] | None = None) -> None:
         self._notifications = notifications
@@ -217,7 +219,10 @@ def test_poll_cycle_reports_missing_account_client(tmp_path: Path) -> None:
     _, records = cache.load()
 
     assert summary.fetched == EXPECTED_FETCHED
-    assert summary.errors == ["No client found for account 'secondary'."]
+    assert summary.errors == [
+        "No client found for account 'secondary'.",
+        "pipeline: No client found for account 'secondary'.",
+    ]
     assert [record.notification.thread_id for record in records] == ["1"]
 
 

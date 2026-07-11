@@ -116,6 +116,12 @@ class PipelineEngine:
         Field-completion and context-enrichment providers are interleaved in
         declaration order: each provider sees the notification state produced by
         the preceding providers in the same pass.
+
+        When ``clients_by_account`` is provided, each notification is routed to
+        its own account's client; a notification whose account has no
+        registered client is skipped (recorded in ``errors``) rather than
+        silently falling back to *client*. ``client`` is only used directly
+        when ``clients_by_account`` is not provided at all.
         """
         contexts_by_notification_key: dict[str, dict[str, object]] = {
             f"{n.account_id}:{n.thread_id}": {} for n in notifications
@@ -134,11 +140,13 @@ class PipelineEngine:
 
         for i, notification in enumerate(notifications):
             key = f"{notification.account_id}:{notification.thread_id}"
-            notification_client = (
-                clients_by_account.get(notification.account_id, client)
-                if clients_by_account
-                else client
-            )
+            if clients_by_account is not None:
+                notification_client = clients_by_account.get(notification.account_id)
+                if notification_client is None:
+                    errors.append(f"No client found for account '{notification.account_id}'.")
+                    continue
+            else:
+                notification_client = client
             current = notification
             for provider in self.providers:
                 try:

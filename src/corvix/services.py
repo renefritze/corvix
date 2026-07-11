@@ -209,8 +209,7 @@ def _fetch_notifications(
             account_errors.append(AccountError(account_id=account_id, account_label=account_label, error=error_msg))
             continue
         notifications.extend(fetched)
-        if fetched:
-            clients_by_account[fetched[0].account_id] = client
+        clients_by_account[account_id] = client
     return notifications, clients_by_account, account_errors
 
 
