@@ -552,6 +552,35 @@ def test_watch_loop_preserves_account_errors_on_full_cycle_failure(tmp_path: Pat
     assert poller_status.account_errors == (account_error,)
 
 
+def test_watch_loop_falls_back_when_previous_status_cannot_be_loaded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    cache = NotificationCache(path=cache_path)
+
+    def _raise_load_status(*_args: object, **_kwargs: object) -> None:
+        raise ValueError("corrupt cache")
+
+    monkeypatch.setattr(NotificationCache, "load_status", _raise_load_status)
+
+    run_watch_loop(
+        PollCycleInput(
+            config=config,
+            cache=cache,
+            apply_actions=False,
+        ),
+        iterations=1,
+    )
+    monkeypatch.undo()
+    poller_status = cache.load_status()
+
+    assert poller_status.status == "error"
+    assert poller_status.last_poll_time is None
+    assert poller_status.account_errors == ()
+
+
 def test_watch_loop_logs_warning_when_error_status_cannot_be_persisted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
