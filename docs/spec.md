@@ -6,11 +6,11 @@
 
 ## 1. Purpose
 
-Corvix fetches a user's GitHub notifications, scores and filters them with configurable rules, caches the results locally, and presents them through a terminal CLI or a web dashboard.
+Corvix fetches a user's GitHub notifications, scores and filters them with configurable rules, persists the results to PostgreSQL, and presents them through a terminal CLI or a web dashboard.
 
-**Current state**: single-user workflows backed by PostgreSQL (required), shared by the poller and web service, with web dismiss/mark-read operations.
+**Current state**: single-user workflows backed by PostgreSQL (required), shared by the poller and web service, with web dismiss/mark-read operations, theming, and two-way notification management. There is no multi-user mode — see §10 for why that direction was rejected.
 
-**Target state**: multi-user server with PostgreSQL persistence, two-way notification management, theming, and browser push notifications.
+**Target state**: single-user server with PostgreSQL persistence and browser push notifications (§13).
 
 ---
 
@@ -276,15 +276,7 @@ dashboards:
 
 Global rule exclusions (`rule.exclude_from_dashboards`) are applied to every dashboard. Dashboard-level `ignore_rules` are applied on top of those globals for the selected dashboard.
 
-### 3.8 `auth`
-
-```yaml
-auth:
-  mode: single_user              # single_user | multi_user
-  session_secret: ""
-```
-
-### 3.9 `database`
+### 3.8 `database`
 
 ```yaml
 database:
@@ -451,16 +443,16 @@ Optional development override: if live-reload/source mounts are needed, add a co
 
 ## 9. Current gaps
 
-- Single-user deployments share a fixed seeded `user_id`; multi-user auth (per-user sessions/records) is not yet part of the active runtime path.
+- Single-user deployments share a fixed seeded `user_id`; there is no multi-user auth or per-user sessions (see §10 — rejected, not planned).
 - Browser push notifications are not yet part of the active runtime path.
 
 ---
 
 ## Planned Architecture
 
-## 10. Multi-user support
+## 10. Multi-user support (historical, rejected)
 
-Status: Pending (some prerequisite pieces are implemented, but multi-user auth/session runtime is not).
+Status: **Rejected.** This section documents a design that was scaffolded but never implemented and has since been reversed: migration `a1b2c3d4e5f6` (`remove_multi_user_tables`) dropped the `users`, `user_preferences`, and `push_subscriptions` tables. Corvix is single-user only — see README. Kept here for historical context; do not implement against this section.
 
 ### 10.1 Motivation
 
@@ -665,8 +657,7 @@ const THEMES = {
 
 ### 12.3 Persistence
 
-- **Single-user / no auth**: store selected theme name in `localStorage`.
-- **Multi-user**: store in `user_preferences.theme` via `PUT /api/preferences/theme`. The SPA loads the preference on init.
+- Store the selected theme name in `localStorage`. Corvix is single-user only (§10); there is no server-side per-user preference storage.
 
 ### 12.4 API
 
@@ -806,11 +797,11 @@ Phase B: Database layer ─────┬─── Phase C: Two-way dismiss
 | 1 | A | ✅ Done | Theming: CSS variable presets, theme picker in SPA, `localStorage` persistence | None |
 | 2 | B | ✅ Done | Database: schema, alembic, `StorageBackend` protocol, `PostgresStorage`, `migrate-cache` CLI command | None |
 | 3 | C | ✅ Done | Two-way dismiss: `dismiss_thread()` API method, `dismiss` action type, `POST /api/notifications/{id}/dismiss`, SPA dismiss button | Step 2 (for `dismissed` column) |
-| 4 | D | Pending | Multi-user auth: session middleware, register/login/logout endpoints, per-user polling, token encryption | Step 2 |
-| 5 | A+ | Pending | Theming DB persistence: `PUT /api/preferences/theme`, load from `user_preferences` table | Steps 1 + 4 |
-| 6 | E | Pending | Browser notifications: service worker, VAPID, push subscriptions, trigger logic in poller | Steps 2 + 4 |
+| 4 | D | ❌ Rejected | Multi-user auth (§10): session middleware, register/login/logout endpoints, per-user polling, token encryption | Step 2 |
+| 5 | A+ | ❌ Rejected | Theming DB persistence: `PUT /api/preferences/theme`, load from `user_preferences` table | Depended on Step 4 |
+| 6 | E | Pending | Browser notifications: service worker, VAPID, push subscriptions, trigger logic in poller | Step 2 |
 
-Steps 1 and 2 can be done in parallel. Step 3 can be built and tested in single-user mode before step 4 lands.
+Steps 1 and 2 can be done in parallel. Step 3 was built and tested in single-user mode; step 4 was never started and the tables it would have used were subsequently dropped (migration `a1b2c3d4e5f6`). Step 6 no longer depends on step 4 since multi-user was rejected — browser notifications, if implemented, will be single-user like the rest of the app.
 
 ### New dependencies
 

@@ -32,11 +32,13 @@ docker compose down                                  # stop and remove container
 docker compose up --build
 ```
 
-This starts three services sharing a `corvix_state` volume:
+This starts four services. `web` and `poller` share no filesystem state with each
+other — all persistence is in PostgreSQL:
 
 - `web` — Litestar dashboard on `http://localhost:8000`
-- `poller` — `corvix watch` updating the JSON cache
+- `poller` — `corvix watch`, polling GitHub and persisting to PostgreSQL
 - `db` — PostgreSQL 16
+- `migrate` — one-shot job that applies Alembic migrations before `web`/`poller` start
 
 **Prerequisites** before `docker compose up`:
 
@@ -61,20 +63,20 @@ Frontend assets are generated during image build and are not committed to git. R
 
 ## Architecture
 
-Corvix fetches GitHub notifications, scores and filters them via configurable rules, caches them locally as JSON, and presents them via CLI (Rich) or web UI (Litestar).
+Corvix fetches GitHub notifications, scores and filters them via configurable rules, persists them to PostgreSQL, and presents them via CLI (Rich) or web UI (Litestar).
 
 **Data flow**: `GitHub API → ingestion.py → scoring.py + rules.py → actions.py → storage.py → dashboarding.py → presentation.py / web/app.py`
 
 ### Core modules
 
 - **`domain.py`** — `Notification` (raw API data) and `NotificationRecord` (scored + rule-evaluated wrapper). The central data structures passed through all layers.
-- **`config.py`** — YAML-based configuration parsed into dataclasses. `AppConfig` is the root; it holds `GitHubConfig`, `PollingConfig`, `ScoringConfig`, `RuleSet`, `DashboardSpec[]`, `StateConfig`, and `NotificationsConfig`.
+- **`config/`** — YAML-based configuration parsed into dataclasses, split across `config/app.py` (root `AppConfig`, `PollingConfig`, `StateConfig`, `DatabaseConfig`, `load_config`), `config/github.py` (`GitHubConfig`), `config/scoring.py` (`ScoringConfig`), `config/rules.py` (`RuleSet`), `config/dashboards.py` (`DashboardSpec`), and `config/notifications.py` (`NotificationsConfig`). `config/__init__.py` re-exports all of these so `from corvix.config import X` keeps working.
 - **`ingestion.py`** — `GitHubNotificationsClient`: paginated GitHub API fetch, `mark_thread_read()`, and `dismiss_thread()`.
 - **`scoring.py`** — Pure function `score_notification()`. Weights for unread bonus, reason, repo, subject type, title keywords, and age decay.
 - **`rules.py`** — Pure function `evaluate_rules()`. Matches notifications against `MatchCriteria` (repo, reason, subject_type, title regex, unread, score, age). Rules can exclude from dashboards or trigger actions.
 - **`actions.py`** — `execute_actions()` runs rule-specified actions (`mark_read`, `dismiss`). Uses `MarkReadGateway`/`DismissGateway` protocols for testability. Default mode is dry-run; pass `apply_actions=True` to actually modify GitHub state.
 - **`storage.py`** — `StorageBackend` protocol and `PostgresStorage`, the PostgreSQL-backed persistence shared by the poller and web service.
-- **`services.py`** — Orchestration: `run_poll_cycle()` wires fetch→enrichment→score→rules→actions→persist and optional notification dispatch; `run_watch_loop()` adds periodic scheduling; `render_cached_dashboards()` loads cache and renders without polling.
+- **`services.py`** — Orchestration: `run_poll_cycle()` wires fetch→enrichment→score→rules→actions→persist and optional notification dispatch; `run_watch_loop()` adds periodic scheduling; `render_cached_dashboards()` loads persisted records from storage and renders without polling.
 - **`notifications/`** — Event detection and dispatch pipeline (`detector.py`, `dispatcher.py`, `models.py`, `targets/base.py`) for newly-unread notifications.
 - **`pipeline/`** — Unified `PipelineEngine` plus provider protocols and the built-in providers under `pipeline/providers/` (`github_thread_subject`, `github_web_url` for field completion; `github_latest_comment`, `github_pr_state` for context enrichment).
 - **`dashboarding.py`** — `build_dashboard_data()` filters, sorts, groups, and limits records per `DashboardSpec`. Used by both CLI and web.
@@ -85,11 +87,13 @@ Corvix fetches GitHub notifications, scores and filters them via configurable ru
 
 ### Docker Compose
 
-Three services share a `corvix_state` volume (`/data/notifications.json`):
+Four services, defined in `docker-compose.yml`. Persistence is PostgreSQL-only —
+there is no shared file or volume between `web` and `poller`:
 
-- **`poller`**: runs `corvix watch`, continuously updating the JSON cache
-- **`web`**: serves the Litestar dashboard on port 8000, reading from the shared cache
-- **`db`**: PostgreSQL 16 (provisioned for future use; current persistence is JSON-only)
+- **`db`**: PostgreSQL 16, backed by the `corvix_db` volume
+- **`migrate`**: one-shot job that runs `alembic upgrade head`; `web` and `poller` wait for it to complete
+- **`poller`**: runs `corvix watch`, continuously polling GitHub and writing records to PostgreSQL
+- **`web`**: serves the Litestar dashboard on port 8000, reading from PostgreSQL
 
 ### Configuration
 
