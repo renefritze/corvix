@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from os import environ
@@ -15,6 +16,8 @@ from corvix.config import AppConfig, GitHubAccountConfig, PollingConfig, load_co
 from corvix.domain import parse_timestamp
 from corvix.env import get_env_value
 from corvix.ingestion import GitHubNotificationsClient
+from corvix.notifications.targets.base import NotificationTarget
+from corvix.notifications.targets.slack import SlackTarget
 from corvix.observability import configure_logging, setup_tracing
 from corvix.services import (
     NotificationsClient,
@@ -29,6 +32,8 @@ from corvix.storage import (
     create_storage,
 )
 from corvix.web.app import run as run_web
+
+logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., object])
 
@@ -121,6 +126,7 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
     clients = _build_clients(app_config.github.accounts, app_config.polling)
+    targets = _build_targets(app_config)
     with _build_storage(app_config) as cache:
         summary = run_poll_cycle(
             PollCycleInput(
@@ -128,6 +134,7 @@ def poll_command(ctx: click.Context, apply_actions: bool) -> None:
                 clients=clients,
                 cache=cache,
                 apply_actions=apply_actions,
+                notification_targets=targets,
             )
         )
     click.echo(f"Fetched: {summary.fetched}")
@@ -151,6 +158,7 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
     config_path = _config_path_from_context(ctx)
     app_config = _load_app_config(config_path)
     clients = _build_clients(app_config.github.accounts, app_config.polling)
+    targets = _build_targets(app_config)
     with _build_storage(app_config) as cache:
         summaries = run_watch_loop(
             PollCycleInput(
@@ -158,6 +166,7 @@ def watch_command(ctx: click.Context, apply_actions: bool, iterations: int | Non
                 clients=clients,
                 cache=cache,
                 apply_actions=apply_actions,
+                notification_targets=targets,
             ),
             iterations=iterations,
         )
@@ -271,6 +280,54 @@ def _resolve_token(token_env: str) -> str:
         return token
     msg = f"Environment variable '{token_env}' (or '{token_env}_FILE') is required for polling GitHub notifications."
     raise click.ClickException(msg)
+
+
+def _build_targets(app_config: AppConfig) -> list[NotificationTarget]:
+    """Construct the server-side notification dispatch targets from config.
+
+    Only server-side delivery channels are built here. Browser-tab and Web Push
+    delivery are handled client-side by the web UI (from the ``browser_tab`` /
+    ``web_push`` config echoed in the snapshot), so they are intentionally not
+    represented as Python targets.
+
+    A target whose secret env var is missing is skipped with a warning rather
+    than silently doing nothing. When notification dispatch is enabled but no
+    server-side target ends up configured, a note is logged so the "enabled but
+    nothing happens" case is not silent.
+    """
+    notifications = app_config.notifications
+    if not notifications.enabled:
+        return []
+
+    targets: list[NotificationTarget] = []
+
+    slack_cfg = notifications.slack
+    if slack_cfg.enabled:
+        webhook_url = _resolve_optional_secret(slack_cfg.webhook_url_env)
+        if webhook_url:
+            targets.append(SlackTarget(webhook_url=webhook_url))
+        else:
+            logger.warning(
+                "Slack notifications enabled but '%s' (or '%s_FILE') is not set; skipping Slack delivery.",
+                slack_cfg.webhook_url_env,
+                slack_cfg.webhook_url_env,
+            )
+
+    if not targets:
+        logger.info(
+            "Notification dispatch is enabled but no server-side targets are configured; "
+            "browser-tab delivery, if enabled, is handled by the web UI."
+        )
+    return targets
+
+
+def _resolve_optional_secret(env_var: str) -> str | None:
+    """Resolve a secret env var (supporting ``<VAR>_FILE``), returning None if unset."""
+    try:
+        value = get_env_value(env_var)
+    except ValueError:
+        return None
+    return value or None
 
 
 def _build_clients(accounts: list[GitHubAccountConfig], polling: PollingConfig) -> tuple[NotificationsClient, ...]:

@@ -506,3 +506,22 @@ def test_browser_tab_cooldown_seconds_accepts_zero(tmp_path: Path) -> None:
     config_file.write_text("notifications:\n  browser_tab:\n    cooldown_seconds: 0\n", encoding="utf-8")
     config = load_config(config_file)
     assert config.notifications.browser_tab.cooldown_seconds == 0
+
+
+def test_slack_target_defaults(tmp_path: Path) -> None:
+    config_file = tmp_path / "notif-slack-default.yaml"
+    config_file.write_text("github:\n  token_env: GH\n", encoding="utf-8")
+    config = load_config(config_file)
+    assert config.notifications.slack.enabled is False
+    assert config.notifications.slack.webhook_url_env == "CORVIX_SLACK_WEBHOOK_URL"
+
+
+def test_slack_target_overrides(tmp_path: Path) -> None:
+    config_file = tmp_path / "notif-slack.yaml"
+    config_file.write_text(
+        "notifications:\n  slack:\n    enabled: true\n    webhook_url_env: MY_SLACK_HOOK\n",
+        encoding="utf-8",
+    )
+    config = load_config(config_file)
+    assert config.notifications.slack.enabled is True
+    assert config.notifications.slack.webhook_url_env == "MY_SLACK_HOOK"

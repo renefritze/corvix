@@ -1,13 +1,24 @@
 # Implementing a New Notification Target
 
 This guide explains how to add a new delivery channel to Corvix's notification
-system — for example Slack, a webhook, email, or SMS.
+system — for example a webhook, email, or SMS.
+
+Corvix ships **one built-in server-side target, Slack**
+(`src/corvix/notifications/targets/slack.py`), wired into the `poll`/`watch`
+commands via `_build_targets` in `src/corvix/cli.py`. This guide walks through
+that exact Slack target as the worked example; to add a different channel,
+follow the same steps under your own name.
+
+> **Note:** Browser-tab and Web Push delivery are handled *client-side* by the
+> web UI (from the `browser_tab` / `web_push` config echoed in the snapshot),
+> not by a Python `NotificationTarget`. Only server-side channels dispatched by
+> the poller (like Slack) are implemented as targets here.
 
 The system is designed so that adding a channel requires:
 
 1. One new Python file implementing `NotificationTarget`.
 2. A config dataclass + YAML parser addition (optional but recommended).
-3. Wiring the target into `run_poll_cycle` call-sites.
+3. Registering the target in `_build_targets` (`src/corvix/cli.py`).
 4. Tests.
 
 Nothing in the poll loop, storage, or detector needs to change.
@@ -208,42 +219,31 @@ notifications:
 
 ---
 
-## Step 3 — Wire the target into the poll loop
+## Step 3 — Register the target in `_build_targets`
 
 Targets are passed as a list to `run_poll_cycle` via the
-`notification_targets` parameter.  The natural place to build that list is
-wherever your entry point constructs the poll cycle — typically the CLI
-command or the poller service.
-
-### CLI example (`src/corvix/cli.py`)
+`notification_targets` parameter. `src/corvix/cli.py` already builds that list
+in `_build_targets(app_config)` and passes it into both the `poll` and `watch`
+commands, so you only need to add your channel there next to the built-in Slack
+target:
 
 ```python
-from corvix.notifications.targets.slack import SlackTarget
-from corvix.env import get_env_value
-
-def _build_targets(config: AppConfig) -> list:
-    targets = []
-    slack_cfg = config.notifications.slack
-    if slack_cfg.enabled:
-        webhook_url = get_env_value(slack_cfg.webhook_url_env)
-        if webhook_url:
-            targets.append(SlackTarget(webhook_url=webhook_url))
-    return targets
-
-# Inside the watch/poll command:
-targets = _build_targets(config)
-run_poll_cycle(
-    config=config,
-    client=client,
-    cache=cache,
-    apply_actions=apply_actions,
-    notification_targets=targets,
-)
+# src/corvix/cli.py — inside _build_targets()
+my_cfg = notifications.my_channel
+if my_cfg.enabled:
+    secret = _resolve_optional_secret(my_cfg.secret_env)
+    if secret:
+        targets.append(MyTarget(secret=secret))
+    else:
+        logger.warning("my_channel enabled but '%s' is not set; skipping.", my_cfg.secret_env)
 ```
 
 `run_poll_cycle` only calls `NotificationDispatcher.dispatch` when
 `config.notifications.enabled` is `True` **and** the `notification_targets`
 list is non-empty, so a disabled or unconfigured target costs nothing.
+`_build_targets` resolves secrets from env vars (via `_resolve_optional_secret`,
+which also honours the `<VAR>_FILE` convention) so credentials never live in
+`corvix.yaml`.
 
 ---
 

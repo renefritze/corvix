@@ -46,6 +46,7 @@ from corvix.config.notifications import (
     BrowserTabTargetConfig,
     NotificationsConfig,
     NotificationsDetectConfig,
+    SlackTargetConfig,
     WebPushTargetConfig,
 )
 from corvix.config.rules import (
@@ -79,6 +80,7 @@ __all__ = [
     "RuleAction",
     "RuleSet",
     "ScoringConfig",
+    "SlackTargetConfig",
     "StateConfig",
     "WebPushTargetConfig",
     "available_dashboards",

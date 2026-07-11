@@ -184,6 +184,12 @@ notifications:
     vapid_private_key_env: CORVIX_VAPID_PRIVATE_KEY
     # Web Push contact subject (recommended: mailto:<team@example.com>).
     subject: "mailto:ops@example.com"
+  # Slack incoming-webhook delivery target (server-side, dispatched by the poller).
+  slack:
+    # Enable Slack delivery.
+    enabled: false
+    # Env var name holding the Slack incoming-webhook URL (also supports <VAR>_FILE).
+    webhook_url_env: CORVIX_SLACK_WEBHOOK_URL
 
 # Dashboards rendered in UI; first entry is selected by default.
 dashboards:
