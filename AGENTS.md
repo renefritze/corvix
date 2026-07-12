@@ -61,6 +61,8 @@ each account token by its configured `token_env` name.
 
 Frontend assets are generated during image build and are not committed to git. Rebuild images (`docker compose up --build`) after frontend changes.
 
+The SPA in `frontend/` is **Svelte 5 (runes) + Vite + TypeScript + Tailwind CSS 4**, with light/dark theming (system preference default, toggle persisted in `localStorage["corvix.theme"]`). State lives in `.svelte.ts` store classes under `frontend/src/lib/` (instantiated in `App.svelte`/`Dashboard.svelte`, injected via `setContext` — see `lib/context.ts`); presentational `.svelte` components live under `frontend/src/components/`. `npm run build` runs `gen:types`, then `svelte-check` (the type gate, replacing `tsc --noEmit`), then `vite build` (library mode) which emits exactly `app.js` + `index.css` into `src/corvix/web/static/assets/`. Unit tests are Vitest + Testing Library Svelte with an ≥80% coverage gate; the executable parity spec is `tests/e2e/test_dashboard_ui.py`, whose DOM selectors (aria-labels, `data-testid`s, `data-label`s) are a hard contract — edit that test and the code in the same commit for any intentional change.
+
 ## Architecture
 
 Corvix fetches GitHub notifications, scores and filters them via configurable rules, persists them to PostgreSQL, and presents them via CLI (Rich) or web UI (Litestar).
