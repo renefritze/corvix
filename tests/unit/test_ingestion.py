@@ -70,9 +70,10 @@ def test_fetch_notifications_single_page() -> None:
 
 def test_fetch_page_non_list_raises() -> None:
     client = _client()
+    polling = _polling()
     with patch.object(GitHubNotificationsClient, "_request_json", return_value={"unexpected": "dict"}):
         with pytest.raises(ValueError, match="unexpected notifications payload"):
-            client.fetch_notifications(_polling())
+            client.fetch_notifications(polling)
 
 
 def test_mark_thread_read_calls_patch() -> None:

@@ -19,6 +19,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from corvix.domain import (
     NotificationRecord,
@@ -109,7 +110,7 @@ class JsonFileStorage:
         def _mark(record: NotificationRecord) -> NotificationRecord | None:
             if not record.notification.unread:
                 return None
-            return replace(record, notification=replace(record.notification, unread=False))
+            return cast("NotificationRecord", replace(record, notification=replace(record.notification, unread=False)))
 
         self._update_record(thread_id=thread_id, account_id=account_id, mutate=_mark)
 

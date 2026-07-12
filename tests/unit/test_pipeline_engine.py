@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
 
@@ -72,7 +73,7 @@ class _TaggingFieldProvider:
     tag: str = "TAGGED"
 
     def hydrate(self, notification: Notification, _client: JsonFetchClient, _ctx: PipelineContext) -> Notification:
-        return replace(notification, web_url=self.tag)
+        return cast("Notification", replace(notification, web_url=self.tag))
 
 
 @dataclass(slots=True)
@@ -80,11 +81,7 @@ class _CapturingContextProvider:
     """Records the web_url it sees when enrich() is called."""
 
     name: str = "test.context"
-    seen_web_urls: list[str | None] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.seen_web_urls is None:
-            self.seen_web_urls = []
+    seen_web_urls: list[str | None] = field(default_factory=list)
 
     def enrich(self, notification: Notification, _client: JsonFetchClient, _ctx: PipelineContext) -> dict[str, object]:
         self.seen_web_urls.append(notification.web_url)
@@ -112,7 +109,7 @@ class _CachingFieldProvider:
     def hydrate(self, notification: Notification, client: JsonFetchClient, ctx: PipelineContext) -> Notification:
         payload = ctx.get_json(client=client, url="https://api.example.com/shared", timeout_seconds=1.0)
         url = str(payload) if not isinstance(payload, dict) else str(payload.get("url", ""))
-        return replace(notification, web_url=url)
+        return cast("Notification", replace(notification, web_url=url))
 
 
 @dataclass(slots=True)

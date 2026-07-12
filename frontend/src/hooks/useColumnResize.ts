@@ -102,7 +102,7 @@ function readInitialWidths(storage: Storage): ColumnWidths {
 
 export function useColumnResize() {
 	const [widths, setWidths] = useState<ColumnWidths>(() => {
-		if (typeof globalThis.window === "undefined") return DEFAULT_COLUMN_WIDTHS;
+		if (globalThis.window === undefined) return DEFAULT_COLUMN_WIDTHS;
 		try {
 			return readInitialWidths(globalThis.window.localStorage);
 		} catch {
@@ -116,7 +116,7 @@ export function useColumnResize() {
 	// Purge legacy/older-version keys once on mount. Reading the initial widths
 	// above already migrated any legacy value, so this only deletes orphans.
 	useEffect(() => {
-		if (typeof globalThis.window === "undefined") return;
+		if (globalThis.window === undefined) return;
 		try {
 			cleanupStaleColumnWidthKeys(globalThis.window.localStorage);
 		} catch {
@@ -141,7 +141,7 @@ export function useColumnResize() {
 	const stopResize = useCallback(() => {
 		dragRef.current = null;
 		document.body.classList.remove("col-resizing");
-		if (typeof globalThis.window !== "undefined") {
+		if (globalThis.window !== undefined) {
 			globalThis.window.removeEventListener("mousemove", onMouseMove);
 			globalThis.window.removeEventListener("mouseup", stopResize);
 		}
@@ -156,7 +156,7 @@ export function useColumnResize() {
 				startWidth: widths[column],
 			};
 			document.body.classList.add("col-resizing");
-			if (typeof globalThis.window !== "undefined") {
+			if (globalThis.window !== undefined) {
 				globalThis.window.addEventListener("mousemove", onMouseMove);
 				globalThis.window.addEventListener("mouseup", stopResize);
 			}
@@ -183,7 +183,7 @@ export function useColumnResize() {
 	);
 
 	useEffect(() => {
-		if (typeof globalThis.window === "undefined") return;
+		if (globalThis.window === undefined) return;
 		try {
 			globalThis.window.localStorage.setItem(
 				STORAGE_KEY,

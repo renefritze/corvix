@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import TypeIs
+from typing import TypeIs, cast
 from urllib.parse import ParseResult, quote, urlparse
 
 from corvix.domain import Notification
@@ -62,7 +63,9 @@ class GitHubWebUrlProvider:
                 repo_base=repo_base,
             )
             if direct_url is not None:
-                return replace(notification, web_url=direct_url)
+                # cast: SonarPython infers replace() as DataclassInstance (S5886); ty
+                # already knows it is Notification, hence the redundant-cast ignore.
+                return cast("Notification", replace(notification, web_url=direct_url))  # ty: ignore[redundant-cast]
         if notification.subject_type == "CheckSuite":
             web_url = self._resolve_check_suite(
                 client=client,
@@ -83,7 +86,6 @@ class GitHubWebUrlProvider:
         notification: Notification,
         repo_base: str,
     ) -> str | None:
-        resolved_url: str | None = None
         if notification.subject_url:
             try:
                 url_from_subject = self._resolve_check_suite_from_subject_url(
@@ -95,41 +97,43 @@ class GitHubWebUrlProvider:
             except Exception:
                 url_from_subject = None
             if url_from_subject is not None:
-                resolved_url = url_from_subject
+                return url_from_subject
 
-        if resolved_url is None:
-            parsed_title = _parse_check_suite_title(notification.subject_title)
-            if parsed_title is not None:
-                fallback_url = _build_actions_branch_url(repo_base=repo_base, branch=parsed_title.branch)
-                # Use client.api_base_url (trusted config) rather than parsing repo_base
-                # (external API data) to avoid an SSRF taint flow through the netloc component.
-                api_base = client.api_base_url.rstrip("/")
-                runs_url = (
-                    f"{api_base}/repos/{notification.repository}/actions/runs"
-                    f"?branch={quote(parsed_title.branch, safe='')}&per_page=25"
-                )
-                try:
-                    payload = ctx.get_json(client=client, url=runs_url, timeout_seconds=self.timeout_seconds)
-                except RuntimeError:
-                    resolved_url = fallback_url
-                else:
-                    if _is_str_object_map(payload):
-                        workflow_runs = payload.get("workflow_runs")
-                        if isinstance(workflow_runs, list):
-                            candidate = _match_check_suite_run(
-                                workflow_runs=workflow_runs,
-                                workflow_name=parsed_title.workflow,
-                                run_attempt=parsed_title.attempt,
-                                target_timestamp=notification.updated_at,
-                            )
-                            if candidate is not None:
-                                html_url = candidate.get("html_url")
-                                if isinstance(html_url, str):
-                                    resolved_url = html_url
-                    if resolved_url is None:
-                        resolved_url = fallback_url
+        return self._resolve_check_suite_from_title(
+            client=client,
+            ctx=ctx,
+            notification=notification,
+            repo_base=repo_base,
+        )
 
-        return resolved_url
+    def _resolve_check_suite_from_title(
+        self,
+        client: JsonFetchClient,
+        ctx: PipelineContext,
+        notification: Notification,
+        repo_base: str,
+    ) -> str | None:
+        parsed_title = _parse_check_suite_title(notification.subject_title)
+        if parsed_title is None:
+            return None
+        fallback_url = _build_actions_branch_url(repo_base=repo_base, branch=parsed_title.branch)
+        # Use client.api_base_url (trusted config) rather than parsing repo_base
+        # (external API data) to avoid an SSRF taint flow through the netloc component.
+        api_base = client.api_base_url.rstrip("/")
+        runs_url = (
+            f"{api_base}/repos/{notification.repository}/actions/runs"
+            f"?branch={quote(parsed_title.branch, safe='')}&per_page=25"
+        )
+        try:
+            payload = ctx.get_json(client=client, url=runs_url, timeout_seconds=self.timeout_seconds)
+        except RuntimeError:
+            return fallback_url
+        matched = _match_workflow_run_url(
+            payload=payload,
+            parsed_title=parsed_title,
+            target_timestamp=notification.updated_at,
+        )
+        return matched if matched is not None else fallback_url
 
     def _resolve_check_suite_from_subject_url(
         self,
@@ -205,43 +209,66 @@ def _build_actions_api_base(repo_base: str) -> str:
     return f"https://{parsed.netloc}/api/v3"  # NOSONAR python:S5144 - tested helper, not called in production paths
 
 
+def _match_workflow_run_url(
+    payload: object,
+    parsed_title: _ParsedCheckSuiteTitle,
+    target_timestamp: datetime,
+) -> str | None:
+    if not _is_str_object_map(payload):
+        return None
+    workflow_runs = payload.get("workflow_runs")
+    if not isinstance(workflow_runs, list):
+        return None
+    candidate = _match_check_suite_run(
+        workflow_runs=workflow_runs,
+        workflow_name=parsed_title.workflow,
+        run_attempt=parsed_title.attempt,
+        target_timestamp=target_timestamp,
+    )
+    if candidate is None:
+        return None
+    html_url = candidate.get("html_url")
+    return html_url if isinstance(html_url, str) else None
+
+
+def _run_matches_check_suite(run: dict[str, object], normalized_name: str, run_attempt: int | None) -> bool:
+    name = run.get("name")
+    path = run.get("path")
+    name_matches = (isinstance(name, str) and name.casefold() == normalized_name) or (
+        isinstance(path, str) and path.casefold() == normalized_name
+    )
+    if not name_matches:
+        return False
+    if run_attempt is None:
+        return True
+    current_attempt = run.get("run_attempt")
+    return isinstance(current_attempt, int) and current_attempt == run_attempt
+
+
+def _run_distance_seconds(run: dict[str, object], target_timestamp: datetime) -> float:
+    for raw in (run.get("updated_at"), run.get("created_at")):
+        if isinstance(raw, str):
+            timestamp = _parse_github_timestamp(raw)
+            if timestamp is not None:
+                return abs((timestamp - target_timestamp).total_seconds())
+    return float("inf")
+
+
 def _match_check_suite_run(
-    workflow_runs: list[object],
+    workflow_runs: Sequence[object],
     workflow_name: str,
     run_attempt: int | None,
     target_timestamp: datetime,
 ) -> dict[str, object] | None:
     normalized_name = workflow_name.casefold()
-    candidates: list[dict[str, object]] = []
-    for run in workflow_runs:
-        if not _is_str_object_map(run):
-            continue
-        name = run.get("name")
-        path = run.get("path")
-        if not (
-            (isinstance(name, str) and name.casefold() == normalized_name)
-            or (isinstance(path, str) and path.casefold() == normalized_name)
-        ):
-            continue
-        if run_attempt is not None:
-            current_attempt = run.get("run_attempt")
-            if not isinstance(current_attempt, int) or current_attempt != run_attempt:
-                continue
-        candidates.append(run)
+    candidates = [
+        run
+        for run in workflow_runs
+        if _is_str_object_map(run) and _run_matches_check_suite(run, normalized_name, run_attempt)
+    ]
     if not candidates:
         return None
-
-    def _distance_seconds(run: dict[str, object]) -> float:
-        updated_raw = run.get("updated_at")
-        created_raw = run.get("created_at")
-        for raw in (updated_raw, created_raw):
-            if isinstance(raw, str):
-                timestamp = _parse_github_timestamp(raw)
-                if timestamp is not None:
-                    return abs((timestamp - target_timestamp).total_seconds())
-        return float("inf")
-
-    return min(candidates, key=_distance_seconds)
+    return min(candidates, key=lambda run: _run_distance_seconds(run, target_timestamp))
 
 
 def _parse_github_timestamp(raw: str) -> datetime | None:

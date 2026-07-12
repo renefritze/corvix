@@ -11,6 +11,17 @@ interface ErrorBoundaryState {
 	readonly error: unknown;
 }
 
+function formatError(error: unknown): string {
+	if (error instanceof Error) return error.message;
+	if (typeof error === "string") return error;
+	if (error === null || error === undefined) return "Unknown error";
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return "Unserializable error";
+	}
+}
+
 export class ErrorBoundary extends Component<
 	ErrorBoundaryProps,
 	ErrorBoundaryState
@@ -28,10 +39,7 @@ export class ErrorBoundary extends Component<
 
 	render() {
 		if (this.state.hasError) {
-			const errorMessage =
-				this.state.error instanceof Error
-					? this.state.error.message
-					: String(this.state.error ?? "Unknown error");
+			const errorMessage = formatError(this.state.error);
 			return (
 				<div class="empty-state error-state">
 					<p class="empty-title">Something went wrong</p>

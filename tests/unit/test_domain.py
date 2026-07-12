@@ -116,8 +116,9 @@ def test_from_api_payload_missing_subject_raises() -> None:
 
 
 def test_from_api_payload_subject_not_dict_raises() -> None:
+    payload = _valid_payload(subject="not a dict")
     with pytest.raises(ValueError, match="missing subject"):
-        Notification.from_api_payload(_valid_payload(subject="not a dict"))
+        Notification.from_api_payload(payload)
 
 
 def test_from_api_payload_missing_repository_raises() -> None:
@@ -142,8 +143,9 @@ def test_from_api_payload_missing_updated_at_raises() -> None:
 
 
 def test_from_api_payload_missing_repo_full_name_raises() -> None:
+    payload = _valid_payload(repository={"id": 1})
     with pytest.raises(ValueError, match=r"missing repository\.full_name"):
-        Notification.from_api_payload(_valid_payload(repository={"id": 1}))
+        Notification.from_api_payload(payload)
 
 
 def test_from_api_payload_missing_reason_raises() -> None:
@@ -154,13 +156,15 @@ def test_from_api_payload_missing_reason_raises() -> None:
 
 
 def test_from_api_payload_missing_subject_title_raises() -> None:
+    payload = _valid_payload(subject={"type": "PullRequest"})
     with pytest.raises(ValueError, match=r"missing subject\.title"):
-        Notification.from_api_payload(_valid_payload(subject={"type": "PullRequest"}))
+        Notification.from_api_payload(payload)
 
 
 def test_from_api_payload_missing_subject_type_raises() -> None:
+    payload = _valid_payload(subject={"title": "Fix it"})
     with pytest.raises(ValueError, match=r"missing subject\.type"):
-        Notification.from_api_payload(_valid_payload(subject={"title": "Fix it"}))
+        Notification.from_api_payload(payload)
 
 
 def test_from_api_payload_no_thread_url() -> None:
@@ -171,8 +175,9 @@ def test_from_api_payload_no_thread_url() -> None:
 
 
 def test_from_api_payload_invalid_unread_type_raises() -> None:
+    payload = _valid_payload(unread=1)
     with pytest.raises(ValueError, match="field 'unread' must be a boolean"):
-        Notification.from_api_payload(_valid_payload(unread=1))
+        Notification.from_api_payload(payload)
 
 
 # --- NotificationRecord to_dict / from_dict ---

@@ -85,6 +85,6 @@ describe("ErrorBoundary", () => {
 			</ErrorBoundary>,
 		);
 		expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-		expect(screen.getByText("[object Object]")).toBeInTheDocument();
+		expect(screen.getByText('{"code":404}')).toBeInTheDocument();
 	});
 });

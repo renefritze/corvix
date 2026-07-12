@@ -172,9 +172,10 @@ def test_poll_cycle_requires_at_least_one_client(tmp_path: Path) -> None:
     cache_path = tmp_path / "notifications.json"
     config = _build_config(cache_path=cache_path)
     cache = JsonFileStorage(path=cache_path)
+    poll_input = PollCycleInput(config=config, cache=cache)
 
     with pytest.raises(ValueError, match="At least one notifications client"):
-        run_poll_cycle(PollCycleInput(config=config, cache=cache))
+        run_poll_cycle(poll_input)
 
 
 def test_poll_cycle_dispatches_only_new_unread_non_excluded_notifications(tmp_path: Path) -> None:
