@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/preact";
 import { afterEach, vi } from "vitest";
+
+// @testing-library/svelte auto-cleanup is registered by the svelteTesting()
+// Vite plugin (see vite.config.ts test mode), so no manual cleanup import is
+// needed here — only the environment globals the suites depend on.
 
 class ResizeObserverMock {
 	observe = vi.fn();
@@ -73,8 +76,8 @@ Object.defineProperty(globalThis.navigator, "clipboard", {
 });
 
 afterEach(() => {
-	cleanup();
 	localStorage.clear();
+	sessionStorage.clear();
 	vi.clearAllMocks();
 	vi.restoreAllMocks();
 	vi.useRealTimers();

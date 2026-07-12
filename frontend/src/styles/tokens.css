@@ -1,0 +1,92 @@
+/* ============================================================
+   DESIGN TOKENS — light (:root) + dark ([data-theme="dark"])
+   Linear-style: hairline borders carry elevation in dark; shadows
+   only on floating layers. AA contrast on both themes.
+   ============================================================ */
+:root {
+	color-scheme: light;
+
+	/* Backgrounds */
+	--bg: #ffffff;
+	--bg-subtle: #f6f7f9;
+	--surface: #ffffff;
+	--surface-raised: #ffffff;
+	--overlay: rgba(15, 23, 42, 0.28);
+
+	/* Text */
+	--ink: #1c2024;
+	--ink-secondary: #45505c;
+	--muted: #6b7684;
+
+	/* Lines */
+	--line: #e6e8eb;
+	--line-strong: #d3d7dc;
+
+	/* Accent (indigo-600 family in light) */
+	--accent: #4f46e5;
+	--accent-hover: #4338ca;
+	--accent-contrast: #ffffff;
+
+	/* Status */
+	--ok: #16a34a;
+	--danger: #dc2626;
+	--warning: #d97706;
+
+	/* Row tints */
+	--row-alt: #fafbfc;
+	--row-hover: #f2f4f7;
+	--row-unread-border: var(--accent);
+	--row-unread-tint: #f7f8ff;
+
+	/* Focus + elevation */
+	--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+	--shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+	--shadow-md: 0 4px 12px rgba(16, 24, 40, 0.1);
+	--shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.16);
+
+	/* Radii */
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 10px;
+
+	/* Type scale */
+	--text-xs: 12px;
+	--text-sm: 13px;
+	--text-md: 14px;
+	--text-lg: 16px;
+}
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+
+	--bg: #07111f;
+	--bg-subtle: #0a1524;
+	--surface: #0e1a2b;
+	--surface-raised: #132238;
+	--overlay: rgba(2, 6, 12, 0.6);
+
+	--ink: #edf3ff;
+	--ink-secondary: #b7c4dc;
+	--muted: #8fa3c7;
+
+	--line: #223753;
+	--line-strong: #2f4a6d;
+
+	--accent: #74c0fc;
+	--accent-hover: #9ad0ff;
+	--accent-contrast: #07111f;
+
+	--ok: #59d7a4;
+	--danger: #ff7b72;
+	--warning: #f0b866;
+
+	--row-alt: #0b1520;
+	--row-hover: #0f1e30;
+	--row-unread-border: var(--ok);
+	--row-unread-tint: #0c1a2b;
+
+	--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+	--shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+	--shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+}

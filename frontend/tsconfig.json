@@ -1,13 +1,16 @@
 {
     "compilerOptions": {
-        "target": "ES2022",
+        "target": "ESNext",
         "module": "ESNext",
         "moduleResolution": "bundler",
-        "jsx": "react-jsx",
-        "jsxImportSource": "preact",
+        "resolveJsonModule": true,
         "strict": true,
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
         "noEmit": true,
         "skipLibCheck": true,
+        "allowJs": true,
+        "checkJs": false,
         "types": [
             "vite/client",
             "vitest/globals",
@@ -16,11 +19,7 @@
     },
     "include": [
         "src",
-        "vite.config.ts"
-    ],
-    "exclude": [
-        "src/**/*.test.ts",
-        "src/**/*.test.tsx",
-        "src/test/**"
+        "vite.config.ts",
+        "svelte.config.js"
     ]
 }

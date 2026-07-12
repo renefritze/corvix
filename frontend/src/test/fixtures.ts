@@ -47,6 +47,7 @@ export function makeSnapshot(
 			last_error: null,
 			last_error_time: null,
 			stale: false,
+			account_errors: [],
 		},
 		notifications_config: null,
 		...overrides,
