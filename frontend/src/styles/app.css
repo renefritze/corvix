@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./table.css";
 
 /* Inter Variable, latin subset only (weight axis). Bundled into index.css so
    the single-stylesheet e2e contract holds; other subsets are intentionally
