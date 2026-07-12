@@ -12,6 +12,7 @@ import type { ThemeStore } from "./theme.svelte";
 function defineContext<T>(name: string) {
 	const key = Symbol(name);
 	return {
+		key,
 		set: (value: T): T => setContext(key, value),
 		get: (): T => getContext(key) as T,
 	};
