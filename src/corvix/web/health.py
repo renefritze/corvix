@@ -96,7 +96,7 @@ def _health_impl() -> Response[dict[str, object]]:
     )
 
 
-@get("/api/v1/health")
+@get("/api/v1/health", sync_to_thread=True)
 def health() -> Response[dict[str, object]]:
     """Health endpoint for container checks.
 
@@ -121,7 +121,7 @@ def health() -> Response[dict[str, object]]:
 # ``/api/v1/*`` exclusively.
 
 
-@get("/api/health")
+@get("/api/health", sync_to_thread=True)
 def health_container() -> Response[dict[str, object]]:
     """Unversioned health alias for container healthchecks; see ``/api/v1/health``."""
     return _health_impl()
