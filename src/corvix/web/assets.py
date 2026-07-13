@@ -15,7 +15,7 @@ from litestar.datastructures.headers import CacheControlHeader
 
 _STATIC_ROOT = files("corvix.web").joinpath("static")
 _STATIC_ASSETS_DIR = str(_STATIC_ROOT.joinpath("assets"))
-_ASSET_FILENAMES = ("app.js", "index.css", "favicon.svg")
+_ASSET_FILENAMES = ("app.js", "index.css", "favicon.svg", "theme-init.js")
 _ASSET_CACHE_CONTROL = CacheControlHeader(public=True, max_age=31536000, immutable=True)
 
 _MEDIA_TYPE_HTML = "text/html"

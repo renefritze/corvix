@@ -6,18 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg?v=__ASSET_VERSION__" />
     <title>Corvix</title>
-    <script>
-      (() => {
-        try {
-          const stored = localStorage.getItem("corvix.theme");
-          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-          const theme = stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
-          document.documentElement.dataset.theme = theme;
-        } catch {
-          document.documentElement.dataset.theme = "dark";
-        }
-      })();
-    </script>
+    <script src="/assets/theme-init.js?v=__ASSET_VERSION__"></script>
     <script type="module" crossorigin src="/assets/app.js?v=__ASSET_VERSION__"></script>
     <link rel="stylesheet" crossorigin href="/assets/index.css?v=__ASSET_VERSION__" />
   </head>

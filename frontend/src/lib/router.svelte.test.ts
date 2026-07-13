@@ -71,7 +71,7 @@ describe("Router", () => {
 		const before = history.length;
 		router.navigate("/replaced", true);
 		expect(router.pathname).toBe("/replaced");
-		expect(history.length).toBe(before);
+		expect(history).toHaveLength(before);
 		router.destroy();
 	});
 

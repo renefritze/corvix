@@ -53,13 +53,13 @@ function openFocusedRow(): void {
 }
 
 export class KeyboardStore {
-	#options: KeyboardOptions;
+	readonly #options: KeyboardOptions;
 
 	constructor(options: KeyboardOptions) {
 		this.#options = options;
 	}
 
-	#handleKeyDown = (event: KeyboardEvent): void => {
+	readonly #handleKeyDown = (event: KeyboardEvent): void => {
 		const typingTarget = isTypingTarget(event.target);
 		const hasModifiers = event.altKey || event.ctrlKey || event.metaKey;
 

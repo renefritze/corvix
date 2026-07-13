@@ -8,8 +8,8 @@ import type { DashboardItem } from "../types";
 
 export class MarkReadStore {
 	markingGroupNames = $state<Set<string>>(new Set());
-	#onRefresh: () => Promise<void>;
-	#onError: (msg: string) => void;
+	readonly #onRefresh: () => Promise<void>;
+	readonly #onError: (msg: string) => void;
 
 	constructor(
 		onRefresh: () => Promise<void>,

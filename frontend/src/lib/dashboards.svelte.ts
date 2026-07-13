@@ -14,8 +14,8 @@ import type { SnapshotStore } from "./snapshot.svelte";
 const DASHBOARD_PATH_PREFIX = "/dashboards/";
 
 export class DashboardsStore {
-	#router: Router;
-	#snapshot: SnapshotStore;
+	readonly #router: Router;
+	readonly #snapshot: SnapshotStore;
 	#userNavigated = false;
 	#defaultName = $state<string | undefined>(undefined);
 

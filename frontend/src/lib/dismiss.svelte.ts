@@ -17,9 +17,9 @@ interface PendingDismissal {
 export class DismissStore {
 	pending = $state<Map<string, PendingDismissal>>(new Map());
 	#committed = $state<Set<string>>(new Set());
-	#onRefresh: () => Promise<void>;
-	#onError: (msg: string) => void;
-	#getCurrentThreadIds: () => Set<string>;
+	readonly #onRefresh: () => Promise<void>;
+	readonly #onError: (msg: string) => void;
+	readonly #getCurrentThreadIds: () => Set<string>;
 
 	constructor(
 		onRefresh: () => Promise<void>,

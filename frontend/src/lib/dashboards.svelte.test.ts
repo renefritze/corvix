@@ -51,7 +51,7 @@ describe("DashboardsStore", () => {
 		expect(store.currentDashboard).toBe("overview");
 		expect(store.dashboardNames).toEqual(["overview", "triage"]);
 		// Normalization replaces history, so no new entry is added.
-		expect(globalThis.history.length).toBe(lengthBefore);
+		expect(globalThis.history).toHaveLength(lengthBefore);
 		// The default snapshot is fetched once with an undefined key (no refetch
 		// after normalizing "/" -> "/dashboards/overview").
 		expect(api.fetchSnapshot).toHaveBeenCalledTimes(1);
@@ -89,7 +89,7 @@ describe("DashboardsStore", () => {
 			expect(globalThis.location.pathname).toBe("/dashboards/triage"),
 		);
 		expect(store.currentDashboard).toBe("triage");
-		expect(globalThis.history.length).toBe(lengthBefore + 1);
+		expect(globalThis.history).toHaveLength(lengthBefore + 1);
 	});
 
 	it("exposes an empty name list before the snapshot arrives", () => {
