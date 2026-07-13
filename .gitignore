@@ -27,6 +27,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# The Python `lib/` ignore above is too broad — keep the frontend store dir.
+!frontend/src/lib/
 lib64/
 parts/
 sdist/

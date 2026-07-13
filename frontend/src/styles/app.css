@@ -1,74 +1,119 @@
-/* ============================================================
-   CSS CUSTOM PROPERTIES (COLOR TOKENS)
-   ============================================================ */
-:root {
-  --bg: #07111f;
-  --surface: #0e1a2b;
-  --surface-elevated: #132238;
-  --ink: #edf3ff;
-  --muted: #8fa3c7;
-  --accent: #74c0fc;
-  --line: #223753;
-  --ok: #59d7a4;
-  --danger: #ff7b72;
-  --row-alt: #0b1520;
-  --row-hover: #0f1e30;
-  --row-unread-border: var(--ok);
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./table.css";
+
+/* Inter Variable, latin subset only (weight axis). Bundled into index.css so
+   the single-stylesheet e2e contract holds; other subsets are intentionally
+   dropped to keep the stylesheet lean. Falls back to the system stack. */
+@font-face {
+	font-family: "Inter Variable";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 100 900;
+	src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
+		format("woff2-variations");
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+		U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+		U+FEFF, U+FFFD;
+}
+
+/* Map design tokens to Tailwind utilities so themes flip via [data-theme]
+   with no dark: variants (bg-surface, text-muted, border-line, …). */
+@theme inline {
+	--color-bg: var(--bg);
+	--color-bg-subtle: var(--bg-subtle);
+	--color-surface: var(--surface);
+	--color-surface-raised: var(--surface-raised);
+	--color-overlay: var(--overlay);
+	--color-ink: var(--ink);
+	--color-ink-secondary: var(--ink-secondary);
+	--color-muted: var(--muted);
+	--color-line: var(--line);
+	--color-line-strong: var(--line-strong);
+	--color-accent: var(--accent);
+	--color-accent-hover: var(--accent-hover);
+	--color-accent-contrast: var(--accent-contrast);
+	--color-ok: var(--ok);
+	--color-danger: var(--danger);
+	--color-warning: var(--warning);
+	--color-row-alt: var(--row-alt);
+	--color-row-hover: var(--row-hover);
+
+	--radius-sm: var(--radius-sm);
+	--radius-md: var(--radius-md);
+	--radius-lg: var(--radius-lg);
+
+	--font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto,
+		sans-serif;
+	--font-mono: "Menlo", "Consolas", ui-monospace, monospace;
 }
 
 /* ============================================================
-   RESET & BASE
+   BASE
    ============================================================ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  min-height: 100dvh;
-  overflow-x: hidden;
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
 }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-button { cursor: pointer; }
-
-/* ============================================================
-   FORM CONTROLS
-   ============================================================ */
-select, button {
-  background: var(--surface-elevated);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 0.8rem;
-  font-family: inherit;
+html,
+body {
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--font-sans);
+	font-size: var(--text-md);
+	line-height: 1.5;
+	min-height: 100dvh;
+	overflow-x: hidden;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
 }
 
-select:focus, button:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+a {
+	color: var(--accent);
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: underline;
+}
+button {
+	cursor: pointer;
+	font-family: inherit;
 }
 
-button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-button:disabled { opacity: 0.6; cursor: default; }
+/* Tabular numerals for score/timestamp cells. */
+.tnum {
+	font-variant-numeric: tabular-nums;
+}
 
 kbd {
-  font-family: "Menlo", "Consolas", monospace;
-  font-size: 0.75rem;
-  padding: 1px 4px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--ink);
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	padding: 1px 5px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--surface-raised);
+	color: var(--ink);
+	box-shadow: var(--shadow-sm);
 }
 
-/* Set on document.body by useColumnResize during drag — must stay global */
+/* Set on document.body by the columnResize store during drag — global. */
 body.col-resizing,
 body.col-resizing * {
-  cursor: col-resize !important;
-  user-select: none !important;
+	cursor: col-resize !important;
+	user-select: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }

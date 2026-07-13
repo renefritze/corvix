@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/preact";
 import { afterEach, vi } from "vitest";
+
+// @testing-library/svelte auto-cleanup is registered by the svelteTesting()
+// Vite plugin (see vite.config.ts test mode), so no manual cleanup import is
+// needed here — only the environment globals the suites depend on.
 
 class ResizeObserverMock {
 	observe = vi.fn();
@@ -72,9 +75,33 @@ Object.defineProperty(globalThis.navigator, "clipboard", {
 	configurable: true,
 });
 
+// jsdom does not implement the Web Animations API. Svelte 5's built-in
+// transitions (fly/fade on toasts) call `element.animate`; without this stub
+// the call throws and bubbles into the nearest <svelte:boundary>. The stub
+// resolves immediately (fires onfinish) so outro transitions still remove nodes.
+if (typeof Element !== "undefined" && !Element.prototype.animate) {
+	Object.defineProperty(Element.prototype, "animate", {
+		writable: true,
+		configurable: true,
+		value: function animate() {
+			const animation = {
+				onfinish: null as null | (() => void),
+				oncancel: null as null | (() => void),
+				cancel() {},
+				finish() {},
+				play() {},
+				pause() {},
+				finished: Promise.resolve(),
+			};
+			queueMicrotask(() => animation.onfinish?.());
+			return animation as unknown as Animation;
+		},
+	});
+}
+
 afterEach(() => {
-	cleanup();
 	localStorage.clear();
+	sessionStorage.clear();
 	vi.clearAllMocks();
 	vi.restoreAllMocks();
 	vi.useRealTimers();

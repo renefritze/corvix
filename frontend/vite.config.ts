@@ -1,19 +1,15 @@
+/// <reference types="vitest/config" />
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
-import preact from "@preact/preset-vite";
 
 export default defineConfig(({ mode }) => ({
-  plugins: mode === "test" ? [] : [preact()],
-  // Pin the JSX runtime to Preact for Vite's built-in (oxc) transform. In test
-  // mode the preact preset is not loaded, and the *.test.tsx files are excluded
-  // from tsconfig.json, so the transform would otherwise default to React and
-  // emit an unresolvable `react/jsx-dev-runtime` import (regressed by Vite 8.1's
-  // oxc JSX handling honouring tsconfig include/exclude).
-  oxc: {
-    jsx: {
-      runtime: "automatic",
-      importSource: "preact",
-    },
-  },
+  plugins: [
+    svelte(),
+    tailwindcss(),
+    ...(mode === "test" ? [svelteTesting()] : []),
+  ],
   build: {
     outDir: "../src/corvix/web/static/assets",
     emptyOutDir: true,
@@ -34,7 +30,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
     lib: {
-      entry: "src/main.tsx",
+      entry: "src/main.ts",
       formats: ["es"],
       fileName: () => "app.js",
       cssFileName: "index",
@@ -49,20 +45,12 @@ export default defineConfig(({ mode }) => ({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    // Inline preact-router so it is transformed by Vite and shares the same
-    // (ESM) preact instance as the components under test; otherwise its CJS
-    // build pulls a separate preact copy and <Router> renders nothing.
-    server: {
-      deps: {
-        inline: ["preact-router"],
-      },
-    },
+    include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
-      include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/main.tsx", "src/test/**"],
+      include: ["src/**/*.{ts,svelte}"],
+      exclude: ["src/main.ts", "src/test/**", "src/api-types.gen.ts"],
       thresholds: {
         lines: 80,
         functions: 80,

@@ -58,7 +58,7 @@ def api_themes() -> dict[str, object]:
     return {"themes": THEMES}
 
 
-@get("/api/v1/dashboards")
+@get("/api/v1/dashboards", sync_to_thread=True)
 def dashboards() -> dict[str, object]:
     """List configured dashboard names."""
     config = _load_runtime_config()
@@ -66,13 +66,16 @@ def dashboards() -> dict[str, object]:
     return {"dashboard_names": names}
 
 
-@get("/api/v1/snapshot")
+@get("/api/v1/snapshot", sync_to_thread=True)
 def snapshot(dashboard: str | None = None) -> SnapshotResponse:
     """Return the selected dashboard data from storage."""
     return _snapshot_impl(dashboard=dashboard)
 
 
-@get("/api/v1/notifications/{account_id:str}/{thread_id:str}/rule-snippets")
+@get(
+    "/api/v1/notifications/{account_id:str}/{thread_id:str}/rule-snippets",
+    sync_to_thread=True,
+)
 def notification_rule_snippets(
     account_id: str,
     thread_id: str,

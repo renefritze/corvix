@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	UnauthorizedError,
 	dismissNotification,
@@ -5,12 +6,13 @@ import {
 	fetchSnapshot,
 	markNotificationRead,
 	setUnauthorizedHandler,
+	snapshotEventsUrl,
 } from "./api";
 import { makeSnapshot } from "./test/fixtures";
 import { mockResponse } from "./test/http";
 
 describe("api", () => {
-	it("fetchSnapshot returns payload", async () => {
+	it("fetchSnapshot returns payload and encodes the dashboard query", async () => {
 		const payload = makeSnapshot({ name: "triage" });
 		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			mockResponse({
@@ -19,11 +21,26 @@ describe("api", () => {
 			}),
 		);
 
-		await expect(fetchSnapshot("triage")).resolves.toEqual(payload);
-		expect(fetchMock).toHaveBeenCalledWith("/api/v1/snapshot?dashboard=triage");
+		await expect(fetchSnapshot("my board")).resolves.toEqual(payload);
+		expect(fetchMock).toHaveBeenCalledWith(
+			"/api/v1/snapshot?dashboard=my%20board",
+		);
 	});
 
-	it("fetchSnapshot throws on non-OK responses", async () => {
+	it("fetchSnapshot omits the query string without a dashboard", async () => {
+		const payload = makeSnapshot();
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			mockResponse({
+				ok: true,
+				json: async () => payload,
+			}),
+		);
+
+		await expect(fetchSnapshot()).resolves.toEqual(payload);
+		expect(fetchMock).toHaveBeenCalledWith("/api/v1/snapshot");
+	});
+
+	it("fetchSnapshot throws a generic error on non-OK responses", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			mockResponse({
 				ok: false,
@@ -34,7 +51,28 @@ describe("api", () => {
 		await expect(fetchSnapshot()).rejects.toThrow("Snapshot fetch failed: 500");
 	});
 
-	it("dismissNotification surfaces detail from JSON response", async () => {
+	it("snapshotEventsUrl builds the SSE url with and without a dashboard", () => {
+		expect(snapshotEventsUrl()).toBe("/api/v1/events");
+		expect(snapshotEventsUrl("my board")).toBe(
+			"/api/v1/events?dashboard=my%20board",
+		);
+	});
+
+	it("dismissNotification encodes ids and resolves on success", async () => {
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			mockResponse({ ok: true }),
+		);
+
+		await expect(
+			dismissNotification("primary", "thread/1"),
+		).resolves.toBeUndefined();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"/api/v1/notifications/primary/thread%2F1/dismiss",
+			{ method: "POST" },
+		);
+	});
+
+	it("dismissNotification surfaces detail from a JSON error response", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			mockResponse({
 				ok: false,
@@ -64,11 +102,23 @@ describe("api", () => {
 		);
 	});
 
-	it("markNotificationRead sends keepalive POST", async () => {
-		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+	it("ignores a non-string detail field and falls back to status", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			mockResponse({
-				ok: true,
+				ok: false,
+				status: 418,
+				json: async () => ({ detail: 123 }),
 			}),
+		);
+
+		await expect(dismissNotification("primary", "thread-3")).rejects.toThrow(
+			"Dismiss failed (418)",
+		);
+	});
+
+	it("markNotificationRead sends a keepalive POST", async () => {
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			mockResponse({ ok: true }),
 		);
 
 		await expect(
@@ -76,14 +126,21 @@ describe("api", () => {
 		).resolves.toBeUndefined();
 		expect(fetchMock).toHaveBeenCalledWith(
 			"/api/v1/notifications/primary/thread%2F3/mark-read",
-			{
-				method: "POST",
-				keepalive: true,
-			},
+			{ method: "POST", keepalive: true },
 		);
 	});
 
-	it("fetchRuleSnippets includes dashboard query and returns payload", async () => {
+	it("markNotificationRead throws a generic error on failure", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			mockResponse({ ok: false, status: 500 }),
+		);
+
+		await expect(markNotificationRead("primary", "t")).rejects.toThrow(
+			"Mark read failed: 500",
+		);
+	});
+
+	it("fetchRuleSnippets includes the dashboard query and returns payload", async () => {
 		const payload = {
 			dashboard_name: "overview",
 			dashboard_ignore_rule_snippet: '- repository_in: ["org/repo-a"]',
@@ -108,7 +165,21 @@ describe("api", () => {
 		);
 	});
 
-	it("fetchRuleSnippets surfaces detail from JSON error response", async () => {
+	it("fetchRuleSnippets omits the query without a dashboard", async () => {
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			mockResponse({
+				ok: true,
+				json: async () => ({}),
+			}),
+		);
+
+		await fetchRuleSnippets("primary", "thread-6");
+		expect(fetchMock).toHaveBeenCalledWith(
+			"/api/v1/notifications/primary/thread-6/rule-snippets",
+		);
+	});
+
+	it("fetchRuleSnippets surfaces detail from a JSON error response", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			mockResponse({
 				ok: false,
@@ -155,7 +226,7 @@ describe("api", () => {
 			await expect(fetchSnapshot()).rejects.toBeInstanceOf(UnauthorizedError);
 		});
 
-		it("carries status and detail message on the UnauthorizedError", async () => {
+		it("carries status and detail message on a 403 UnauthorizedError", async () => {
 			vi.spyOn(globalThis, "fetch").mockResolvedValue(
 				mockResponse({
 					ok: false,
@@ -184,9 +255,9 @@ describe("api", () => {
 				}),
 			);
 
-			await expect(markNotificationRead("primary", "thread-1")).rejects.toThrow(
-				"Your session has expired or you are not signed in.",
-			);
+			await expect(
+				markNotificationRead("primary", "thread-1"),
+			).rejects.toThrow("Your session has expired or you are not signed in.");
 		});
 
 		it("notifies the registered handler on a 401 and supports unsubscribe", async () => {
@@ -210,6 +281,28 @@ describe("api", () => {
 			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
+		it("unsubscribe only clears the handler while it is still active", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValue(
+				mockResponse({
+					ok: false,
+					status: 401,
+					json: async () => ({ detail: "nope" }),
+				}),
+			);
+
+			const first = vi.fn();
+			const second = vi.fn();
+			const unsubscribeFirst = setUnauthorizedHandler(first);
+			setUnauthorizedHandler(second);
+
+			// `first` is no longer the active handler, so its unsubscribe is a no-op.
+			unsubscribeFirst();
+
+			await expect(fetchSnapshot()).rejects.toBeInstanceOf(UnauthorizedError);
+			expect(first).not.toHaveBeenCalled();
+			expect(second).toHaveBeenCalledTimes(1);
+		});
+
 		it("does not treat non-auth errors as UnauthorizedError", async () => {
 			vi.spyOn(globalThis, "fetch").mockResolvedValue(
 				mockResponse({
@@ -221,8 +314,12 @@ describe("api", () => {
 			const handler = vi.fn();
 			setUnauthorizedHandler(handler);
 
-			await expect(fetchSnapshot()).rejects.toThrow("Snapshot fetch failed: 500");
-			await expect(fetchSnapshot()).rejects.not.toBeInstanceOf(UnauthorizedError);
+			await expect(fetchSnapshot()).rejects.toThrow(
+				"Snapshot fetch failed: 500",
+			);
+			await expect(fetchSnapshot()).rejects.not.toBeInstanceOf(
+				UnauthorizedError,
+			);
 			expect(handler).not.toHaveBeenCalled();
 		});
 	});
