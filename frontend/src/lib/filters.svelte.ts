@@ -23,7 +23,7 @@ function filtersToQuery(filters: FilterState): Record<string, string | null> {
 }
 
 export class FiltersStore {
-	#router: Router;
+	readonly #router: Router;
 
 	constructor(router: Router) {
 		this.#router = router;

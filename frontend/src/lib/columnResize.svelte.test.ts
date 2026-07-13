@@ -237,12 +237,14 @@ describe("ColumnResizeStore", () => {
 	it("bind persistence no-ops when window is undefined", () => {
 		vi.stubGlobal("window", undefined);
 		try {
-			const { dispose: d } = root(() => {
-				const s = new ColumnResizeStore();
-				s.bind();
-				return s;
-			});
-			d();
+			expect(() => {
+				const { dispose: d } = root(() => {
+					const s = new ColumnResizeStore();
+					s.bind();
+					return s;
+				});
+				d();
+			}).not.toThrow();
 		} finally {
 			vi.unstubAllGlobals();
 		}

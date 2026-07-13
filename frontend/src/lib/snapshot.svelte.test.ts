@@ -196,7 +196,7 @@ describe("SnapshotStore (polling path, no EventSource)", () => {
 		dispose = undefined;
 
 		await vi.advanceTimersByTimeAsync(60_000);
-		expect(vi.mocked(api.fetchSnapshot).mock.calls.length).toBe(calls);
+		expect(vi.mocked(api.fetchSnapshot).mock.calls).toHaveLength(calls);
 	});
 
 	it("reloads when the reactive dashboard key changes", async () => {
@@ -355,7 +355,7 @@ describe("SnapshotStore (SSE path)", () => {
 		// Transient error (still connecting) must NOT start polling.
 		source.emitConnectionError(FakeEventSource.CONNECTING);
 		await vi.advanceTimersByTimeAsync(30_000);
-		expect(vi.mocked(api.fetchSnapshot).mock.calls.length).toBe(
+		expect(vi.mocked(api.fetchSnapshot).mock.calls).toHaveLength(
 			callsAfterInitial,
 		);
 
@@ -379,7 +379,7 @@ describe("SnapshotStore (SSE path)", () => {
 		// Only one interval running: one auto poll fired in this window.
 		const calls = vi.mocked(api.fetchSnapshot).mock.calls.length;
 		await vi.advanceTimersByTimeAsync(15_000);
-		expect(vi.mocked(api.fetchSnapshot).mock.calls.length).toBe(calls + 1);
+		expect(vi.mocked(api.fetchSnapshot).mock.calls).toHaveLength(calls + 1);
 	});
 
 	it("closes the EventSource and ignores late events after dispose", () => {
@@ -408,6 +408,6 @@ describe("SnapshotStore (SSE path)", () => {
 		dispose = undefined;
 		source.emitConnectionError(FakeEventSource.CLOSED);
 		await vi.advanceTimersByTimeAsync(30_000);
-		expect(vi.mocked(api.fetchSnapshot).mock.calls.length).toBe(callsBefore);
+		expect(vi.mocked(api.fetchSnapshot).mock.calls).toHaveLength(callsBefore);
 	});
 });

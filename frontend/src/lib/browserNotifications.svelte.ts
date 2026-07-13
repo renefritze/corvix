@@ -97,10 +97,10 @@ function saveUserEnabled(value: boolean): void {
 export class BrowserNotificationsStore {
 	permission = $state<NotifPermission>("unsupported");
 	#userEnabled = $state(false);
-	#getItems: () => DashboardItem[];
-	#getConfig: () => BrowserTabNotificationsConfig | null;
+	readonly #getItems: () => DashboardItem[];
+	readonly #getConfig: () => BrowserTabNotificationsConfig | null;
 
-	#seen: SeenMap = loadSeen();
+	readonly #seen: SeenMap = loadSeen();
 	#cooldownUntil = 0;
 	#channel: BroadcastChannel | null = null;
 

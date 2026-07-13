@@ -95,7 +95,7 @@ export class ColumnResizeStore {
 		}
 	}
 
-	#onMouseMove = (event: MouseEvent): void => {
+	readonly #onMouseMove = (event: MouseEvent): void => {
 		const drag = this.#drag;
 		if (!drag) return;
 		const delta = event.clientX - drag.startX;

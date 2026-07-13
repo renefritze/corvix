@@ -50,7 +50,7 @@ export class SnapshotStore {
 		return this.manualRefreshing || this.autoRefreshing;
 	}
 
-	#load = async (mode: LoadMode = "manual"): Promise<void> => {
+	readonly #load = async (mode: LoadMode = "manual"): Promise<void> => {
 		if (this.#inFlight) {
 			this.#needsReload = true;
 			if (

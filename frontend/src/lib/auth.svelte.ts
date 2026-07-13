@@ -11,7 +11,7 @@ import type { AuthStatus } from "../types";
 export class AuthStore {
 	status = $state<AuthStatus>("authenticated");
 	message = $state<string | null>(null);
-	#cleanup: () => void;
+	readonly #cleanup: () => void;
 
 	constructor() {
 		this.#cleanup = setUnauthorizedHandler((error: UnauthorizedError) => {

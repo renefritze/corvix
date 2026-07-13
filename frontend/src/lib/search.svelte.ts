@@ -7,7 +7,7 @@ import type { Router } from "./router.svelte";
 import type { DashboardItem } from "../types";
 
 export class SearchStore {
-	#router: Router;
+	readonly #router: Router;
 
 	constructor(router: Router) {
 		this.#router = router;

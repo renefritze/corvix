@@ -18,7 +18,7 @@ export class IgnoreRuleStore {
 	snippets = $state<RuleSnippetsPayload | null>(null);
 	loading = $state(false);
 	error = $state<string | null>(null);
-	#getDashboard: () => string | null;
+	readonly #getDashboard: () => string | null;
 
 	constructor(getDashboard: () => string | null) {
 		this.#getDashboard = getDashboard;

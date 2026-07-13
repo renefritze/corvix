@@ -18,7 +18,7 @@ function mapDashboardSortToColumn(sortBy: string): SortColumn {
 }
 
 export class FilterSortStore {
-	#getSnapshot: () => SnapshotPayload | null;
+	readonly #getSnapshot: () => SnapshotPayload | null;
 	filters: FiltersStore;
 	sort: SortStore;
 

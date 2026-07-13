@@ -29,9 +29,9 @@ function readDirectionFromUrl(router: Router): SortDirection | undefined {
 }
 
 export class SortStore {
-	#router: Router;
-	#seedColumn: () => SortColumn;
-	#seedDir: () => SortDirection;
+	readonly #router: Router;
+	readonly #seedColumn: () => SortColumn;
+	readonly #seedDir: () => SortDirection;
 
 	constructor(
 		router: Router,
