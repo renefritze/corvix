@@ -56,6 +56,33 @@ dashboards:
     assert config.dashboards[0].ignore_rules[0].reason_in == ["subscribed"]
 
 
+def test_load_config_parses_rule_score_multiplier_reason_not_in_and_login(tmp_path: Path) -> None:
+    config_path = tmp_path / "corvix.yaml"
+    config_path.write_text(
+        """
+github:
+  accounts:
+    - id: primary
+      login: octocat
+
+rules:
+  global:
+    - name: downweight
+      match:
+        reason_not_in: ["mention"]
+      score_multiplier: 0.1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config.github.accounts[0].login == "octocat"
+    rule = config.rules.global_rules[0]
+    assert rule.score_multiplier == pytest.approx(0.1)
+    assert rule.match.reason_not_in == ["mention"]
+
+
 def test_config_parses_database_section(tmp_path: Path) -> None:
     config_file = tmp_path / "corvix.yaml"
     config_file.write_text(

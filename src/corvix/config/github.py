@@ -21,6 +21,9 @@ class GitHubAccountConfig:
     label: str
     token_env: str
     api_base_url: str = DEFAULT_GITHUB_API_BASE_URL
+    # GitHub username of this account; enables viewer-aware rule context
+    # (github.pr_state.viewer_is_author / viewer_review_state). Optional.
+    login: str = ""
 
 
 @dataclass(slots=True)
@@ -79,12 +82,14 @@ def _parse_github(value: object) -> GitHubConfig:
             fallback_api_base_url,
             f"github.accounts[{index}].api_base_url",
         )
+        login = _get_str(account, "login", "", f"github.accounts[{index}].login").strip()
         accounts.append(
             GitHubAccountConfig(
                 id=account_id,
                 label=label,
                 token_env=token_env,
                 api_base_url=api_base_url,
+                login=login,
             )
         )
     return GitHubConfig(accounts=accounts)
