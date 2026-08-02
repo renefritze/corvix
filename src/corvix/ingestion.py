@@ -72,6 +72,7 @@ class GitHubNotificationsClient:
     account_id: str = "primary"
     account_label: str = "Primary"
     request_timeout_seconds: float = 30.0
+    account_login: str = ""
 
     def fetch_notifications(self, polling: PollingConfig) -> list[Notification]:
         """Fetch notifications with pagination."""

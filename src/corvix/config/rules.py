@@ -36,6 +36,7 @@ class MatchCriteria:
     repository_in: list[str] = field(default_factory=list)
     repository_glob: list[str] = field(default_factory=list)
     reason_in: list[str] = field(default_factory=list)
+    reason_not_in: list[str] = field(default_factory=list)
     subject_type_in: list[str] = field(default_factory=list)
     title_contains_any: list[str] = field(default_factory=list)
     title_regex: str | None = None
@@ -60,6 +61,7 @@ class Rule:
     match: MatchCriteria = field(default_factory=MatchCriteria)
     actions: list[RuleAction] = field(default_factory=list)
     exclude_from_dashboards: bool = False
+    score_multiplier: float | None = None
 
 
 @dataclass(slots=True)
@@ -83,6 +85,7 @@ def _parse_match(value: object, *, section: str = "match") -> MatchCriteria:
         repository_in=_to_str_list(match.get("repository_in")),
         repository_glob=_to_str_list(match.get("repository_glob")),
         reason_in=_to_str_list(match.get("reason_in")),
+        reason_not_in=_to_str_list(match.get("reason_not_in")),
         subject_type_in=_to_str_list(match.get("subject_type_in")),
         title_contains_any=_to_str_list(match.get("title_contains_any")),
         title_regex=title_regex,
@@ -166,4 +169,5 @@ def _parse_rule(value: object) -> Rule:
             False,
             "rule.exclude_from_dashboards",
         ),
+        score_multiplier=_get_optional_float(rule_map, "score_multiplier", "rule.score_multiplier"),
     )

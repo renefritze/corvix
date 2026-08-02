@@ -24,6 +24,7 @@ class RuleEvaluation:
     matched_rules: list[str] = field(default_factory=list)
     actions: list[RuleAction] = field(default_factory=list)
     excluded: bool = False
+    score_multiplier: float = 1.0
 
 
 def evaluate_rules(
@@ -39,6 +40,7 @@ def evaluate_rules(
     matched_rules: list[str] = []
     actions: list[RuleAction] = []
     excluded = False
+    score_multiplier = 1.0
     active_context = context if context is not None else {}
     for rule in candidate_rules:
         if not matches_criteria(rule.match, notification, score, current_time, context=active_context):
@@ -46,7 +48,15 @@ def evaluate_rules(
         matched_rules.append(rule.name)
         actions.extend(rule.actions)
         excluded = excluded or rule.exclude_from_dashboards
-    return RuleEvaluation(matched_rules=matched_rules, actions=actions, excluded=excluded)
+        if rule.score_multiplier is not None:
+            # Last matching multiplier wins; order rules from general to specific.
+            score_multiplier = rule.score_multiplier
+    return RuleEvaluation(
+        matched_rules=matched_rules,
+        actions=actions,
+        excluded=excluded,
+        score_multiplier=score_multiplier,
+    )
 
 
 def matches_criteria(
@@ -78,6 +88,7 @@ def matches_criteria(
         (not criteria.repository_in or notification.repository in criteria.repository_in)
         and repository_glob_matches
         and (not criteria.reason_in or notification.reason in criteria.reason_in)
+        and (not criteria.reason_not_in or notification.reason not in criteria.reason_not_in)
         and (not criteria.subject_type_in or notification.subject_type in criteria.subject_type_in)
         and title_matches_tokens
         and regex_matches
