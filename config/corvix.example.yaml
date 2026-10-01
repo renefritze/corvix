@@ -14,6 +14,10 @@ github:
     token_env: GITHUB_TOKEN
     # GitHub API base URL (default github.com public API endpoint).
     api_base_url: https://api.github.com
+    # Optional GitHub username for viewer-aware rule context:
+    # github.pr_state.viewer_is_author / viewer_review_state
+    # (requires one extra reviews request per PR notification).
+    login: your-github-username
 
 # Polling behavior for fetching notifications from GitHub.
 polling:
@@ -94,6 +98,9 @@ rules:
     - type: mark_read
     # Hide matching records from dashboards while still processing them.
     exclude_from_dashboards: true
+    # Optional score multiplier applied to matching records. When several
+    # matching rules set one, the last matching rule in config order wins.
+    # score_multiplier: 0.1
   - name: mute-oasys-release-tags
     match:
       # Glob patterns matched against repository full_name.
@@ -126,6 +133,7 @@ rules:
   - name: mute-codecov-comments
     match:
       # Restrict by reason values from GitHub notifications API.
+      # (reason_not_in: [...] is the inverse exclusion filter.)
       reason_in: ["comment"]
       context:
       - path: github.latest_comment.author.login

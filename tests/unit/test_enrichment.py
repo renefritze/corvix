@@ -39,11 +39,12 @@ def _notification(
 
 
 class _FakeClient(JsonFetchClient):
-    def __init__(self, responses: dict[str, JsonValue], account_id: str = "primary") -> None:
+    def __init__(self, responses: dict[str, JsonValue], account_id: str = "primary", account_login: str = "") -> None:
         self.responses = responses
         self.calls: list[str] = []
         self.api_base_url = "https://api.example.com"
         self.account_id = account_id
+        self.account_login = account_login
 
     def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
         self.calls.append(url)
@@ -160,6 +161,7 @@ def test_pr_state_provider_enriches_open_pr() -> None:
         "merged": False,
         "draft": False,
         "author": {"login": "alice"},
+        "labels": [],
     }
 
 
@@ -226,3 +228,130 @@ def test_pr_state_provider_ignores_malformed_payload() -> None:
     )
 
     assert payload == {}
+
+
+def test_pr_state_provider_enriches_labels_and_viewer_context() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/321"
+    client = _FakeClient(
+        responses={
+            subject_url: {
+                "state": "open",
+                "merged": False,
+                "draft": False,
+                "user": {"login": "alice"},
+                "labels": [{"name": "security"}, {"name": "dependencies"}, "malformed"],
+            },
+            f"{subject_url}/reviews?per_page=100": [
+                {"user": {"login": "bob"}, "state": "CHANGES_REQUESTED"},
+                {"user": {"login": "rene"}, "state": "APPROVED"},
+                # COMMENTED does not erase the standing approval.
+                {"user": {"login": "rene"}, "state": "COMMENTED"},
+            ],
+        },
+        account_login="rene",
+    )
+    context = PipelineContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload["labels"] == ["security", "dependencies"]
+    assert payload["viewer_is_author"] is False
+    assert payload["viewer_review_state"] == "APPROVED"
+
+
+def test_pr_state_provider_viewer_review_state_tracks_latest_decisive_review() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/654"
+    client = _FakeClient(
+        responses={
+            subject_url: {
+                "state": "open",
+                "merged": False,
+                "draft": False,
+                "user": {"login": "Rene"},
+            },
+            f"{subject_url}/reviews?per_page=100": [
+                {"user": {"login": "rene"}, "state": "APPROVED"},
+                # Approval invalidated by a later dismissal.
+                {"user": {"login": "rene"}, "state": "DISMISSED"},
+            ],
+        },
+        account_login="rene",
+    )
+    context = PipelineContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    # Author comparison is case-insensitive.
+    assert payload["viewer_is_author"] is True
+    assert payload["viewer_review_state"] == "DISMISSED"
+
+
+def test_pr_state_provider_omits_viewer_fields_without_login() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/111"
+    client = _FakeClient(
+        responses={
+            subject_url: {
+                "state": "open",
+                "merged": False,
+                "draft": False,
+                "user": {"login": "alice"},
+            }
+        }
+    )
+    context = PipelineContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert "viewer_is_author" not in payload
+    assert "viewer_review_state" not in payload
+    # No reviews request is made when no account login is configured.
+    assert client.calls == [subject_url]
+
+
+def test_pr_state_provider_viewer_review_state_none_on_fetch_failure() -> None:
+    provider = GitHubPRStateProvider(timeout_seconds=2.0)
+    subject_url = "https://api.example.com/repos/org/repo/pulls/222"
+
+    class _FailingClient(_FakeClient):
+        def fetch_json_url(self, url: str, timeout_seconds: float = 30.0) -> JsonValue:
+            if url.endswith("/reviews?per_page=100"):
+                msg = "boom"
+                raise RuntimeError(msg)
+            return super().fetch_json_url(url, timeout_seconds)
+
+    client = _FailingClient(
+        responses={
+            subject_url: {
+                "state": "open",
+                "merged": False,
+                "draft": False,
+                "user": {"login": "alice"},
+            }
+        },
+        account_login="rene",
+    )
+    context = PipelineContext(max_requests_per_cycle=10)
+
+    payload = provider.enrich(
+        notification=_notification(subject_type="PullRequest", subject_url=subject_url),
+        client=client,
+        ctx=context,
+    )
+
+    assert payload["viewer_review_state"] == "NONE"
+    assert payload["state"] == "open"

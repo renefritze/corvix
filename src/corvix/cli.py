@@ -341,6 +341,7 @@ def _build_clients(accounts: list[GitHubAccountConfig], polling: PollingConfig) 
                 account_id=account.id,
                 account_label=account.label,
                 request_timeout_seconds=polling.request_timeout_seconds,
+                account_login=account.login,
             )
         )
     return tuple(clients)

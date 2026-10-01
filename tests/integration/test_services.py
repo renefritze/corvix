@@ -29,6 +29,7 @@ from corvix.config import (
 )
 from corvix.domain import AccountError, Notification, NotificationRecord, PollerStatus
 from corvix.notifications.models import DeliveryResult, NotificationEvent
+from corvix.scoring import score_notification
 from corvix.services import PollCycleInput, _select_dashboards, render_cached_dashboards, run_poll_cycle, run_watch_loop
 from corvix.types import JsonValue
 from tests.support.storage import JsonFileStorage
@@ -776,6 +777,44 @@ def test_poll_cycle_pr_state_provider_included_when_enabled(tmp_path: Path) -> N
     assert len(records) == 1
     pr_state = records[0].context.get("github", {}).get("pr_state", {})
     assert pr_state.get("state") == "open"
+
+
+def test_poll_cycle_applies_rule_score_multiplier(tmp_path: Path) -> None:
+    """Rule score_multiplier scales the persisted record score."""
+    now = datetime.now(tz=UTC)
+    cache_path = tmp_path / "notifications.json"
+    config = _build_config(cache_path=cache_path)
+    config.rules = RuleSet(global_rules=[Rule(name="down", match=MatchCriteria(), score_multiplier=0.1)])
+    notifications = [
+        Notification(
+            thread_id="1",
+            repository="org/repo",
+            reason="mention",
+            subject_title="Ping",
+            subject_type="Issue",
+            unread=True,
+            updated_at=now,
+            thread_url="https://api.example.com/notifications/threads/1",
+        )
+    ]
+    client = FakeClient(notifications)
+    cache = JsonFileStorage(path=cache_path)
+
+    summary = run_poll_cycle(
+        PollCycleInput(
+            config=config,
+            client=client,
+            cache=cache,
+            apply_actions=False,
+            now=now,
+        )
+    )
+
+    assert summary.fetched == 1
+    _, records = cache.load()
+    assert len(records) == 1
+    base_score = score_notification(notification=notifications[0], config=config.scoring, now=now)
+    assert records[0].score == pytest.approx(base_score * 0.1)
 
 
 # --- _select_dashboards ---

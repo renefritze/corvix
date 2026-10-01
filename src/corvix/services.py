@@ -254,7 +254,7 @@ def _process_notifications(
         )
         record = NotificationRecord(
             notification=notification,
-            score=score,
+            score=score * evaluation.score_multiplier,
             excluded=evaluation.excluded,
             matched_rules=tuple(evaluation.matched_rules),
             context=record_context,

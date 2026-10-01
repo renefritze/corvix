@@ -380,3 +380,38 @@ def test_multiple_matching_rules_all_collected() -> None:
 def test_now_defaults_to_current_time() -> None:
     result = evaluate_rules(_make_notification(), score=0.0, rules=RuleSet())
     assert result.matched_rules == []
+
+
+def test_reason_not_in_match() -> None:
+    assert (
+        matches_criteria(
+            MatchCriteria(reason_not_in=["author"]), _make_notification(reason="mention"), score=0.0, now=NOW
+        )
+        is True
+    )
+
+
+def test_reason_not_in_no_match() -> None:
+    assert (
+        matches_criteria(
+            MatchCriteria(reason_not_in=["author"]), _make_notification(reason="author"), score=0.0, now=NOW
+        )
+        is False
+    )
+
+
+def test_score_multiplier_last_matching_rule_wins() -> None:
+    rules = RuleSet(
+        global_rules=[
+            Rule(name="down", match=MatchCriteria(), score_multiplier=0.1),
+            Rule(name="boost", match=MatchCriteria(), score_multiplier=2.0),
+        ]
+    )
+    result = evaluate_rules(_make_notification(), score=10.0, rules=rules, now=NOW)
+    assert result.score_multiplier == 2.0
+
+
+def test_score_multiplier_defaults_to_one_without_matching_multiplier() -> None:
+    rules = RuleSet(global_rules=[Rule(name="plain", match=MatchCriteria())])
+    result = evaluate_rules(_make_notification(), score=10.0, rules=rules, now=NOW)
+    assert result.score_multiplier == 1.0
