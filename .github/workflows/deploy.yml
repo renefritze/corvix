@@ -16,12 +16,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
       with:
         node-version: '22'
         cache: npm
         cache-dependency-path: frontend/package-lock.json
-    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+    - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
       name: Setup UV + Python
       with:
         enable-cache: true
@@ -46,7 +46,7 @@ jobs:
         print("Wheel assets OK")
         PY
     - name: Publish distribution 📦 to PyPI
-      uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+      uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
       with:
         user: __token__
         password: ${{ secrets.PYPI_TOKEN }}
